@@ -1,29 +1,57 @@
 import type { Player } from "../../domain/fantasy/entities/Player";
 
+type PlayerState = "none" | "starter" | "bench";
+
 type PlayerRowProps = {
   player: Player;
-  selected: boolean;
-  onToggle: (playerId: string) => void;
+  state: PlayerState;
+  canStart: boolean;
+  canBench: boolean;
+  onStart: (playerId: string) => void;
+  onBench: (playerId: string) => void;
+  onRemove: (playerId: string) => void;
 };
 
-export const PlayerRow = ({ player, selected, onToggle }: PlayerRowProps) => {
+export const PlayerRow = ({
+  player,
+  state,
+  canStart,
+  canBench,
+  onStart,
+  onBench,
+  onRemove
+}: PlayerRowProps) => {
   return (
-    <button
-      type="button"
-      className={`player-row ${selected ? "selected" : ""}`}
-      onClick={() => onToggle(player.id)}
-    >
-      <span>
+    <article className="player-row">
+      <div>
         <strong>{player.name}</strong>
         <small>
-          {player.club} · {player.position}
+          {player.club} · {player.position} · {player.price.toFixed(1)}
         </small>
-      </span>
+      </div>
 
-      <span>
-        <strong>{player.price.toFixed(1)}</strong>
-        <small>{player.projectedPoints.toFixed(1)} pts</small>
-      </span>
-    </button>
+      <div className="player-actions">
+        <span className={`player-state state-${state}`}>{state.toUpperCase()}</span>
+        <button
+          type="button"
+          className="small-button"
+          disabled={!canStart}
+          onClick={() => onStart(player.id)}
+        >
+          Start
+        </button>
+        <button
+          type="button"
+          className="small-button"
+          disabled={!canBench}
+          onClick={() => onBench(player.id)}
+        >
+          Bench
+        </button>
+        <button type="button" className="small-button ghost-button" onClick={() => onRemove(player.id)}>
+          Remove
+        </button>
+      </div>
+    </article>
   );
 };

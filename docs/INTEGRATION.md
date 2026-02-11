@@ -40,7 +40,10 @@ Client mapping:
 ## Contract Assumptions
 
 - Auth response includes access token, refresh token, expiry, and user profile.
-- Lineup saves must validate formation and captain/vice-captain constraints.
+- Lineup saves must validate:
+  - starters: 11 players (`GK=1`, `DEF 2..5`, `MID <=5`, `FWD <=3`)
+  - substitutes: exactly 5 players, no overlap with starters
+  - captain/vice-captain must be in starters and must be different
 - Date fields are ISO-8601 UTC timestamps.
 
 ## Production Readiness Checklist

@@ -69,7 +69,7 @@ Copy `.env.example` to `.env` and adjust:
 
 - Login page with mocked credentials (`password123`)
 - Dashboard overview
-- Team builder with lineup validation (1-4-4-2)
+- Team builder with pitch view, adjustable formation, and 5-player bench
 - Fixtures list by league
 - Leagues page (multi-league preview)
 

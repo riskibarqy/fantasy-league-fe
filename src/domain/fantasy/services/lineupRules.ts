@@ -1,45 +1,65 @@
 import type { Player } from "../entities/Player";
 import type { TeamLineup } from "../entities/Team";
 
-const REQUIRED_COUNTS = {
-  GK: 1,
-  DEF: 4,
-  MID: 4,
-  FWD: 2
+export const FORMATION_LIMITS = {
+  GK: { min: 1, max: 1 },
+  DEF: { min: 2, max: 5 },
+  MID: { min: 0, max: 5 },
+  FWD: { min: 0, max: 3 }
 } as const;
 
-export const TEAM_SIZE =
-  REQUIRED_COUNTS.GK + REQUIRED_COUNTS.DEF + REQUIRED_COUNTS.MID + REQUIRED_COUNTS.FWD;
+export const STARTER_SIZE = 11;
+export const SUBSTITUTE_SIZE = 5;
+export const SQUAD_SIZE = STARTER_SIZE + SUBSTITUTE_SIZE;
 
 export const validateLineup = (
   lineup: TeamLineup,
   playersById: Map<string, Player>
 ): { valid: boolean; reason?: string } => {
-  const selectedIds = [
+  const starterIds = [
     lineup.goalkeeperId,
     ...lineup.defenderIds,
     ...lineup.midfielderIds,
     ...lineup.forwardIds
   ];
+  const substituteIds = lineup.substituteIds;
+  const squadIds = [...starterIds, ...substituteIds];
 
-  const uniqueIds = new Set(selectedIds);
-  if (selectedIds.length !== TEAM_SIZE || uniqueIds.size !== TEAM_SIZE) {
-    return { valid: false, reason: "Lineup must have 11 unique players." };
+  const uniqueStarterIds = new Set(starterIds);
+  if (starterIds.length !== STARTER_SIZE || uniqueStarterIds.size !== STARTER_SIZE) {
+    return { valid: false, reason: "Starting lineup must have 11 unique players." };
   }
 
-  if (lineup.defenderIds.length !== REQUIRED_COUNTS.DEF) {
-    return { valid: false, reason: "Lineup must include exactly 4 defenders." };
+  if (lineup.substituteIds.length !== SUBSTITUTE_SIZE) {
+    return { valid: false, reason: "Substitute bench must contain exactly 5 players." };
   }
 
-  if (lineup.midfielderIds.length !== REQUIRED_COUNTS.MID) {
-    return { valid: false, reason: "Lineup must include exactly 4 midfielders." };
+  // Bench can contain any position but cannot include starting players.
+  if (substituteIds.some((id) => uniqueStarterIds.has(id))) {
+    return { valid: false, reason: "Substitutes must be different from starters." };
   }
 
-  if (lineup.forwardIds.length !== REQUIRED_COUNTS.FWD) {
-    return { valid: false, reason: "Lineup must include exactly 2 forwards." };
+  const uniqueSquadIds = new Set(squadIds);
+  if (squadIds.length !== SQUAD_SIZE || uniqueSquadIds.size !== SQUAD_SIZE) {
+    return { valid: false, reason: "Squad must contain 16 unique players (11 starters + 5 subs)." };
   }
 
-  if (!uniqueIds.has(lineup.captainId) || !uniqueIds.has(lineup.viceCaptainId)) {
+  if (
+    lineup.defenderIds.length < FORMATION_LIMITS.DEF.min ||
+    lineup.defenderIds.length > FORMATION_LIMITS.DEF.max
+  ) {
+    return { valid: false, reason: "Defender count must be between 2 and 5." };
+  }
+
+  if (lineup.midfielderIds.length > FORMATION_LIMITS.MID.max) {
+    return { valid: false, reason: "Midfielder count must not exceed 5." };
+  }
+
+  if (lineup.forwardIds.length > FORMATION_LIMITS.FWD.max) {
+    return { valid: false, reason: "Forward count must not exceed 3." };
+  }
+
+  if (!uniqueStarterIds.has(lineup.captainId) || !uniqueStarterIds.has(lineup.viceCaptainId)) {
     return { valid: false, reason: "Captain and vice captain must be in lineup." };
   }
 
@@ -47,7 +67,7 @@ export const validateLineup = (
     return { valid: false, reason: "Captain and vice captain must be different." };
   }
 
-  for (const playerId of selectedIds) {
+  for (const playerId of squadIds) {
     const player = playersById.get(playerId);
 
     if (!player) {

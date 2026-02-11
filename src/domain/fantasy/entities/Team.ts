@@ -4,6 +4,7 @@ export type TeamLineup = {
   defenderIds: string[];
   midfielderIds: string[];
   forwardIds: string[];
+  substituteIds: string[];
   captainId: string;
   viceCaptainId: string;
   updatedAt: string;

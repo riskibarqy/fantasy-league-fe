@@ -72,6 +72,17 @@ export const mockPlayers: Player[] = [
     isInjured: false
   },
   {
+    id: "idn-gk-2",
+    leagueId: "idn-liga-1",
+    name: "Nadeo Argawinata",
+    club: "Borneo FC",
+    position: "GK",
+    price: 5,
+    form: 6.8,
+    projectedPoints: 4.9,
+    isInjured: false
+  },
+  {
     id: "idn-def-1",
     leagueId: "idn-liga-1",
     name: "Rizky Ridho",
@@ -113,6 +124,28 @@ export const mockPlayers: Player[] = [
     price: 5.1,
     form: 5.9,
     projectedPoints: 4.4,
+    isInjured: false
+  },
+  {
+    id: "idn-def-5",
+    leagueId: "idn-liga-1",
+    name: "Yance Sayuri",
+    club: "Malut United",
+    position: "DEF",
+    price: 5.6,
+    form: 6.4,
+    projectedPoints: 4.9,
+    isInjured: false
+  },
+  {
+    id: "idn-def-6",
+    leagueId: "idn-liga-1",
+    name: "Rezaldi Hehanussa",
+    club: "Persib Bandung",
+    position: "DEF",
+    price: 5.4,
+    form: 6.2,
+    projectedPoints: 4.7,
     isInjured: false
   },
   {
@@ -160,6 +193,28 @@ export const mockPlayers: Player[] = [
     isInjured: false
   },
   {
+    id: "idn-mid-5",
+    leagueId: "idn-liga-1",
+    name: "Ricky Kambuaya",
+    club: "Dewa United",
+    position: "MID",
+    price: 7.1,
+    form: 6.9,
+    projectedPoints: 5.3,
+    isInjured: false
+  },
+  {
+    id: "idn-mid-6",
+    leagueId: "idn-liga-1",
+    name: "Egy Maulana",
+    club: "Dewa United",
+    position: "MID",
+    price: 7.3,
+    form: 7,
+    projectedPoints: 5.5,
+    isInjured: false
+  },
+  {
     id: "idn-fwd-1",
     leagueId: "idn-liga-1",
     name: "David da Silva",
@@ -182,6 +237,29 @@ export const mockPlayers: Player[] = [
     isInjured: false
   },
   {
+    id: "idn-fwd-3",
+    leagueId: "idn-liga-1",
+    name: "Ciro Alves",
+    club: "Persib Bandung",
+    position: "FWD",
+    price: 8.4,
+    form: 7.8,
+    projectedPoints: 6.5,
+    isInjured: false
+  },
+  {
+    id: "idn-fwd-4",
+    leagueId: "idn-liga-1",
+    name: "Stefano Lilipaly",
+    club: "Borneo FC",
+    position: "FWD",
+    price: 8.1,
+    form: 7.3,
+    projectedPoints: 6,
+    isInjured: false
+  },
+
+  {
     id: "eng-gk-1",
     leagueId: "eng-premier-league",
     name: "Alisson Becker",
@@ -190,6 +268,171 @@ export const mockPlayers: Player[] = [
     price: 6,
     form: 7.4,
     projectedPoints: 5.6,
+    isInjured: false
+  },
+  {
+    id: "eng-gk-2",
+    leagueId: "eng-premier-league",
+    name: "David Raya",
+    club: "Arsenal",
+    position: "GK",
+    price: 5.8,
+    form: 7.1,
+    projectedPoints: 5.3,
+    isInjured: false
+  },
+  {
+    id: "eng-def-1",
+    leagueId: "eng-premier-league",
+    name: "Virgil van Dijk",
+    club: "Liverpool",
+    position: "DEF",
+    price: 7,
+    form: 8,
+    projectedPoints: 6.1,
+    isInjured: false
+  },
+  {
+    id: "eng-def-2",
+    leagueId: "eng-premier-league",
+    name: "William Saliba",
+    club: "Arsenal",
+    position: "DEF",
+    price: 6.7,
+    form: 7.7,
+    projectedPoints: 5.8,
+    isInjured: false
+  },
+  {
+    id: "eng-def-3",
+    leagueId: "eng-premier-league",
+    name: "Trent Alexander-Arnold",
+    club: "Liverpool",
+    position: "DEF",
+    price: 7.4,
+    form: 7.9,
+    projectedPoints: 6.2,
+    isInjured: false
+  },
+  {
+    id: "eng-def-4",
+    leagueId: "eng-premier-league",
+    name: "Ben White",
+    club: "Arsenal",
+    position: "DEF",
+    price: 6.2,
+    form: 7,
+    projectedPoints: 5.5,
+    isInjured: false
+  },
+  {
+    id: "eng-def-5",
+    leagueId: "eng-premier-league",
+    name: "Andy Robertson",
+    club: "Liverpool",
+    position: "DEF",
+    price: 6.6,
+    form: 7.3,
+    projectedPoints: 5.7,
+    isInjured: false
+  },
+  {
+    id: "eng-mid-1",
+    leagueId: "eng-premier-league",
+    name: "Martin Odegaard",
+    club: "Arsenal",
+    position: "MID",
+    price: 9.1,
+    form: 8.2,
+    projectedPoints: 6.8,
+    isInjured: false
+  },
+  {
+    id: "eng-mid-2",
+    leagueId: "eng-premier-league",
+    name: "Bukayo Saka",
+    club: "Arsenal",
+    position: "MID",
+    price: 10.4,
+    form: 8.6,
+    projectedPoints: 7.4,
+    isInjured: false
+  },
+  {
+    id: "eng-mid-3",
+    leagueId: "eng-premier-league",
+    name: "Dominik Szoboszlai",
+    club: "Liverpool",
+    position: "MID",
+    price: 8,
+    form: 7.5,
+    projectedPoints: 6.1,
+    isInjured: false
+  },
+  {
+    id: "eng-mid-4",
+    leagueId: "eng-premier-league",
+    name: "Alexis Mac Allister",
+    club: "Liverpool",
+    position: "MID",
+    price: 7.5,
+    form: 7.2,
+    projectedPoints: 5.8,
+    isInjured: false
+  },
+  {
+    id: "eng-mid-5",
+    leagueId: "eng-premier-league",
+    name: "Declan Rice",
+    club: "Arsenal",
+    position: "MID",
+    price: 7.1,
+    form: 7,
+    projectedPoints: 5.6,
+    isInjured: false
+  },
+  {
+    id: "eng-fwd-1",
+    leagueId: "eng-premier-league",
+    name: "Mohamed Salah",
+    club: "Liverpool",
+    position: "FWD",
+    price: 12.8,
+    form: 9,
+    projectedPoints: 8,
+    isInjured: false
+  },
+  {
+    id: "eng-fwd-2",
+    leagueId: "eng-premier-league",
+    name: "Darwin Nunez",
+    club: "Liverpool",
+    position: "FWD",
+    price: 8.5,
+    form: 7.4,
+    projectedPoints: 6.2,
+    isInjured: false
+  },
+  {
+    id: "eng-fwd-3",
+    leagueId: "eng-premier-league",
+    name: "Gabriel Jesus",
+    club: "Arsenal",
+    position: "FWD",
+    price: 8.4,
+    form: 7.1,
+    projectedPoints: 6,
+    isInjured: false
+  },
+  {
+    id: "eng-fwd-4",
+    leagueId: "eng-premier-league",
+    name: "Kai Havertz",
+    club: "Arsenal",
+    position: "FWD",
+    price: 8.1,
+    form: 7.2,
+    projectedPoints: 6.1,
     isInjured: false
   }
 ];
@@ -200,6 +443,7 @@ export const defaultLineup: TeamLineup = {
   defenderIds: ["idn-def-1", "idn-def-2", "idn-def-3", "idn-def-4"],
   midfielderIds: ["idn-mid-1", "idn-mid-2", "idn-mid-3", "idn-mid-4"],
   forwardIds: ["idn-fwd-1", "idn-fwd-2"],
+  substituteIds: ["idn-gk-2", "idn-def-5", "idn-mid-5", "idn-mid-6", "idn-fwd-3"],
   captainId: "idn-fwd-1",
   viceCaptainId: "idn-mid-1",
   updatedAt: "2026-02-10T06:00:00.000Z"
