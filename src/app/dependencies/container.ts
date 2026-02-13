@@ -1,5 +1,6 @@
 import { appEnv } from "../config/env";
 import { LoginWithPassword } from "../../application/auth/usecases/LoginWithPassword";
+import { LoginWithGoogleIdToken } from "../../application/auth/usecases/LoginWithGoogleIdToken";
 import { Logout } from "../../application/auth/usecases/Logout";
 import { GetDashboard } from "../../application/fantasy/usecases/GetDashboard";
 import { GetFixtures } from "../../application/fantasy/usecases/GetFixtures";
@@ -25,7 +26,7 @@ const buildRepositories = () => {
   const fantasyClient = new HttpClient(appEnv.fantasyApiBaseUrl);
 
   return {
-    authRepository: new HttpAuthRepository(anubisClient),
+    authRepository: new HttpAuthRepository(anubisClient, appEnv.anubisAppId),
     fantasyRepository: new HttpFantasyRepository(fantasyClient)
   };
 };
@@ -35,6 +36,7 @@ export const buildContainer = () => {
 
   return {
     loginWithPassword: new LoginWithPassword(repositories.authRepository),
+    loginWithGoogleIdToken: new LoginWithGoogleIdToken(repositories.authRepository),
     logout: new Logout(repositories.authRepository),
     getDashboard: new GetDashboard(repositories.fantasyRepository),
     getLeagues: new GetLeagues(repositories.fantasyRepository),

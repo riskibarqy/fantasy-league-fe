@@ -4,6 +4,7 @@ import type { AuthRepository } from "../../../domain/auth/repositories/AuthRepos
 
 const authRepositoryStub = (): AuthRepository => ({
   loginWithPassword: vi.fn(),
+  loginWithGoogleIdToken: vi.fn(),
   logout: vi.fn()
 });
 

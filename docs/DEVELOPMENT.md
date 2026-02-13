@@ -40,6 +40,8 @@ Base variables from `.env.example`:
 
 - `VITE_USE_MOCKS=true`: run mock mode
 - `VITE_ANUBIS_BASE_URL=http://localhost:8081`: auth service
+- `VITE_ANUBIS_APP_ID=<uuid>`: target app id in Anubis
+- `VITE_GOOGLE_CLIENT_ID=<google-client-id>`: Google Identity Services client id
 - `VITE_FANTASY_API_BASE_URL=http://localhost:8080`: fantasy backend
 
 If backend services are unavailable, keep `VITE_USE_MOCKS=true`.

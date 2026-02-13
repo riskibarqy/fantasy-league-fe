@@ -14,13 +14,15 @@ Set in `.env`:
 ```bash
 VITE_USE_MOCKS=false
 VITE_ANUBIS_BASE_URL=http://localhost:8081
+VITE_ANUBIS_APP_ID=00000000-0000-0000-0000-000000000000
+VITE_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 VITE_FANTASY_API_BASE_URL=http://localhost:8080
 ```
 
 ## Expected Auth Endpoints (Anubis)
 
-- `POST /v1/auth/login`
-- `POST /v1/auth/logout`
+- `POST /v1/apps/{app_id}/sessions` (email/password)
+- `POST /v1/apps/{app_id}/sessions/google` (Google id_token; handles login/signup)
 
 Client mapping:
 - `/Users/riskiramdan/ts/fantasy-league-fe/src/infrastructure/auth/HttpAuthRepository.ts`

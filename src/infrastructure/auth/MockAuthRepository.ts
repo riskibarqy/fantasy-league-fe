@@ -26,6 +26,25 @@ export class MockAuthRepository implements AuthRepository {
   async logout(_accessToken: string): Promise<void> {
     await delay(100);
   }
+
+  async loginWithGoogleIdToken(idToken: string): Promise<AuthSession> {
+    await delay(350);
+
+    if (!idToken.trim()) {
+      throw new Error("Google token is invalid.");
+    }
+
+    return {
+      accessToken: "mock-google-access-token",
+      refreshToken: "mock-google-refresh-token",
+      expiresAt: new Date(Date.now() + 3600 * 1000).toISOString(),
+      user: {
+        id: "mock-google-user-1",
+        email: "google.user@fantasy.id",
+        displayName: "Google Manager"
+      }
+    };
+  }
 }
 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));

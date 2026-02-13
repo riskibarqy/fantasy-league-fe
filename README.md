@@ -63,6 +63,8 @@ Copy `.env.example` to `.env` and adjust:
 - `VITE_USE_MOCKS=true` to use mock repositories (default, backend not required)
 - `VITE_USE_MOCKS=false` to call real services
 - `VITE_ANUBIS_BASE_URL` points to `../../rust/anubis` runtime URL
+- `VITE_ANUBIS_APP_ID` Anubis app UUID used for session endpoints
+- `VITE_GOOGLE_CLIENT_ID` Google Identity Services client ID
 - `VITE_FANTASY_API_BASE_URL` points to `../../go/fantasy-league` runtime URL
 
 ## Current Mock Scope
@@ -78,8 +80,8 @@ Copy `.env.example` to `.env` and adjust:
 ### Anubis Auth (`../../rust/anubis`)
 
 Expected endpoints (placeholder contract):
-- `POST /v1/auth/login`
-- `POST /v1/auth/logout`
+- `POST /v1/apps/:app_id/sessions`
+- `POST /v1/apps/:app_id/sessions/google`
 
 ### Fantasy Backend (`../../go/fantasy-league`)
 
