@@ -10,6 +10,12 @@ import { useSession } from "../hooks/useSession";
 
 type TeamMode = "PAT" | "TRF";
 type Position = Player["position"];
+type SlotZone = "GK" | "DEF" | "MID" | "FWD" | "BENCH";
+
+type SlotPickerTarget = {
+  zone: SlotZone;
+  index: number;
+};
 
 type PitchRow = {
   label: Position;
@@ -41,6 +47,64 @@ const createEmptyLineup = (leagueId: string): TeamLineup => ({
   viceCaptainId: "",
   updatedAt: new Date().toISOString()
 });
+
+const assignAt = (ids: string[], index: number, value: string): string[] => {
+  const next = [...ids];
+  while (next.length <= index) {
+    next.push("");
+  }
+  next[index] = value;
+  return next;
+};
+
+const getPlayerIdAtTarget = (lineup: TeamLineup, target: SlotPickerTarget): string => {
+  switch (target.zone) {
+    case "GK":
+      return lineup.goalkeeperId;
+    case "DEF":
+      return lineup.defenderIds[target.index] ?? "";
+    case "MID":
+      return lineup.midfielderIds[target.index] ?? "";
+    case "FWD":
+      return lineup.forwardIds[target.index] ?? "";
+    case "BENCH":
+      return lineup.substituteIds[target.index] ?? "";
+  }
+};
+
+const assignPlayerToTarget = (
+  lineup: TeamLineup,
+  target: SlotPickerTarget,
+  playerId: string
+): TeamLineup => {
+  switch (target.zone) {
+    case "GK":
+      return {
+        ...lineup,
+        goalkeeperId: playerId
+      };
+    case "DEF":
+      return {
+        ...lineup,
+        defenderIds: assignAt(lineup.defenderIds, target.index, playerId)
+      };
+    case "MID":
+      return {
+        ...lineup,
+        midfielderIds: assignAt(lineup.midfielderIds, target.index, playerId)
+      };
+    case "FWD":
+      return {
+        ...lineup,
+        forwardIds: assignAt(lineup.forwardIds, target.index, playerId)
+      };
+    case "BENCH":
+      return {
+        ...lineup,
+        substituteIds: assignAt(lineup.substituteIds, target.index, playerId)
+      };
+  }
+};
 
 const getStarterIds = (lineup: TeamLineup): string[] => {
   return [lineup.goalkeeperId, ...lineup.defenderIds, ...lineup.midfielderIds, ...lineup.forwardIds].filter(Boolean);
@@ -167,6 +231,7 @@ export const TeamBuilderPage = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+  const [slotPickerTarget, setSlotPickerTarget] = useState<SlotPickerTarget | null>(null);
 
   const playersById = useMemo(() => new Map(players.map((player) => [player.id, player])), [players]);
 
@@ -269,6 +334,7 @@ export const TeamBuilderPage = () => {
         const normalized = normalizeLineup(selectedLeagueId, resolvedLineup);
         setLineup(normalized);
         setSelectedPlayerId(null);
+        setSlotPickerTarget(null);
 
         const nearestKickoff = [...fixturesResult]
           .sort((left, right) => new Date(left.kickoffAt).getTime() - new Date(right.kickoffAt).getTime())[0]?.kickoffAt ?? null;
@@ -349,6 +415,39 @@ export const TeamBuilderPage = () => {
 
     return playersById.get(selectedPlayerId) ?? null;
   }, [playersById, selectedPlayerId]);
+
+  const slotPickerCandidates = useMemo(() => {
+    if (!slotPickerTarget || !lineup) {
+      return [];
+    }
+
+    const currentTargetPlayerId = getPlayerIdAtTarget(lineup, slotPickerTarget);
+    const usedIds = new Set(
+      [...starterIds, ...lineup.substituteIds].filter((id) => id && id !== currentTargetPlayerId)
+    );
+
+    const candidates = players.filter((player) => {
+      const positionMatch =
+        slotPickerTarget.zone === "BENCH" ? true : player.position === slotPickerTarget.zone;
+      if (!positionMatch) {
+        return false;
+      }
+
+      return !usedIds.has(player.id);
+    });
+
+    return sortByProjectedDesc(candidates);
+  }, [lineup, players, slotPickerTarget, starterIds]);
+
+  const slotPickerTitle = useMemo(() => {
+    if (!slotPickerTarget) {
+      return "";
+    }
+
+    return slotPickerTarget.zone === "BENCH"
+      ? `Pick Bench Player ${slotPickerTarget.index + 1}`
+      : `Pick ${slotPickerTarget.zone} Player ${slotPickerTarget.index + 1}`;
+  }, [slotPickerTarget]);
 
   const selectedPlayerIsStarter = useMemo(() => {
     if (!selectedPlayer || !lineup) {
@@ -500,8 +599,26 @@ export const TeamBuilderPage = () => {
     ];
   }, [players, playersById, squadIds]);
 
-  const renderPitchCard = (player: Player | null, isCaptain: boolean, isViceCaptain: boolean, emptyLabel: string) => {
+  const renderPitchCard = (
+    player: Player | null,
+    isCaptain: boolean,
+    isViceCaptain: boolean,
+    emptyLabel: string,
+    onEmptyClick?: () => void
+  ) => {
     if (!player) {
+      if (onEmptyClick) {
+        return (
+          <button
+            type="button"
+            className="fpl-player-card empty-slot player-card-button pick-slot-button"
+            onClick={onEmptyClick}
+          >
+            <span>{`Pick ${emptyLabel}`}</span>
+          </button>
+        );
+      }
+
       return (
         <div className="fpl-player-card empty-slot">
           <span>{emptyLabel}</span>
@@ -536,7 +653,11 @@ export const TeamBuilderPage = () => {
     );
   };
 
-  const renderPitch = (rows: PitchRow[], showLeadershipBadges: boolean) => {
+  const renderPitch = (
+    rows: PitchRow[],
+    showLeadershipBadges: boolean,
+    allowSlotPicking: boolean
+  ) => {
     return (
       <div className="fpl-pitch-stage">
         <div className="pitch-top-boards">
@@ -556,6 +677,16 @@ export const TeamBuilderPage = () => {
               {Array.from({ length: row.slots }).map((_, index) => {
                 const playerId = row.ids[index];
                 const player = playerId ? playersById.get(playerId) ?? null : null;
+                const onEmptyClick =
+                  allowSlotPicking && !player
+                    ? () => {
+                        setSelectedPlayerId(null);
+                        setSlotPickerTarget({
+                          zone: row.label,
+                          index
+                        });
+                      }
+                    : undefined;
 
                 const isCaptain = showLeadershipBadges && Boolean(lineup && player && lineup.captainId === player.id);
                 const isViceCaptain =
@@ -563,7 +694,7 @@ export const TeamBuilderPage = () => {
 
                 return (
                   <div key={`${row.label}-${index}`}>
-                    {renderPitchCard(player, isCaptain, isViceCaptain, row.label)}
+                    {renderPitchCard(player, isCaptain, isViceCaptain, row.label, onEmptyClick)}
                   </div>
                 );
               })}
@@ -628,6 +759,22 @@ export const TeamBuilderPage = () => {
         captainId: previous.captainId === selectedPlayer.id ? "" : previous.captainId
       };
     });
+  };
+
+  const onPickPlayerFromList = (playerId: string) => {
+    if (!lineup || !slotPickerTarget) {
+      return;
+    }
+
+    const player = playersById.get(playerId);
+    if (!player) {
+      return;
+    }
+
+    const nextLineup = ensureLeadership(assignPlayerToTarget(lineup, slotPickerTarget, playerId));
+    setLineup(nextLineup);
+    setSlotPickerTarget(null);
+    setInfoMessage(`${player.name} added to ${slotPickerTarget.zone} slot.`);
   };
 
   return (
@@ -741,7 +888,7 @@ export const TeamBuilderPage = () => {
       </section>
 
       <section className="fpl-board card">
-        {mode === "PAT" ? renderPitch(patRows, true) : renderPitch(trfRows, false)}
+        {mode === "PAT" ? renderPitch(patRows, true, true) : renderPitch(trfRows, false, false)}
 
         {mode === "PAT" ? (
           <div className="fpl-bench">
@@ -753,9 +900,20 @@ export const TeamBuilderPage = () => {
 
                 if (!player) {
                   return (
-                    <div key={`bench-${index}`} className="bench-card empty-slot">
-                      Bench
-                    </div>
+                    <button
+                      key={`bench-${index}`}
+                      type="button"
+                      className="bench-card empty-slot player-card-button pick-slot-button"
+                      onClick={() => {
+                        setSelectedPlayerId(null);
+                        setSlotPickerTarget({
+                          zone: "BENCH",
+                          index
+                        });
+                      }}
+                    >
+                      Pick Bench
+                    </button>
                   );
                 }
 
@@ -781,6 +939,45 @@ export const TeamBuilderPage = () => {
           </div>
         ) : null}
       </section>
+
+      {slotPickerTarget ? (
+        <div className="player-modal-overlay" onClick={() => setSlotPickerTarget(null)}>
+          <section className="player-modal card slot-picker-modal" onClick={(event) => event.stopPropagation()}>
+            <button
+              type="button"
+              className="player-modal-close ghost-button"
+              onClick={() => setSlotPickerTarget(null)}
+            >
+              Close
+            </button>
+
+            <div>
+              <h3>{slotPickerTitle}</h3>
+              <p className="muted">Select a player and place directly into this field slot.</p>
+            </div>
+
+            <div className="slot-picker-list">
+              {slotPickerCandidates.map((player) => (
+                <button
+                  key={player.id}
+                  type="button"
+                  className="slot-picker-item"
+                  onClick={() => onPickPlayerFromList(player.id)}
+                >
+                  <span>{player.name}</span>
+                  <small>{player.club}</small>
+                  <small>{player.position}</small>
+                  <strong>£{player.price.toFixed(1)}</strong>
+                </button>
+              ))}
+            </div>
+
+            {slotPickerCandidates.length === 0 ? (
+              <p className="muted">No available player for this slot.</p>
+            ) : null}
+          </section>
+        </div>
+      ) : null}
 
       {selectedPlayer ? (
         <div className="player-modal-overlay" onClick={() => setSelectedPlayerId(null)}>

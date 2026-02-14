@@ -568,6 +568,15 @@ button:disabled {
   border-radius: 8px;
 }
 
+.pick-slot-button {
+  cursor: pointer;
+}
+
+.pick-slot-button:hover {
+  border-color: rgba(110, 234, 184, 0.8);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.32), inset 0 0 0 1px rgba(110, 234, 184, 0.32);
+}
+
 .shirt-holder {
   position: relative;
   width: 54px;
@@ -751,6 +760,52 @@ button:disabled {
   position: relative;
   display: grid;
   gap: 0.9rem;
+}
+
+.slot-picker-modal {
+  width: min(100%, 560px);
+}
+
+.slot-picker-list {
+  display: grid;
+  gap: 0.45rem;
+  max-height: min(58vh, 480px);
+  overflow-y: auto;
+  padding-right: 0.15rem;
+}
+
+.slot-picker-item {
+  appearance: none;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(9, 23, 40, 0.74);
+  color: inherit;
+  padding: 0.6rem 0.7rem;
+  text-align: left;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.2rem 0.6rem;
+  cursor: pointer;
+}
+
+.slot-picker-item span {
+  font-weight: 700;
+}
+
+.slot-picker-item small {
+  color: #b9cbe8;
+  font-size: 0.75rem;
+}
+
+.slot-picker-item strong {
+  align-self: center;
+  justify-self: end;
+  color: #c0f4da;
+}
+
+.slot-picker-item:hover {
+  border-color: rgba(110, 234, 184, 0.8);
+  box-shadow: inset 0 0 0 1px rgba(110, 234, 184, 0.25);
 }
 
 .player-modal-close {
