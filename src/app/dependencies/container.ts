@@ -6,7 +6,9 @@ import { GetDashboard } from "../../application/fantasy/usecases/GetDashboard";
 import { GetFixtures } from "../../application/fantasy/usecases/GetFixtures";
 import { GetLeagues } from "../../application/fantasy/usecases/GetLeagues";
 import { GetLineup } from "../../application/fantasy/usecases/GetLineup";
+import { GetMySquad } from "../../application/fantasy/usecases/GetMySquad";
 import { GetPlayers } from "../../application/fantasy/usecases/GetPlayers";
+import { PickSquad } from "../../application/fantasy/usecases/PickSquad";
 import { SaveLineup } from "../../application/fantasy/usecases/SaveLineup";
 import { HttpAuthRepository } from "../../infrastructure/auth/HttpAuthRepository";
 import { MockAuthRepository } from "../../infrastructure/auth/MockAuthRepository";
@@ -43,6 +45,8 @@ export const buildContainer = () => {
     getFixtures: new GetFixtures(repositories.fantasyRepository),
     getPlayers: new GetPlayers(repositories.fantasyRepository),
     getLineup: new GetLineup(repositories.fantasyRepository),
+    getMySquad: new GetMySquad(repositories.fantasyRepository),
+    pickSquad: new PickSquad(repositories.fantasyRepository),
     saveLineup: new SaveLineup(repositories.fantasyRepository)
   };
 };

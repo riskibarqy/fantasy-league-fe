@@ -3,6 +3,7 @@ import type { Dashboard, TeamLineup } from "../../domain/fantasy/entities/Team";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
 import type { League } from "../../domain/fantasy/entities/League";
 import type { Player } from "../../domain/fantasy/entities/Player";
+import type { PickSquadInput, Squad } from "../../domain/fantasy/entities/Squad";
 import {
   defaultLineup,
   mockDashboard,
@@ -12,6 +13,7 @@ import {
 } from "../mocks/data";
 
 const STORAGE_KEY = "fantasy-mock-lineups";
+const SQUAD_STORAGE_KEY = "fantasy-mock-squads";
 
 export class MockFantasyRepository implements FantasyRepository {
   async getDashboard(): Promise<Dashboard> {
@@ -53,6 +55,61 @@ export class MockFantasyRepository implements FantasyRepository {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     return lineup;
   }
+
+  async getMySquad(leagueId: string, _accessToken: string): Promise<Squad | null> {
+    await delay(200);
+    const squads = readStoredSquads();
+    return squads[leagueId] ?? null;
+  }
+
+  async pickSquad(input: PickSquadInput, _accessToken: string): Promise<Squad> {
+    await delay(280);
+
+    const playersById = new Map(
+      mockPlayers
+        .filter((player) => player.leagueId === input.leagueId)
+        .map((player) => [player.id, player])
+    );
+
+    const picks = input.playerIds
+      .map((id) => playersById.get(id))
+      .filter((player): player is Player => Boolean(player))
+      .map((player) => ({
+        playerId: player.id,
+        teamId: player.club,
+        position: player.position,
+        price: Math.round(player.price * 10)
+      }));
+
+    if (picks.length === 0) {
+      throw new Error("No players can be picked for this league.");
+    }
+
+    const totalCost = picks.reduce((sum, pick) => sum + pick.price, 0);
+
+    const squad: Squad = {
+      id: `mock-squad-${input.leagueId}`,
+      userId: "mock-user",
+      leagueId: input.leagueId,
+      name: input.squadName?.trim() || "My Squad",
+      budgetCap: 1000,
+      totalCost,
+      picks,
+      createdAtUtc: new Date().toISOString(),
+      updatedAtUtc: new Date().toISOString()
+    };
+
+    const squads = readStoredSquads();
+    localStorage.setItem(
+      SQUAD_STORAGE_KEY,
+      JSON.stringify({
+        ...squads,
+        [input.leagueId]: squad
+      })
+    );
+
+    return squad;
+  }
 }
 
 const readStoredLineups = (): Record<string, TeamLineup> => {
@@ -63,6 +120,19 @@ const readStoredLineups = (): Record<string, TeamLineup> => {
 
   try {
     return JSON.parse(raw) as Record<string, TeamLineup>;
+  } catch {
+    return {};
+  }
+};
+
+const readStoredSquads = (): Record<string, Squad> => {
+  const raw = localStorage.getItem(SQUAD_STORAGE_KEY);
+  if (!raw) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(raw) as Record<string, Squad>;
   } catch {
     return {};
   }

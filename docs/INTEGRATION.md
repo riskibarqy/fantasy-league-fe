@@ -37,6 +37,8 @@ Client mapping:
 - `GET /v1/leagues/:leagueId/players`
 - `GET /v1/leagues/:leagueId/lineup`
 - `PUT /v1/leagues/:leagueId/lineup`
+- `GET /v1/fantasy/squads/me?league_id={leagueId}` (requires `Authorization: Bearer <token>`)
+- `POST /v1/fantasy/squads/picks` (requires `Authorization: Bearer <token>`)
 
 Client mapping:
 - `/Users/riskiramdan/ts/fantasy-league-fe/src/infrastructure/fantasy/HttpFantasyRepository.ts`
@@ -44,6 +46,9 @@ Client mapping:
 ## Contract Assumptions
 
 - Auth response includes access token, refresh token, expiry, and user profile.
+- API responses are wrapped using Google-style envelope:
+  - success: `{ "apiVersion": "2.0", "data": ... }`
+  - error: `{ "apiVersion": "2.0", "error": ... }`
 - Lineup saves must validate:
   - starters: 11 players (`GK=1`, `DEF 2..5`, `MID <=5`, `FWD <=3`)
   - substitutes: exactly 5 players, no overlap with starters

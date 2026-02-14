@@ -5,6 +5,8 @@ import type { Player } from "../../domain/fantasy/entities/Player";
 import type { TeamLineup } from "../../domain/fantasy/entities/Team";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
 import { SUBSTITUTE_SIZE } from "../../domain/fantasy/services/lineupRules";
+import { buildLineupFromPlayers, pickAutoSquadPlayerIds } from "../../domain/fantasy/services/squadBuilder";
+import { useSession } from "../hooks/useSession";
 
 type TeamMode = "PAT" | "TRF";
 type Position = Player["position"];
@@ -150,7 +152,9 @@ const toSelectedPercentage = (playerId: string): number => {
 };
 
 export const TeamBuilderPage = () => {
-  const { getLeagues, getPlayers, getLineup, getDashboard, getFixtures } = useContainer();
+  const { getLeagues, getPlayers, getLineup, getDashboard, getFixtures, getMySquad, pickSquad } =
+    useContainer();
+  const { session } = useSession();
 
   const [mode, setMode] = useState<TeamMode>("PAT");
   const [leagues, setLeagues] = useState<League[]>([]);
@@ -221,7 +225,48 @@ export const TeamBuilderPage = () => {
         setPlayers(playersResult);
         setFixtures(fixturesResult);
 
-        const normalized = normalizeLineup(selectedLeagueId, lineupResult);
+        let resolvedLineup = lineupResult;
+        let fallbackMessage: string | null = null;
+
+        if (!resolvedLineup && playersResult.length > 0) {
+          const accessToken = session?.accessToken?.trim() ?? "";
+
+          if (accessToken) {
+            try {
+              let squadResult = await getMySquad.execute(selectedLeagueId, accessToken);
+              if (!squadResult) {
+                const playerIds = pickAutoSquadPlayerIds(playersResult);
+                squadResult = await pickSquad.execute(
+                  {
+                    leagueId: selectedLeagueId,
+                    playerIds
+                  },
+                  accessToken
+                );
+                fallbackMessage = "Squad was empty. Auto-picked players and synced to Fantasy API.";
+              } else {
+                fallbackMessage = "Loaded lineup from your current squad.";
+              }
+
+              resolvedLineup = buildLineupFromPlayers(
+                selectedLeagueId,
+                playersResult,
+                squadResult.picks.map((pick) => pick.playerId)
+              );
+            } catch (error) {
+              const message =
+                error instanceof Error ? error.message : "Unknown error while syncing squad.";
+
+              fallbackMessage = `Squad sync failed (${message}). Showing generated lineup from players.`;
+              resolvedLineup = buildLineupFromPlayers(selectedLeagueId, playersResult);
+            }
+          } else {
+            fallbackMessage = "No saved lineup yet. Showing generated lineup from available players.";
+            resolvedLineup = buildLineupFromPlayers(selectedLeagueId, playersResult);
+          }
+        }
+
+        const normalized = normalizeLineup(selectedLeagueId, resolvedLineup);
         setLineup(normalized);
         setSelectedPlayerId(null);
 
@@ -235,6 +280,8 @@ export const TeamBuilderPage = () => {
 
         if (lineupResult) {
           setInfoMessage(`Last saved at ${new Date(lineupResult.updatedAt).toLocaleString("id-ID")}`);
+        } else if (fallbackMessage) {
+          setInfoMessage(fallbackMessage);
         } else {
           setInfoMessage("No lineup saved for this league yet.");
         }
@@ -254,7 +301,7 @@ export const TeamBuilderPage = () => {
     return () => {
       mounted = false;
     };
-  }, [getFixtures, getLineup, getPlayers, selectedLeagueId]);
+  }, [getFixtures, getLineup, getMySquad, getPlayers, pickSquad, selectedLeagueId, session?.accessToken]);
 
   const starterIds = useMemo(() => (lineup ? getStarterIds(lineup) : []), [lineup]);
 

@@ -112,6 +112,8 @@ Expected endpoints (placeholder contract):
 - `GET /v1/leagues/:leagueId/players`
 - `GET /v1/leagues/:leagueId/lineup`
 - `PUT /v1/leagues/:leagueId/lineup`
+- `GET /v1/fantasy/squads/me?league_id={leagueId}` (requires bearer token)
+- `POST /v1/fantasy/squads/picks` (requires bearer token)
 
 ## Scaling Notes
 

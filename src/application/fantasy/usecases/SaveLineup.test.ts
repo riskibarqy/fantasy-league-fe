@@ -9,7 +9,9 @@ const fantasyRepositoryStub = (): FantasyRepository => ({
   getFixtures: vi.fn(),
   getPlayers: vi.fn(),
   getLineup: vi.fn(),
-  saveLineup: vi.fn()
+  saveLineup: vi.fn(),
+  getMySquad: vi.fn(),
+  pickSquad: vi.fn()
 });
 
 describe("SaveLineup", () => {
