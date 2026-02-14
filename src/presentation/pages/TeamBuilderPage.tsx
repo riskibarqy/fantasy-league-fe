@@ -251,7 +251,14 @@ export const TeamBuilderPage = () => {
 
         setLeagues(leaguesResult);
         setGameweek(dashboardResult.gameweek);
-        setSelectedLeagueId((current) => current || dashboardResult.selectedLeagueId || leaguesResult[0]?.id || "");
+        const isValidLeagueId = (leagueId: string): boolean =>
+          leaguesResult.some((league) => league.id === leagueId);
+
+        const preferredLeagueId = isValidLeagueId(dashboardResult.selectedLeagueId)
+          ? dashboardResult.selectedLeagueId
+          : leaguesResult[0]?.id ?? "";
+
+        setSelectedLeagueId((current) => (isValidLeagueId(current) ? current : preferredLeagueId));
       } catch (error) {
         if (!mounted) {
           return;
