@@ -19,6 +19,8 @@ VITE_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 VITE_FANTASY_API_BASE_URL=http://localhost:8080
 ```
 
+For Vercel, set the same `VITE_*` variables in Project Settings -> Environment Variables.
+
 ## Expected Auth Endpoints (Anubis)
 
 - `POST /v1/apps/{app_id}/sessions` (email/password)
@@ -54,3 +56,9 @@ Client mapping:
 2. Add token refresh strategy and 401 retry behavior.
 3. Add centralized error mapping from API -> UX message.
 4. Add request tracing/correlation id support if backend provides it.
+
+## Vercel Notes
+
+- This project is a static Vite build (no server runtime required).
+- Dockerfile is not required for Vercel.
+- SPA route fallback is handled via `/Users/riskiramdan/ts/fantasy-league-fe/vercel.json`.

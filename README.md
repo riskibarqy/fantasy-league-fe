@@ -67,6 +67,26 @@ Copy `.env.example` to `.env` and adjust:
 - `VITE_GOOGLE_CLIENT_ID` Google Identity Services client ID
 - `VITE_FANTASY_API_BASE_URL` points to `../../go/fantasy-league` runtime URL
 
+## Deploy To Vercel
+
+- Use Framework Preset: `Vite`
+- Build Command: `npm run build`
+- Output Directory: `dist`
+- Install Command: `npm install`
+- Node.js version: `20.x` (recommended)
+
+Set these Environment Variables in Vercel Project Settings:
+
+- `VITE_USE_MOCKS`
+- `VITE_ANUBIS_BASE_URL`
+- `VITE_ANUBIS_APP_ID`
+- `VITE_GOOGLE_CLIENT_ID`
+- `VITE_FANTASY_API_BASE_URL`
+
+Notes:
+- Dockerfile is not required for Vercel deployment.
+- `vercel.json` includes SPA rewrite so direct URLs like `/team` do not 404.
+
 ## Current Mock Scope
 
 - Login page with mocked credentials (`password123`)
