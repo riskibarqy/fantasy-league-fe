@@ -17,6 +17,8 @@ type SlotPickerTarget = {
   index: number;
 };
 
+const PLAYERS_CACHE_KEY = "fantasy-players-cache";
+
 type PitchRow = {
   label: Position;
   slots: number;
@@ -215,6 +217,55 @@ const toSelectedPercentage = (playerId: string): number => {
   return Number(Math.min(value, 89.9).toFixed(1));
 };
 
+const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function withRetry<T>(run: () => Promise<T>, retries: number): Promise<T> {
+  let attempt = 0;
+  let lastError: unknown;
+
+  while (attempt <= retries) {
+    try {
+      return await run();
+    } catch (error) {
+      lastError = error;
+      if (attempt === retries) {
+        break;
+      }
+
+      await delay(250 * (attempt + 1));
+      attempt += 1;
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Request failed.");
+}
+
+const readPlayersCache = (leagueId: string): Player[] => {
+  try {
+    const raw = localStorage.getItem(PLAYERS_CACHE_KEY);
+    if (!raw) {
+      return [];
+    }
+
+    const cache = JSON.parse(raw) as Record<string, Player[]>;
+    const players = cache[leagueId];
+    return Array.isArray(players) ? players : [];
+  } catch {
+    return [];
+  }
+};
+
+const writePlayersCache = (leagueId: string, players: Player[]): void => {
+  try {
+    const raw = localStorage.getItem(PLAYERS_CACHE_KEY);
+    const cache = raw ? (JSON.parse(raw) as Record<string, Player[]>) : {};
+    cache[leagueId] = players;
+    localStorage.setItem(PLAYERS_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    return;
+  }
+};
+
 export const TeamBuilderPage = () => {
   const { getLeagues, getPlayers, getLineup, getDashboard, getFixtures, getMySquad, pickSquad } =
     useContainer();
@@ -284,8 +335,11 @@ export const TeamBuilderPage = () => {
 
     const loadLeagueData = async () => {
       try {
-        const [playersResult, lineupResult, fixturesResult] = await Promise.all([
-          getPlayers.execute(selectedLeagueId),
+        const playersResultRaw = await withRetry(
+          () => getPlayers.execute(selectedLeagueId),
+          2
+        );
+        const [lineupResultRaw, fixturesResultRaw] = await Promise.allSettled([
           getLineup.execute(selectedLeagueId),
           getFixtures.execute(selectedLeagueId)
         ]);
@@ -294,11 +348,28 @@ export const TeamBuilderPage = () => {
           return;
         }
 
+        let playersResult = playersResultRaw;
+        let fallbackMessage: string | null = null;
+
+        if (playersResult.length > 0) {
+          writePlayersCache(selectedLeagueId, playersResult);
+        } else {
+          const cachedPlayers = readPlayersCache(selectedLeagueId);
+          if (cachedPlayers.length > 0) {
+            playersResult = cachedPlayers;
+            fallbackMessage = "Using cached players because latest players response was empty.";
+          }
+        }
+
+        const lineupResult =
+          lineupResultRaw.status === "fulfilled" ? lineupResultRaw.value : null;
+        const fixturesResult =
+          fixturesResultRaw.status === "fulfilled" ? fixturesResultRaw.value : [];
+
         setPlayers(playersResult);
         setFixtures(fixturesResult);
 
         let resolvedLineup = lineupResult;
-        let fallbackMessage: string | null = null;
 
         if (!resolvedLineup && playersResult.length > 0) {
           const accessToken = session?.accessToken?.trim() ?? "";
@@ -315,9 +386,11 @@ export const TeamBuilderPage = () => {
                   },
                   accessToken
                 );
-                fallbackMessage = "Squad was empty. Auto-picked players and synced to Fantasy API.";
+                fallbackMessage =
+                  fallbackMessage ??
+                  "Squad was empty. Auto-picked players and synced to Fantasy API.";
               } else {
-                fallbackMessage = "Loaded lineup from your current squad.";
+                fallbackMessage = fallbackMessage ?? "Loaded lineup from your current squad.";
               }
 
               resolvedLineup = buildLineupFromPlayers(
@@ -329,11 +402,15 @@ export const TeamBuilderPage = () => {
               const message =
                 error instanceof Error ? error.message : "Unknown error while syncing squad.";
 
-              fallbackMessage = `Squad sync failed (${message}). Showing generated lineup from players.`;
+              fallbackMessage =
+                fallbackMessage ??
+                `Squad sync failed (${message}). Showing generated lineup from players.`;
               resolvedLineup = buildLineupFromPlayers(selectedLeagueId, playersResult);
             }
           } else {
-            fallbackMessage = "No saved lineup yet. Showing generated lineup from available players.";
+            fallbackMessage =
+              fallbackMessage ??
+              "No saved lineup yet. Showing generated lineup from available players.";
             resolvedLineup = buildLineupFromPlayers(selectedLeagueId, playersResult);
           }
         }
@@ -351,10 +428,28 @@ export const TeamBuilderPage = () => {
           setGameweek(fixturesResult[0].gameweek);
         }
 
+        if (lineupResultRaw.status === "rejected") {
+          const message =
+            lineupResultRaw.reason instanceof Error
+              ? lineupResultRaw.reason.message
+              : "Failed to load lineup.";
+          fallbackMessage = fallbackMessage ?? `Lineup request failed (${message}).`;
+        }
+
+        if (fixturesResultRaw.status === "rejected") {
+          const message =
+            fixturesResultRaw.reason instanceof Error
+              ? fixturesResultRaw.reason.message
+              : "Failed to load fixtures.";
+          fallbackMessage = fallbackMessage ?? `Fixtures request failed (${message}).`;
+        }
+
         if (lineupResult) {
           setInfoMessage(`Last saved at ${new Date(lineupResult.updatedAt).toLocaleString("id-ID")}`);
         } else if (fallbackMessage) {
           setInfoMessage(fallbackMessage);
+        } else if (playersResult.length === 0) {
+          setInfoMessage("Players endpoint returned no data for this league.");
         } else {
           setInfoMessage("No lineup saved for this league yet.");
         }
