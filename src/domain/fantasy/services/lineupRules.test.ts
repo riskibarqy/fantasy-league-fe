@@ -28,14 +28,14 @@ const validLineup: TeamLineup = {
   defenderIds: ["d1", "d2", "d3", "d4"],
   midfielderIds: ["m1", "m2", "m3", "m4"],
   forwardIds: ["f1", "f2"],
-  substituteIds: ["gk2", "d5", "m5", "f3", "f4"],
+  substituteIds: ["gk2", "d5", "m5", "f3"],
   captainId: "f1",
   viceCaptainId: "m1",
   updatedAt: new Date().toISOString()
 };
 
 describe("validateLineup", () => {
-  it("returns valid for complete squad with five substitutes", () => {
+  it("returns valid for complete squad with four substitutes", () => {
     const byId = new Map(players.map((player) => [player.id, player]));
     const result = validateLineup(validLineup, byId);
 
@@ -50,7 +50,7 @@ describe("validateLineup", () => {
         defenderIds: ["d1"],
         midfielderIds: ["m1", "m2", "m3", "m4", "m5"],
         forwardIds: ["f1", "f2", "f3", "f4"],
-        substituteIds: ["gk2", "d2", "d3", "d4", "d5"]
+        substituteIds: ["gk2", "d2", "d3", "d4"]
       },
       byId
     );
@@ -64,7 +64,7 @@ describe("validateLineup", () => {
     const result = validateLineup(
       {
         ...validLineup,
-        substituteIds: ["d1", "gk2", "d5", "m5", "f3"]
+        substituteIds: ["d1", "gk2", "d5", "m5"]
       },
       byId
     );

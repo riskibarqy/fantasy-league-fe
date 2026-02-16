@@ -9,7 +9,7 @@ export const FORMATION_LIMITS = {
 } as const;
 
 export const STARTER_SIZE = 11;
-export const SUBSTITUTE_SIZE = 5;
+export const SUBSTITUTE_SIZE = 4;
 export const SQUAD_SIZE = STARTER_SIZE + SUBSTITUTE_SIZE;
 
 export const validateLineup = (
@@ -31,7 +31,7 @@ export const validateLineup = (
   }
 
   if (lineup.substituteIds.length !== SUBSTITUTE_SIZE) {
-    return { valid: false, reason: "Substitute bench must contain exactly 5 players." };
+    return { valid: false, reason: "Substitute bench must contain exactly 4 players." };
   }
 
   // Bench can contain any position but cannot include starting players.
@@ -41,7 +41,7 @@ export const validateLineup = (
 
   const uniqueSquadIds = new Set(squadIds);
   if (squadIds.length !== SQUAD_SIZE || uniqueSquadIds.size !== SQUAD_SIZE) {
-    return { valid: false, reason: "Squad must contain 16 unique players (11 starters + 5 subs)." };
+    return { valid: false, reason: "Squad must contain 15 unique players (11 starters + 4 subs)." };
   }
 
   if (

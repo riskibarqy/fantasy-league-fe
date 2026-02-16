@@ -5,6 +5,7 @@ Frontend for fantasy football platform focused on Indonesian leagues first, but 
 ## Tech Stack
 
 - React 18 + TypeScript + Vite
+- Capacitor (Android + iOS wrapper for mobile app install)
 - Clean Architecture + DDD boundaries
 - Vitest for unit tests
 - Mobile-first responsive UI (PWA-ready manifest)
@@ -56,6 +57,42 @@ make test
 make check
 ```
 
+## Run As Mobile App (Capacitor)
+
+This project is configured with Capacitor and already has native wrappers in:
+
+- `android/`
+- `ios/`
+
+Typical workflow after frontend changes:
+
+1. Sync web build to native projects:
+```bash
+make cap-sync
+```
+
+2. Open Android:
+```bash
+make mobile-android
+```
+
+3. Open iOS:
+```bash
+make mobile-ios
+```
+
+You can also run each step separately:
+
+- `make cap-sync-android`
+- `make cap-sync-ios`
+- `make open-android`
+- `make open-ios`
+
+Prerequisites:
+
+- Android Studio (Android SDK installed)
+- Xcode + CocoaPods (for iOS on macOS)
+
 ## Environment
 
 Copy `.env.example` to `.env` and adjust:
@@ -91,7 +128,7 @@ Notes:
 
 - Login page with mocked credentials (`password123`)
 - Dashboard overview
-- Team builder with pitch view, adjustable formation, and 5-player bench
+- Team builder with pitch view, adjustable formation, and 4-player bench
 - Fixtures list by league
 - Leagues page (multi-league preview)
 
@@ -120,7 +157,9 @@ Expected endpoints (placeholder contract):
 - Repository contracts isolate API changes from UI layer.
 - Usecases contain business logic and validation to avoid fat components.
 - Domain rule (`validateLineup`) is testable and framework-independent.
-- App can be wrapped with Capacitor later for iOS/Android without rewriting core frontend.
+- App is already wrapped with Capacitor for iOS/Android without rewriting core frontend.
+- Request caching is centralized in `/Users/riskiramdan/ts/fantasy-league-fe/src/app/cache/requestCache.ts`:
+  use `getOrLoadCached` + `cacheKeys` + `cacheTtlMs` for new pages/usecases to avoid refetching on every route switch.
 
 ## Developer Docs
 

@@ -39,6 +39,9 @@ Client mapping:
 - `PUT /v1/leagues/:leagueId/lineup`
 - `GET /v1/fantasy/squads/me?league_id={leagueId}` (requires `Authorization: Bearer <token>`)
 - `POST /v1/fantasy/squads/picks` (requires `Authorization: Bearer <token>`)
+- `GET /v1/custom-leagues/me` (requires `Authorization: Bearer <token>`)
+- `GET /v1/custom-leagues/{groupId}` (requires `Authorization: Bearer <token>`)
+- `GET /v1/custom-leagues/{groupId}/standings` (requires `Authorization: Bearer <token>`)
 
 Client mapping:
 - `/Users/riskiramdan/ts/fantasy-league-fe/src/infrastructure/fantasy/HttpFantasyRepository.ts`
@@ -51,8 +54,9 @@ Client mapping:
   - error: `{ "apiVersion": "2.0", "error": ... }`
 - Lineup saves must validate:
   - starters: 11 players (`GK=1`, `DEF 2..5`, `MID <=5`, `FWD <=3`)
-  - substitutes: exactly 5 players, no overlap with starters
+  - substitutes: exactly 4 players, no overlap with starters
   - captain/vice-captain must be in starters and must be different
+- Squad pick payload (`POST /v1/fantasy/squads/picks`) must send exactly 15 `player_ids`.
 - Date fields are ISO-8601 UTC timestamps.
 
 ## Production Readiness Checklist

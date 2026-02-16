@@ -1,23 +1,25 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useNavigate } from "react-router-dom";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
+import { cacheKeys, cacheTtlMs, getOrLoadCached } from "../../app/cache/requestCache";
 import type { League } from "../../domain/fantasy/entities/League";
 import type { Player } from "../../domain/fantasy/entities/Player";
 import type { TeamLineup } from "../../domain/fantasy/entities/Team";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
 import { SUBSTITUTE_SIZE } from "../../domain/fantasy/services/lineupRules";
 import { buildLineupFromPlayers, pickAutoSquadPlayerIds } from "../../domain/fantasy/services/squadBuilder";
+import { LoadingState } from "../components/LoadingState";
 import { useSession } from "../hooks/useSession";
+import {
+  consumePickerResult,
+  readLineupDraft,
+  savePickerContext,
+  writeLineupDraft,
+  type SlotPickerTarget
+} from "./teamPickerStorage";
 
 type TeamMode = "PAT" | "TRF";
 type Position = Player["position"];
-type SlotZone = "GK" | "DEF" | "MID" | "FWD" | "BENCH";
-
-type SlotPickerTarget = {
-  zone: SlotZone;
-  index: number;
-};
-
-const PLAYERS_CACHE_KEY = "fantasy-players-cache";
 
 type PitchRow = {
   label: Position;
@@ -57,21 +59,6 @@ const assignAt = (ids: string[], index: number, value: string): string[] => {
   }
   next[index] = value;
   return next;
-};
-
-const getPlayerIdAtTarget = (lineup: TeamLineup, target: SlotPickerTarget): string => {
-  switch (target.zone) {
-    case "GK":
-      return lineup.goalkeeperId;
-    case "DEF":
-      return lineup.defenderIds[target.index] ?? "";
-    case "MID":
-      return lineup.midfielderIds[target.index] ?? "";
-    case "FWD":
-      return lineup.forwardIds[target.index] ?? "";
-    case "BENCH":
-      return lineup.substituteIds[target.index] ?? "";
-  }
 };
 
 const assignPlayerToTarget = (
@@ -135,7 +122,7 @@ const normalizeLineup = (leagueId: string, lineup: TeamLineup | null): TeamLineu
   return ensureLeadership({
     ...lineup,
     leagueId,
-    substituteIds: lineup.substituteIds ?? []
+    substituteIds: (lineup.substituteIds ?? []).slice(0, SUBSTITUTE_SIZE)
   });
 };
 
@@ -240,33 +227,8 @@ async function withRetry<T>(run: () => Promise<T>, retries: number): Promise<T> 
   throw lastError instanceof Error ? lastError : new Error("Request failed.");
 }
 
-const readPlayersCache = (leagueId: string): Player[] => {
-  try {
-    const raw = localStorage.getItem(PLAYERS_CACHE_KEY);
-    if (!raw) {
-      return [];
-    }
-
-    const cache = JSON.parse(raw) as Record<string, Player[]>;
-    const players = cache[leagueId];
-    return Array.isArray(players) ? players : [];
-  } catch {
-    return [];
-  }
-};
-
-const writePlayersCache = (leagueId: string, players: Player[]): void => {
-  try {
-    const raw = localStorage.getItem(PLAYERS_CACHE_KEY);
-    const cache = raw ? (JSON.parse(raw) as Record<string, Player[]>) : {};
-    cache[leagueId] = players;
-    localStorage.setItem(PLAYERS_CACHE_KEY, JSON.stringify(cache));
-  } catch {
-    return;
-  }
-};
-
 export const TeamBuilderPage = () => {
+  const navigate = useNavigate();
   const { getLeagues, getPlayers, getLineup, getDashboard, getFixtures, getMySquad, pickSquad } =
     useContainer();
   const { session } = useSession();
@@ -281,8 +243,8 @@ export const TeamBuilderPage = () => {
   const [deadlineAt, setDeadlineAt] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
+  const [isLeagueDataLoading, setIsLeagueDataLoading] = useState(false);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
-  const [slotPickerTarget, setSlotPickerTarget] = useState<SlotPickerTarget | null>(null);
 
   const playersById = useMemo(() => new Map(players.map((player) => [player.id, player])), [players]);
 
@@ -290,32 +252,66 @@ export const TeamBuilderPage = () => {
     let mounted = true;
 
     const loadHeader = async () => {
-      try {
-        const [dashboardResult, leaguesResult] = await Promise.all([
-          getDashboard.execute(),
-          getLeagues.execute()
-        ]);
+      const [dashboardResultRaw, leaguesResultRaw] = await Promise.allSettled([
+        withRetry(
+          () =>
+            getOrLoadCached({
+              key: cacheKeys.dashboard(),
+              ttlMs: cacheTtlMs.dashboard,
+              loader: () => getDashboard.execute()
+            }),
+          1
+        ),
+        withRetry(
+          () =>
+            getOrLoadCached({
+              key: cacheKeys.leagues(),
+              ttlMs: cacheTtlMs.leagues,
+              loader: () => getLeagues.execute()
+            }),
+          1
+        )
+      ]);
 
-        if (!mounted) {
-          return;
-        }
+      if (!mounted) {
+        return;
+      }
 
+      const leaguesResult = leaguesResultRaw.status === "fulfilled" ? leaguesResultRaw.value : [];
+      if (leaguesResult.length > 0) {
         setLeagues(leaguesResult);
-        setGameweek(dashboardResult.gameweek);
+      }
+
+      if (dashboardResultRaw.status === "fulfilled") {
+        setGameweek(dashboardResultRaw.value.gameweek);
+      }
+
+      if (leaguesResult.length > 0) {
+        const dashboardLeagueId =
+          dashboardResultRaw.status === "fulfilled" ? dashboardResultRaw.value.selectedLeagueId : "";
+
         const isValidLeagueId = (leagueId: string): boolean =>
           leaguesResult.some((league) => league.id === leagueId);
 
-        const preferredLeagueId = isValidLeagueId(dashboardResult.selectedLeagueId)
-          ? dashboardResult.selectedLeagueId
+        const preferredLeagueId = isValidLeagueId(dashboardLeagueId)
+          ? dashboardLeagueId
           : leaguesResult[0]?.id ?? "";
 
         setSelectedLeagueId((current) => (isValidLeagueId(current) ? current : preferredLeagueId));
-      } catch (error) {
-        if (!mounted) {
-          return;
-        }
+      }
 
-        setErrorMessage(error instanceof Error ? error.message : "Failed to load team header.");
+      if (leaguesResultRaw.status === "rejected") {
+        const message =
+          leaguesResultRaw.reason instanceof Error
+            ? leaguesResultRaw.reason.message
+            : "Failed to load leagues.";
+        setErrorMessage(message);
+      } else if (dashboardResultRaw.status === "rejected") {
+        const message =
+          dashboardResultRaw.reason instanceof Error
+            ? dashboardResultRaw.reason.message
+            : "Failed to load dashboard.";
+        setInfoMessage(`Header fallback: ${message}`);
       }
     };
 
@@ -334,32 +330,61 @@ export const TeamBuilderPage = () => {
     let mounted = true;
 
     const loadLeagueData = async () => {
+      setIsLeagueDataLoading(true);
+
       try {
-        const playersResultRaw = await withRetry(
-          () => getPlayers.execute(selectedLeagueId),
-          2
-        );
+        let playersResultRaw: Player[] = [];
+        let playersError: unknown = null;
+
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          try {
+            const result = await withRetry(
+              () =>
+                getOrLoadCached({
+                  key: cacheKeys.players(selectedLeagueId),
+                  ttlMs: cacheTtlMs.players,
+                  loader: () => getPlayers.execute(selectedLeagueId),
+                  allowStaleOnError: true,
+                  forceRefresh: attempt > 0
+                }),
+              2
+            );
+            if (result.length > 0) {
+              playersResultRaw = result;
+              playersError = null;
+              break;
+            }
+
+            playersResultRaw = result;
+          } catch (error) {
+            playersError = error;
+          }
+
+          if (attempt < 2) {
+            await delay(350 * (attempt + 1));
+          }
+        }
+
+        if (playersResultRaw.length === 0 && playersError) {
+          throw playersError instanceof Error ? playersError : new Error("Failed to load players.");
+        }
+
         const [lineupResultRaw, fixturesResultRaw] = await Promise.allSettled([
           getLineup.execute(selectedLeagueId),
-          getFixtures.execute(selectedLeagueId)
+          getOrLoadCached({
+            key: cacheKeys.fixtures(selectedLeagueId),
+            ttlMs: cacheTtlMs.fixtures,
+            loader: () => getFixtures.execute(selectedLeagueId),
+            allowStaleOnError: true
+          })
         ]);
 
         if (!mounted) {
           return;
         }
 
-        let playersResult = playersResultRaw;
+        const playersResult = playersResultRaw;
         let fallbackMessage: string | null = null;
-
-        if (playersResult.length > 0) {
-          writePlayersCache(selectedLeagueId, playersResult);
-        } else {
-          const cachedPlayers = readPlayersCache(selectedLeagueId);
-          if (cachedPlayers.length > 0) {
-            playersResult = cachedPlayers;
-            fallbackMessage = "Using cached players because latest players response was empty.";
-          }
-        }
 
         const lineupResult =
           lineupResultRaw.status === "fulfilled" ? lineupResultRaw.value : null;
@@ -415,10 +440,28 @@ export const TeamBuilderPage = () => {
           }
         }
 
-        const normalized = normalizeLineup(selectedLeagueId, resolvedLineup);
+        let normalized = normalizeLineup(selectedLeagueId, resolvedLineup);
+        const draftLineup = readLineupDraft(selectedLeagueId);
+        if (draftLineup) {
+          normalized = normalizeLineup(selectedLeagueId, draftLineup);
+        }
+
+        const pickerResult = consumePickerResult();
+        if (pickerResult && pickerResult.leagueId === selectedLeagueId) {
+          const pickedPlayer = playersResult.find((player) => player.id === pickerResult.playerId);
+          if (pickedPlayer) {
+            normalized = ensureLeadership(
+              assignPlayerToTarget(normalized, pickerResult.target, pickerResult.playerId)
+            );
+            fallbackMessage = `${pickedPlayer.name} added to ${pickerResult.target.zone} slot.`;
+          } else {
+            fallbackMessage = fallbackMessage ?? "Picked player is unavailable for this league.";
+          }
+        }
+
         setLineup(normalized);
+        writeLineupDraft(normalized);
         setSelectedPlayerId(null);
-        setSlotPickerTarget(null);
 
         const nearestKickoff = [...fixturesResult]
           .sort((left, right) => new Date(left.kickoffAt).getTime() - new Date(right.kickoffAt).getTime())[0]?.kickoffAt ?? null;
@@ -444,10 +487,10 @@ export const TeamBuilderPage = () => {
           fallbackMessage = fallbackMessage ?? `Fixtures request failed (${message}).`;
         }
 
-        if (lineupResult) {
-          setInfoMessage(`Last saved at ${new Date(lineupResult.updatedAt).toLocaleString("id-ID")}`);
-        } else if (fallbackMessage) {
+        if (fallbackMessage) {
           setInfoMessage(fallbackMessage);
+        } else if (lineupResult) {
+          setInfoMessage(`Last saved at ${new Date(lineupResult.updatedAt).toLocaleString("id-ID")}`);
         } else if (playersResult.length === 0) {
           setInfoMessage("Players endpoint returned no data for this league.");
         } else {
@@ -461,6 +504,10 @@ export const TeamBuilderPage = () => {
         }
 
         setErrorMessage(error instanceof Error ? error.message : "Failed to load lineup.");
+      } finally {
+        if (mounted) {
+          setIsLeagueDataLoading(false);
+        }
       }
     };
 
@@ -470,6 +517,14 @@ export const TeamBuilderPage = () => {
       mounted = false;
     };
   }, [getFixtures, getLineup, getMySquad, getPlayers, pickSquad, selectedLeagueId, session?.accessToken]);
+
+  useEffect(() => {
+    if (!lineup) {
+      return;
+    }
+
+    writeLineupDraft(lineup);
+  }, [lineup]);
 
   const starterIds = useMemo(() => (lineup ? getStarterIds(lineup) : []), [lineup]);
 
@@ -518,38 +573,25 @@ export const TeamBuilderPage = () => {
     return playersById.get(selectedPlayerId) ?? null;
   }, [playersById, selectedPlayerId]);
 
-  const slotPickerCandidates = useMemo(() => {
-    if (!slotPickerTarget || !lineup) {
-      return [];
+  const openPlayerPicker = (target: SlotPickerTarget) => {
+    if (!lineup || !selectedLeagueId) {
+      return;
     }
 
-    const currentTargetPlayerId = getPlayerIdAtTarget(lineup, slotPickerTarget);
-    const usedIds = new Set(
-      [...starterIds, ...lineup.substituteIds].filter((id) => id && id !== currentTargetPlayerId)
-    );
-
-    const candidates = players.filter((player) => {
-      const positionMatch =
-        slotPickerTarget.zone === "BENCH" ? true : player.position === slotPickerTarget.zone;
-      if (!positionMatch) {
-        return false;
-      }
-
-      return !usedIds.has(player.id);
+    savePickerContext({
+      leagueId: selectedLeagueId,
+      target,
+      lineup
     });
 
-    return sortByProjectedDesc(candidates);
-  }, [lineup, players, slotPickerTarget, starterIds]);
+    const params = new URLSearchParams({
+      leagueId: selectedLeagueId,
+      zone: target.zone,
+      index: String(target.index)
+    });
 
-  const slotPickerTitle = useMemo(() => {
-    if (!slotPickerTarget) {
-      return "";
-    }
-
-    return slotPickerTarget.zone === "BENCH"
-      ? `Pick Bench Player ${slotPickerTarget.index + 1}`
-      : `Pick ${slotPickerTarget.zone} Player ${slotPickerTarget.index + 1}`;
-  }, [slotPickerTarget]);
+    navigate(`/team/pick?${params.toString()}`);
+  };
 
   const selectedPlayerIsStarter = useMemo(() => {
     if (!selectedPlayer || !lineup) {
@@ -783,7 +825,7 @@ export const TeamBuilderPage = () => {
                   allowSlotPicking && !player
                     ? () => {
                         setSelectedPlayerId(null);
-                        setSlotPickerTarget({
+                        openPlayerPicker({
                           zone: row.label,
                           index
                         });
@@ -863,22 +905,6 @@ export const TeamBuilderPage = () => {
     });
   };
 
-  const onPickPlayerFromList = (playerId: string) => {
-    if (!lineup || !slotPickerTarget) {
-      return;
-    }
-
-    const player = playersById.get(playerId);
-    if (!player) {
-      return;
-    }
-
-    const nextLineup = ensureLeadership(assignPlayerToTarget(lineup, slotPickerTarget, playerId));
-    setLineup(nextLineup);
-    setSlotPickerTarget(null);
-    setInfoMessage(`${player.name} added to ${slotPickerTarget.zone} slot.`);
-  };
-
   return (
     <div className="page-grid team-builder-page">
       <section className="section-title">
@@ -936,6 +962,7 @@ export const TeamBuilderPage = () => {
         </div>
 
         {errorMessage ? <p className="error-text">{errorMessage}</p> : null}
+        {isLeagueDataLoading ? <LoadingState label="Loading latest team data" inline compact /> : null}
         {infoMessage ? <p className="small-label">{infoMessage}</p> : null}
       </section>
 
@@ -1008,7 +1035,7 @@ export const TeamBuilderPage = () => {
                       className="bench-card empty-slot player-card-button pick-slot-button"
                       onClick={() => {
                         setSelectedPlayerId(null);
-                        setSlotPickerTarget({
+                        openPlayerPicker({
                           zone: "BENCH",
                           index
                         });
@@ -1041,45 +1068,6 @@ export const TeamBuilderPage = () => {
           </div>
         ) : null}
       </section>
-
-      {slotPickerTarget ? (
-        <div className="player-modal-overlay" onClick={() => setSlotPickerTarget(null)}>
-          <section className="player-modal card slot-picker-modal" onClick={(event) => event.stopPropagation()}>
-            <button
-              type="button"
-              className="player-modal-close ghost-button"
-              onClick={() => setSlotPickerTarget(null)}
-            >
-              Close
-            </button>
-
-            <div>
-              <h3>{slotPickerTitle}</h3>
-              <p className="muted">Select a player and place directly into this field slot.</p>
-            </div>
-
-            <div className="slot-picker-list">
-              {slotPickerCandidates.map((player) => (
-                <button
-                  key={player.id}
-                  type="button"
-                  className="slot-picker-item"
-                  onClick={() => onPickPlayerFromList(player.id)}
-                >
-                  <span>{player.name}</span>
-                  <small>{player.club}</small>
-                  <small>{player.position}</small>
-                  <strong>£{player.price.toFixed(1)}</strong>
-                </button>
-              ))}
-            </div>
-
-            {slotPickerCandidates.length === 0 ? (
-              <p className="muted">No available player for this slot.</p>
-            ) : null}
-          </section>
-        </div>
-      ) : null}
 
       {selectedPlayer ? (
         <div className="player-modal-overlay" onClick={() => setSelectedPlayerId(null)}>

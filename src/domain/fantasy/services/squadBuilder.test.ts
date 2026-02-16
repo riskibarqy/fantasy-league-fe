@@ -18,7 +18,7 @@ describe("squadBuilder", () => {
     expect(
       1 + lineup.defenderIds.length + lineup.midfielderIds.length + lineup.forwardIds.length
     ).toBe(11);
-    expect(lineup.substituteIds.length).toBeLessThanOrEqual(5);
+    expect(lineup.substituteIds.length).toBeLessThanOrEqual(4);
   });
 
   it("auto picks valid squad ids", () => {
@@ -28,8 +28,8 @@ describe("squadBuilder", () => {
       .map((id) => playersById.get(id))
       .filter((player): player is Player => Boolean(player));
 
-    expect(new Set(pickedIds).size).toBe(11);
-    expect(pickedPlayers.length).toBe(11);
+    expect(new Set(pickedIds).size).toBe(15);
+    expect(pickedPlayers.length).toBe(15);
 
     const positionCounts = pickedPlayers.reduce<Record<Player["position"], number>>(
       (count, player) => {

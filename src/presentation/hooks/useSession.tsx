@@ -8,6 +8,7 @@ import {
   type PropsWithChildren
 } from "react";
 import type { AuthSession } from "../../domain/auth/entities/User";
+import { clearRequestCache } from "../../app/cache/requestCache";
 
 const SESSION_KEY = "fantasy-session";
 
@@ -41,6 +42,7 @@ export const SessionProvider = ({ children }: PropsWithChildren) => {
 
     if (!nextSession) {
       localStorage.removeItem(SESSION_KEY);
+      clearRequestCache();
       return;
     }
 

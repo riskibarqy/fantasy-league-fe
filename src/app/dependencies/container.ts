@@ -4,8 +4,11 @@ import { LoginWithGoogleIdToken } from "../../application/auth/usecases/LoginWit
 import { Logout } from "../../application/auth/usecases/Logout";
 import { GetDashboard } from "../../application/fantasy/usecases/GetDashboard";
 import { GetFixtures } from "../../application/fantasy/usecases/GetFixtures";
+import { GetCustomLeague } from "../../application/fantasy/usecases/GetCustomLeague";
+import { GetCustomLeagueStandings } from "../../application/fantasy/usecases/GetCustomLeagueStandings";
 import { GetLeagues } from "../../application/fantasy/usecases/GetLeagues";
 import { GetLineup } from "../../application/fantasy/usecases/GetLineup";
+import { GetMyCustomLeagues } from "../../application/fantasy/usecases/GetMyCustomLeagues";
 import { GetMySquad } from "../../application/fantasy/usecases/GetMySquad";
 import { GetPlayers } from "../../application/fantasy/usecases/GetPlayers";
 import { PickSquad } from "../../application/fantasy/usecases/PickSquad";
@@ -43,6 +46,9 @@ export const buildContainer = () => {
     getDashboard: new GetDashboard(repositories.fantasyRepository),
     getLeagues: new GetLeagues(repositories.fantasyRepository),
     getFixtures: new GetFixtures(repositories.fantasyRepository),
+    getMyCustomLeagues: new GetMyCustomLeagues(repositories.fantasyRepository),
+    getCustomLeague: new GetCustomLeague(repositories.fantasyRepository),
+    getCustomLeagueStandings: new GetCustomLeagueStandings(repositories.fantasyRepository),
     getPlayers: new GetPlayers(repositories.fantasyRepository),
     getLineup: new GetLineup(repositories.fantasyRepository),
     getMySquad: new GetMySquad(repositories.fantasyRepository),

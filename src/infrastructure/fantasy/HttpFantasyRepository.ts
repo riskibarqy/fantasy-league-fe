@@ -4,6 +4,11 @@ import type { Fixture } from "../../domain/fantasy/entities/Fixture";
 import type { League } from "../../domain/fantasy/entities/League";
 import type { Player } from "../../domain/fantasy/entities/Player";
 import type { PickSquadInput, Squad } from "../../domain/fantasy/entities/Squad";
+import type {
+  CustomLeague,
+  CustomLeagueStanding,
+  RankMovement
+} from "../../domain/fantasy/entities/CustomLeague";
 import { HttpClient, HttpError } from "../http/httpClient";
 
 type SquadPickDTO = {
@@ -94,6 +99,36 @@ export class HttpFantasyRepository implements FantasyRepository {
     return mapSquadDTO(data);
   }
 
+  async getMyCustomLeagues(accessToken: string): Promise<CustomLeague[]> {
+    const data = await this.httpClient.get<unknown>(
+      "/v1/custom-leagues/me",
+      this.authHeader(accessToken)
+    );
+
+    return mapCustomLeagues(data);
+  }
+
+  async getCustomLeague(groupId: string, accessToken: string): Promise<CustomLeague> {
+    const data = await this.httpClient.get<unknown>(
+      `/v1/custom-leagues/${encodeURIComponent(groupId)}`,
+      this.authHeader(accessToken)
+    );
+
+    return mapCustomLeague(data);
+  }
+
+  async getCustomLeagueStandings(
+    groupId: string,
+    accessToken: string
+  ): Promise<CustomLeagueStanding[]> {
+    const data = await this.httpClient.get<unknown>(
+      `/v1/custom-leagues/${encodeURIComponent(groupId)}/standings`,
+      this.authHeader(accessToken)
+    );
+
+    return mapCustomLeagueStandings(data);
+  }
+
   private authHeader(accessToken: string): Record<string, string> {
     const token = accessToken.trim();
     if (!token) {
@@ -107,22 +142,131 @@ export class HttpFantasyRepository implements FantasyRepository {
 }
 
 const mapSquadDTO = (data: SquadDTO): Squad => {
+  const normalizeBudgetValue = (value: number): number => {
+    return Number((value / 10).toFixed(1));
+  };
+
   return {
     id: data.id,
     userId: data.user_id,
     leagueId: data.league_id,
     name: data.name,
-    budgetCap: data.budget_cap,
-    totalCost: data.total_cost,
+    budgetCap: normalizeBudgetValue(data.budget_cap),
+    totalCost: normalizeBudgetValue(data.total_cost),
     picks: data.picks.map((pick) => ({
       playerId: pick.player_id,
       teamId: pick.team_id,
       position: pick.position,
-      price: pick.price
+      price: normalizeBudgetValue(pick.price)
     })),
     createdAtUtc: data.created_at_utc,
     updatedAtUtc: data.updated_at_utc
   };
+};
+
+const normalizeRankMovement = (value: unknown): RankMovement => {
+  if (typeof value !== "string") {
+    return "unknown";
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "up" || normalized === "down" || normalized === "same" || normalized === "new") {
+    return normalized;
+  }
+
+  return "unknown";
+};
+
+const deriveRankMovement = (rank: number, previousRank?: number): RankMovement => {
+  if (!previousRank || previousRank <= 0) {
+    return "unknown";
+  }
+
+  if (rank < previousRank) {
+    return "up";
+  }
+
+  if (rank > previousRank) {
+    return "down";
+  }
+
+  return "same";
+};
+
+const mapCustomLeague = (payload: unknown): CustomLeague => {
+  const record = asRecord(payload);
+  if (!record) {
+    throw new Error("Invalid custom league payload.");
+  }
+
+  const id = readString(record, "id");
+  if (!id) {
+    throw new Error("Custom league id is missing.");
+  }
+
+  return {
+    id,
+    leagueId: readString(record, "league_id", "leagueId"),
+    ownerUserId: readString(record, "owner_user_id", "ownerUserId"),
+    name: readString(record, "name"),
+    inviteCode: readString(record, "invite_code", "inviteCode"),
+    isDefault: readBoolean(record, "is_default", "isDefault"),
+    myRank: readNumber(record, "my_rank", "myRank"),
+    rankMovement: normalizeRankMovement(record.rank_movement ?? record.rankMovement),
+    createdAtUtc: readString(record, "created_at_utc", "createdAtUtc"),
+    updatedAtUtc: readString(record, "updated_at_utc", "updatedAtUtc")
+  };
+};
+
+const mapCustomLeagues = (payload: unknown): CustomLeague[] => {
+  return toArray(payload)
+    .map((item) => {
+      try {
+        return mapCustomLeague(item);
+      } catch {
+        return null;
+      }
+    })
+    .filter((item): item is CustomLeague => Boolean(item));
+};
+
+const mapCustomLeagueStanding = (payload: unknown): CustomLeagueStanding | null => {
+  const record = asRecord(payload);
+  if (!record) {
+    return null;
+  }
+
+  const userId = readString(record, "user_id", "userId");
+  const squadId = readString(record, "squad_id", "squadId");
+  if (!userId || !squadId) {
+    return null;
+  }
+
+  const rank = readNumber(record, "rank");
+  const previousRankRaw = record.previous_rank ?? record.previousRank;
+  const previousRank =
+    typeof previousRankRaw === "number" && Number.isFinite(previousRankRaw)
+      ? previousRankRaw
+      : undefined;
+  const movement = normalizeRankMovement(record.rank_movement ?? record.rankMovement);
+
+  return {
+    userId,
+    squadId,
+    points: readNumber(record, "points"),
+    rank,
+    lastCalculatedAt: readString(record, "last_calculated_at", "lastCalculatedAt"),
+    updatedAtUtc: readString(record, "updated_at_utc", "updatedAtUtc"),
+    teamName: readString(record, "team_name", "teamName") || undefined,
+    squadName: readString(record, "squad_name", "squadName") || undefined,
+    rankMovement: movement === "unknown" ? deriveRankMovement(rank, previousRank) : movement
+  };
+};
+
+const mapCustomLeagueStandings = (payload: unknown): CustomLeagueStanding[] => {
+  return toArray(payload)
+    .map((item) => mapCustomLeagueStanding(item))
+    .filter((item): item is CustomLeagueStanding => Boolean(item));
 };
 
 const asRecord = (value: unknown): Record<string, unknown> | null => {

@@ -1,10 +1,10 @@
 import type { Player } from "../entities/Player";
 import type { TeamLineup } from "../entities/Team";
 
-const AUTO_SQUAD_SIZE = 11;
-const BENCH_SIZE = 5;
+const AUTO_SQUAD_SIZE = 15;
+const BENCH_SIZE = 4;
 const MAX_PLAYERS_PER_TEAM = 3;
-const BUDGET_CAP = 100;
+const BUDGET_CAP = 150;
 
 type Formation = {
   DEF: number;
@@ -65,6 +65,14 @@ const byValueThenProjected = (left: Player, right: Player): number => {
   const rightValue = right.projectedPoints / Math.max(right.price, 0.1);
   if (leftValue !== rightValue) {
     return rightValue - leftValue;
+  }
+
+  return byProjectedThenPrice(left, right);
+};
+
+const byPriceThenProjected = (left: Player, right: Player): number => {
+  if (left.price !== right.price) {
+    return left.price - right.price;
   }
 
   return byProjectedThenPrice(left, right);
@@ -388,7 +396,7 @@ export const pickAutoSquadPlayerIds = (players: Player[]): string[] => {
   const attempts = [
     { comparator: byProjectedThenPrice, enforceBudget: true },
     { comparator: byValueThenProjected, enforceBudget: true },
-    { comparator: byProjectedThenPrice, enforceBudget: false }
+    { comparator: byPriceThenProjected, enforceBudget: true }
   ];
 
   for (const attempt of attempts) {

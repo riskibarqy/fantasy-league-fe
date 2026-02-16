@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import { appEnv } from "../../app/config/env";
+import { LoadingState } from "../components/LoadingState";
 import { useSession } from "../hooks/useSession";
 
 type GoogleCredentialResponse = {
@@ -204,7 +205,7 @@ export const LoginPage = () => {
             {!appEnv.googleClientId ? (
               <p className="error-text">Set VITE_GOOGLE_CLIENT_ID to enable Google sign-in.</p>
             ) : !googleReady ? (
-              <p className="muted">Loading Google sign-in...</p>
+              <LoadingState label="Loading Google sign-in" inline compact />
             ) : null}
           </>
         )}

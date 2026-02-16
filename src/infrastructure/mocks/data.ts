@@ -443,7 +443,7 @@ export const defaultLineup: TeamLineup = {
   defenderIds: ["idn-def-1", "idn-def-2", "idn-def-3", "idn-def-4"],
   midfielderIds: ["idn-mid-1", "idn-mid-2", "idn-mid-3", "idn-mid-4"],
   forwardIds: ["idn-fwd-1", "idn-fwd-2"],
-  substituteIds: ["idn-gk-2", "idn-def-5", "idn-mid-5", "idn-mid-6", "idn-fwd-3"],
+  substituteIds: ["idn-gk-2", "idn-def-5", "idn-mid-5", "idn-mid-6"],
   captainId: "idn-fwd-1",
   viceCaptainId: "idn-mid-1",
   updatedAt: "2026-02-10T06:00:00.000Z"

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Fantasy League</string>
+    <string name="title_activity_main">Fantasy League</string>
+    <string name="package_name">com.riskibarqy.fantasyleague</string>
+    <string name="custom_url_scheme">com.riskibarqy.fantasyleague</string>
+</resources>
