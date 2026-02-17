@@ -13,6 +13,11 @@ export type CustomLeague = {
   updatedAtUtc: string;
 };
 
+export type CreateCustomLeagueInput = {
+  leagueId: string;
+  name: string;
+};
+
 export type CustomLeagueStanding = {
   userId: string;
   squadId: string;
@@ -24,4 +29,3 @@ export type CustomLeagueStanding = {
   squadName?: string;
   rankMovement: RankMovement;
 };
-

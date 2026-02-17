@@ -39,6 +39,8 @@ Client mapping:
 - `PUT /v1/leagues/:leagueId/lineup`
 - `GET /v1/fantasy/squads/me?league_id={leagueId}` (requires `Authorization: Bearer <token>`)
 - `POST /v1/fantasy/squads/picks` (requires `Authorization: Bearer <token>`)
+- `POST /v1/custom-leagues` (requires `Authorization: Bearer <token>`)
+- `POST /v1/custom-leagues/join` (requires `Authorization: Bearer <token>`)
 - `GET /v1/custom-leagues/me` (requires `Authorization: Bearer <token>`)
 - `GET /v1/custom-leagues/{groupId}` (requires `Authorization: Bearer <token>`)
 - `GET /v1/custom-leagues/{groupId}/standings` (requires `Authorization: Bearer <token>`)

@@ -1,51 +1,14 @@
-import { useEffect, useState } from "react";
-import { useContainer } from "../../app/dependencies/DependenciesProvider";
-import { cacheKeys, cacheTtlMs, getOrLoadCached } from "../../app/cache/requestCache";
-import type { League } from "../../domain/fantasy/entities/League";
 import { LoadingState } from "../components/LoadingState";
+import { useLeagueSelection } from "../hooks/useLeagueSelection";
 
 export const LeaguesPage = () => {
-  const { getLeagues } = useContainer();
-  const [leagues, setLeagues] = useState<League[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    let mounted = true;
-
-    const load = async () => {
-      try {
-        setIsLoading(true);
-        const result = await getOrLoadCached({
-          key: cacheKeys.leagues(),
-          ttlMs: cacheTtlMs.leagues,
-          loader: () => getLeagues.execute()
-        });
-        if (!mounted) {
-          return;
-        }
-
-        setLeagues(result);
-        setErrorMessage(null);
-      } catch (error) {
-        if (!mounted) {
-          return;
-        }
-
-        setErrorMessage(error instanceof Error ? error.message : "Failed to load leagues.");
-      } finally {
-        if (mounted) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    void load();
-
-    return () => {
-      mounted = false;
-    };
-  }, [getLeagues]);
+  const {
+    leagues,
+    selectedLeagueId,
+    setSelectedLeagueId,
+    isLoading,
+    errorMessage
+  } = useLeagueSelection();
 
   return (
     <div className="page-grid">
@@ -71,6 +34,19 @@ export const LeaguesPage = () => {
             <div>
               <h3>{league.name}</h3>
               <p className="muted">Country: {league.countryCode}</p>
+              <div className="team-picker-actions">
+                {league.id === selectedLeagueId ? (
+                  <span className="small-label">Active League</span>
+                ) : (
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => setSelectedLeagueId(league.id)}
+                  >
+                    Set Active
+                  </button>
+                )}
+              </div>
             </div>
           </article>
         ))}

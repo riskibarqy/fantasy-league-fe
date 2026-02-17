@@ -13,6 +13,8 @@ const fantasyRepositoryStub = (): FantasyRepository => ({
   getMySquad: vi.fn(),
   pickSquad: vi.fn(),
   getMyCustomLeagues: vi.fn(),
+  createCustomLeague: vi.fn(),
+  joinCustomLeagueByInvite: vi.fn(),
   getCustomLeague: vi.fn(),
   getCustomLeagueStandings: vi.fn()
 });

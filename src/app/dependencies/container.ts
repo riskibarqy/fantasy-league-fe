@@ -2,6 +2,7 @@ import { appEnv } from "../config/env";
 import { LoginWithPassword } from "../../application/auth/usecases/LoginWithPassword";
 import { LoginWithGoogleIdToken } from "../../application/auth/usecases/LoginWithGoogleIdToken";
 import { Logout } from "../../application/auth/usecases/Logout";
+import { CreateCustomLeague } from "../../application/fantasy/usecases/CreateCustomLeague";
 import { GetDashboard } from "../../application/fantasy/usecases/GetDashboard";
 import { GetFixtures } from "../../application/fantasy/usecases/GetFixtures";
 import { GetCustomLeague } from "../../application/fantasy/usecases/GetCustomLeague";
@@ -11,6 +12,7 @@ import { GetLineup } from "../../application/fantasy/usecases/GetLineup";
 import { GetMyCustomLeagues } from "../../application/fantasy/usecases/GetMyCustomLeagues";
 import { GetMySquad } from "../../application/fantasy/usecases/GetMySquad";
 import { GetPlayers } from "../../application/fantasy/usecases/GetPlayers";
+import { JoinCustomLeagueByInvite } from "../../application/fantasy/usecases/JoinCustomLeagueByInvite";
 import { PickSquad } from "../../application/fantasy/usecases/PickSquad";
 import { SaveLineup } from "../../application/fantasy/usecases/SaveLineup";
 import { HttpAuthRepository } from "../../infrastructure/auth/HttpAuthRepository";
@@ -47,6 +49,8 @@ export const buildContainer = () => {
     getLeagues: new GetLeagues(repositories.fantasyRepository),
     getFixtures: new GetFixtures(repositories.fantasyRepository),
     getMyCustomLeagues: new GetMyCustomLeagues(repositories.fantasyRepository),
+    createCustomLeague: new CreateCustomLeague(repositories.fantasyRepository),
+    joinCustomLeagueByInvite: new JoinCustomLeagueByInvite(repositories.fantasyRepository),
     getCustomLeague: new GetCustomLeague(repositories.fantasyRepository),
     getCustomLeagueStandings: new GetCustomLeagueStandings(repositories.fantasyRepository),
     getPlayers: new GetPlayers(repositories.fantasyRepository),

@@ -5,6 +5,7 @@ import type { League } from "../../domain/fantasy/entities/League";
 import type { Player } from "../../domain/fantasy/entities/Player";
 import type { PickSquadInput, Squad } from "../../domain/fantasy/entities/Squad";
 import type {
+  CreateCustomLeagueInput,
   CustomLeague,
   CustomLeagueStanding,
   RankMovement
@@ -106,6 +107,42 @@ export class HttpFantasyRepository implements FantasyRepository {
     );
 
     return mapCustomLeagues(data);
+  }
+
+  async createCustomLeague(input: CreateCustomLeagueInput, accessToken: string): Promise<CustomLeague> {
+    const data = await this.httpClient.post<
+      {
+        league_id: string;
+        name: string;
+      },
+      unknown
+    >(
+      "/v1/custom-leagues",
+      {
+        league_id: input.leagueId,
+        name: input.name
+      },
+      this.authHeader(accessToken)
+    );
+
+    return mapCustomLeague(data);
+  }
+
+  async joinCustomLeagueByInvite(inviteCode: string, accessToken: string): Promise<CustomLeague> {
+    const data = await this.httpClient.post<
+      {
+        invite_code: string;
+      },
+      unknown
+    >(
+      "/v1/custom-leagues/join",
+      {
+        invite_code: inviteCode
+      },
+      this.authHeader(accessToken)
+    );
+
+    return mapCustomLeague(data);
   }
 
   async getCustomLeague(groupId: string, accessToken: string): Promise<CustomLeague> {

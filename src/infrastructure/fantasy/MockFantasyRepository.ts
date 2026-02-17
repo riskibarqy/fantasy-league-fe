@@ -5,6 +5,7 @@ import type { League } from "../../domain/fantasy/entities/League";
 import type { Player } from "../../domain/fantasy/entities/Player";
 import type { PickSquadInput, Squad } from "../../domain/fantasy/entities/Squad";
 import type {
+  CreateCustomLeagueInput,
   CustomLeague,
   CustomLeagueStanding
 } from "../../domain/fantasy/entities/CustomLeague";
@@ -121,6 +122,109 @@ export class MockFantasyRepository implements FantasyRepository {
     await delay(220);
     const leagues = readStoredCustomLeagues();
     return leagues;
+  }
+
+  async createCustomLeague(
+    input: CreateCustomLeagueInput,
+    _accessToken: string
+  ): Promise<CustomLeague> {
+    await delay(260);
+
+    const leagueId = input.leagueId.trim();
+    const name = input.name.trim();
+    if (!leagueId) {
+      throw new Error("League id is required.");
+    }
+    if (!name) {
+      throw new Error("Custom league name is required.");
+    }
+
+    const squads = readStoredSquads();
+    if (!squads[leagueId]) {
+      throw new Error("You must pick squad first before creating custom league.");
+    }
+
+    const groups = readStoredCustomLeagues();
+    const inviteCode = generateInviteCode(groups);
+    const now = new Date().toISOString();
+    const created: CustomLeague = {
+      id: `cl-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+      leagueId,
+      ownerUserId: "mock-user",
+      name,
+      inviteCode,
+      isDefault: false,
+      myRank: 1,
+      rankMovement: "new",
+      createdAtUtc: now,
+      updatedAtUtc: now
+    };
+
+    const nextGroups = [created, ...groups];
+    writeStoredCustomLeagues(nextGroups);
+
+    const standings = readStoredCustomLeagueStandings();
+    standings[created.id] = [
+      {
+        userId: "mock-user",
+        squadId: squads[leagueId]?.id ?? `squad-${leagueId}`,
+        points: 0,
+        rank: 1,
+        lastCalculatedAt: now,
+        updatedAtUtc: now,
+        teamName: "My Fantasy XI",
+        squadName: "My Fantasy XI",
+        rankMovement: "new"
+      }
+    ];
+    writeStoredCustomLeagueStandings(standings);
+
+    return created;
+  }
+
+  async joinCustomLeagueByInvite(inviteCode: string, _accessToken: string): Promise<CustomLeague> {
+    await delay(240);
+
+    const code = inviteCode.trim().toUpperCase();
+    if (!code) {
+      throw new Error("Invite code is required.");
+    }
+
+    const groups = readStoredCustomLeagues();
+    const found = groups.find((item) => item.inviteCode.trim().toUpperCase() === code);
+    if (!found) {
+      throw new Error("Invite code not found.");
+    }
+
+    const standings = readStoredCustomLeagueStandings();
+    const existing = standings[found.id] ?? [];
+    const alreadyJoined = existing.some((item) => item.userId === "mock-user");
+    if (!alreadyJoined) {
+      const nextRank = existing.length + 1;
+      const now = new Date().toISOString();
+      const leagueSquad = readStoredSquads()[found.leagueId];
+      const joinedRow: CustomLeagueStanding = {
+        userId: "mock-user",
+        squadId: leagueSquad?.id ?? `squad-${found.leagueId}`,
+        points: 0,
+        rank: nextRank,
+        lastCalculatedAt: now,
+        updatedAtUtc: now,
+        teamName: "My Fantasy XI",
+        squadName: "My Fantasy XI",
+        rankMovement: "new"
+      };
+
+      standings[found.id] = [...existing, joinedRow];
+      writeStoredCustomLeagueStandings(standings);
+    }
+
+    return {
+      ...found,
+      myRank: alreadyJoined ? found.myRank : standings[found.id]?.length ?? found.myRank,
+      rankMovement: "new",
+      updatedAtUtc: new Date().toISOString()
+    };
   }
 
   async getCustomLeague(groupId: string, _accessToken: string): Promise<CustomLeague> {
@@ -324,6 +428,10 @@ const readStoredCustomLeagues = (): CustomLeague[] => {
   }
 };
 
+const writeStoredCustomLeagues = (items: CustomLeague[]): void => {
+  localStorage.setItem(CUSTOM_LEAGUE_STORAGE_KEY, JSON.stringify(items));
+};
+
 const readStoredCustomLeagueStandings = (): Record<string, CustomLeagueStanding[]> => {
   const raw = localStorage.getItem(CUSTOM_LEAGUE_STANDING_STORAGE_KEY);
   if (!raw) {
@@ -337,6 +445,28 @@ const readStoredCustomLeagueStandings = (): Record<string, CustomLeagueStanding[
   } catch {
     return defaultCustomLeagueStandings();
   }
+};
+
+const writeStoredCustomLeagueStandings = (
+  standings: Record<string, CustomLeagueStanding[]>
+): void => {
+  localStorage.setItem(CUSTOM_LEAGUE_STANDING_STORAGE_KEY, JSON.stringify(standings));
+};
+
+const generateInviteCode = (items: CustomLeague[]): string => {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    let code = "";
+    for (let index = 0; index < 8; index += 1) {
+      code += alphabet[Math.floor(Math.random() * alphabet.length)];
+    }
+
+    if (!items.some((item) => item.inviteCode === code)) {
+      return code;
+    }
+  }
+
+  return `CODE${Date.now().toString(36).slice(-4).toUpperCase()}`;
 };
 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));

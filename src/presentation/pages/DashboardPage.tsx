@@ -5,10 +5,10 @@ import { cacheKeys, cacheTtlMs, getOrLoadCached } from "../../app/cache/requestC
 import type { Dashboard } from "../../domain/fantasy/entities/Team";
 import type { CustomLeague } from "../../domain/fantasy/entities/CustomLeague";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
-import type { League } from "../../domain/fantasy/entities/League";
 import { FixtureCard } from "../components/FixtureCard";
 import { LoadingState } from "../components/LoadingState";
 import { getGlobalNewsItems } from "./newsFeed";
+import { useLeagueSelection } from "../hooks/useLeagueSelection";
 import { useSession } from "../hooks/useSession";
 
 const formatDeadlineWindow = (kickoffAt: string): string => {
@@ -34,11 +34,11 @@ const formatDeadlineWindow = (kickoffAt: string): string => {
 };
 
 export const DashboardPage = () => {
-  const { getDashboard, getLeagues, getFixtures, getMyCustomLeagues } = useContainer();
+  const { getDashboard, getFixtures, getMyCustomLeagues } = useContainer();
+  const { leagues, selectedLeagueId, setSelectedLeagueId } = useLeagueSelection();
   const { session } = useSession();
 
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
-  const [leagues, setLeagues] = useState<League[]>([]);
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [customLeagues, setCustomLeagues] = useState<CustomLeague[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -53,17 +53,15 @@ export const DashboardPage = () => {
           ttlMs: cacheTtlMs.dashboard,
           loader: () => getDashboard.execute()
         });
-        const leaguesResult = await getOrLoadCached({
-          key: cacheKeys.leagues(),
-          ttlMs: cacheTtlMs.leagues,
-          loader: () => getLeagues.execute()
-        });
-        const fixtureResult = await getOrLoadCached({
-          key: cacheKeys.fixtures(dashboardResult.selectedLeagueId),
-          ttlMs: cacheTtlMs.fixtures,
-          loader: () => getFixtures.execute(dashboardResult.selectedLeagueId),
-          allowStaleOnError: true
-        });
+        const leagueIdForFixtures = selectedLeagueId || dashboardResult.selectedLeagueId;
+        const fixtureResult = leagueIdForFixtures
+          ? await getOrLoadCached({
+              key: cacheKeys.fixtures(leagueIdForFixtures),
+              ttlMs: cacheTtlMs.fixtures,
+              loader: () => getFixtures.execute(leagueIdForFixtures),
+              allowStaleOnError: true
+            })
+          : [];
 
         const accessToken = session?.accessToken?.trim() ?? "";
         const userId = session?.user.id?.trim() ?? "";
@@ -82,7 +80,6 @@ export const DashboardPage = () => {
         }
 
         setDashboard(dashboardResult);
-        setLeagues(leaguesResult);
         setFixtures(fixtureResult);
         setCustomLeagues(customLeagueResult.slice(0, 3));
       } catch (error) {
@@ -99,11 +96,12 @@ export const DashboardPage = () => {
     return () => {
       mounted = false;
     };
-  }, [getDashboard, getFixtures, getLeagues, getMyCustomLeagues, session?.accessToken, session?.user.id]);
+  }, [getDashboard, getFixtures, getMyCustomLeagues, selectedLeagueId, session?.accessToken, session?.user.id]);
 
   const selectedLeague = useMemo(() => {
-    return leagues.find((league) => league.id === dashboard?.selectedLeagueId);
-  }, [dashboard?.selectedLeagueId, leagues]);
+    const targetLeagueId = selectedLeagueId || dashboard?.selectedLeagueId;
+    return leagues.find((league) => league.id === targetLeagueId);
+  }, [dashboard?.selectedLeagueId, leagues, selectedLeagueId]);
 
   const sortedFixtures = useMemo(() => {
     return [...fixtures].sort(
@@ -158,6 +156,21 @@ export const DashboardPage = () => {
             Gameweek {dashboard.gameweek}
             {nextFixture ? ` • Deadline ${formatDeadlineWindow(nextFixture.kickoffAt)}` : ""}
           </p>
+          {leagues.length > 0 ? (
+            <label className="dashboard-league-select">
+              League
+              <select
+                value={selectedLeagueId || dashboard.selectedLeagueId}
+                onChange={(event) => setSelectedLeagueId(event.target.value)}
+              >
+                {leagues.map((league) => (
+                  <option key={league.id} value={league.id}>
+                    {league.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
         </div>
 
         <div className="home-quick-grid">

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import { cacheKeys, cacheTtlMs, getOrLoadCached } from "../../app/cache/requestCache";
-import type { League } from "../../domain/fantasy/entities/League";
 import type { Player } from "../../domain/fantasy/entities/Player";
 import type { TeamLineup } from "../../domain/fantasy/entities/Team";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
@@ -10,6 +9,7 @@ import { SUBSTITUTE_SIZE } from "../../domain/fantasy/services/lineupRules";
 import { buildLineupFromPlayers, pickAutoSquadPlayerIds } from "../../domain/fantasy/services/squadBuilder";
 import { LoadingState } from "../components/LoadingState";
 import { useSession } from "../hooks/useSession";
+import { useLeagueSelection } from "../hooks/useLeagueSelection";
 import {
   consumePickerResult,
   readLineupDraft,
@@ -229,13 +229,11 @@ async function withRetry<T>(run: () => Promise<T>, retries: number): Promise<T> 
 
 export const TeamBuilderPage = () => {
   const navigate = useNavigate();
-  const { getLeagues, getPlayers, getLineup, getDashboard, getFixtures, getMySquad, pickSquad } =
-    useContainer();
+  const { getPlayers, getLineup, getDashboard, getFixtures, getMySquad, pickSquad } = useContainer();
+  const { leagues, selectedLeagueId, setSelectedLeagueId } = useLeagueSelection();
   const { session } = useSession();
 
   const [mode, setMode] = useState<TeamMode>("PAT");
-  const [leagues, setLeagues] = useState<League[]>([]);
-  const [selectedLeagueId, setSelectedLeagueId] = useState("");
   const [players, setPlayers] = useState<Player[]>([]);
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [lineup, setLineup] = useState<TeamLineup | null>(null);
@@ -252,65 +250,30 @@ export const TeamBuilderPage = () => {
     let mounted = true;
 
     const loadHeader = async () => {
-      const [dashboardResultRaw, leaguesResultRaw] = await Promise.allSettled([
-        withRetry(
+      try {
+        const dashboard = await withRetry(
           () =>
             getOrLoadCached({
               key: cacheKeys.dashboard(),
               ttlMs: cacheTtlMs.dashboard,
-              loader: () => getDashboard.execute()
+              loader: () => getDashboard.execute(),
+              allowStaleOnError: true
             }),
           1
-        ),
-        withRetry(
-          () =>
-            getOrLoadCached({
-              key: cacheKeys.leagues(),
-              ttlMs: cacheTtlMs.leagues,
-              loader: () => getLeagues.execute()
-            }),
-          1
-        )
-      ]);
+        );
 
-      if (!mounted) {
-        return;
-      }
+        if (!mounted) {
+          return;
+        }
 
-      const leaguesResult = leaguesResultRaw.status === "fulfilled" ? leaguesResultRaw.value : [];
-      if (leaguesResult.length > 0) {
-        setLeagues(leaguesResult);
-      }
+        setGameweek(dashboard.gameweek);
+      } catch (error) {
+        if (!mounted) {
+          return;
+        }
 
-      if (dashboardResultRaw.status === "fulfilled") {
-        setGameweek(dashboardResultRaw.value.gameweek);
-      }
-
-      if (leaguesResult.length > 0) {
-        const dashboardLeagueId =
-          dashboardResultRaw.status === "fulfilled" ? dashboardResultRaw.value.selectedLeagueId : "";
-
-        const isValidLeagueId = (leagueId: string): boolean =>
-          leaguesResult.some((league) => league.id === leagueId);
-
-        const preferredLeagueId = isValidLeagueId(dashboardLeagueId)
-          ? dashboardLeagueId
-          : leaguesResult[0]?.id ?? "";
-
-        setSelectedLeagueId((current) => (isValidLeagueId(current) ? current : preferredLeagueId));
-      }
-
-      if (leaguesResultRaw.status === "rejected") {
         const message =
-          leaguesResultRaw.reason instanceof Error
-            ? leaguesResultRaw.reason.message
-            : "Failed to load leagues.";
-        setErrorMessage(message);
-      } else if (dashboardResultRaw.status === "rejected") {
-        const message =
-          dashboardResultRaw.reason instanceof Error
-            ? dashboardResultRaw.reason.message
-            : "Failed to load dashboard.";
+          error instanceof Error ? error.message : "Failed to load dashboard.";
         setInfoMessage(`Header fallback: ${message}`);
       }
     };
@@ -320,7 +283,7 @@ export const TeamBuilderPage = () => {
     return () => {
       mounted = false;
     };
-  }, [getDashboard, getLeagues]);
+  }, [getDashboard]);
 
   useEffect(() => {
     if (!selectedLeagueId) {

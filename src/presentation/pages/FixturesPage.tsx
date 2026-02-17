@@ -2,60 +2,26 @@ import { useEffect, useMemo, useState } from "react";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import { cacheKeys, cacheTtlMs, getOrLoadCached } from "../../app/cache/requestCache";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
-import type { League } from "../../domain/fantasy/entities/League";
 import { FixtureCard } from "../components/FixtureCard";
 import { LoadingState } from "../components/LoadingState";
+import { useLeagueSelection } from "../hooks/useLeagueSelection";
 
 export const FixturesPage = () => {
-  const { getLeagues, getFixtures } = useContainer();
-
-  const [leagues, setLeagues] = useState<League[]>([]);
-  const [selectedLeagueId, setSelectedLeagueId] = useState<string>("");
+  const { getFixtures } = useContainer();
+  const {
+    leagues,
+    selectedLeagueId,
+    setSelectedLeagueId,
+    isLoading: isLeaguesLoading,
+    errorMessage: leagueErrorMessage
+  } = useLeagueSelection();
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
-  const [isLeaguesLoading, setIsLeaguesLoading] = useState(false);
   const [isFixturesLoading, setIsFixturesLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    let mounted = true;
-
-    const loadLeagues = async () => {
-      try {
-        setIsLeaguesLoading(true);
-        const list = await getOrLoadCached({
-          key: cacheKeys.leagues(),
-          ttlMs: cacheTtlMs.leagues,
-          loader: () => getLeagues.execute()
-        });
-        if (!mounted) {
-          return;
-        }
-
-        setLeagues(list);
-        setSelectedLeagueId((current) => current || list[0]?.id || "");
-        setErrorMessage(null);
-      } catch (error) {
-        if (!mounted) {
-          return;
-        }
-
-        setErrorMessage(error instanceof Error ? error.message : "Failed to load leagues.");
-      } finally {
-        if (mounted) {
-          setIsLeaguesLoading(false);
-        }
-      }
-    };
-
-    void loadLeagues();
-
-    return () => {
-      mounted = false;
-    };
-  }, [getLeagues]);
-
-  useEffect(() => {
     if (!selectedLeagueId) {
+      setFixtures([]);
       return;
     }
 
@@ -137,7 +103,9 @@ export const FixturesPage = () => {
           </div>
         </div>
 
-        {errorMessage ? <p className="error-text">{errorMessage}</p> : null}
+        {leagueErrorMessage || errorMessage ? (
+          <p className="error-text">{leagueErrorMessage ?? errorMessage}</p>
+        ) : null}
         {isFixturesLoading ? <LoadingState label="Loading fixtures" /> : null}
         {isFixturesLoading ? (
           <>
