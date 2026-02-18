@@ -7,8 +7,13 @@ import { DependenciesProvider } from "./app/dependencies/DependenciesProvider";
 import { SessionProvider } from "./presentation/hooks/useSession";
 import { AppSettingsProvider } from "./presentation/hooks/useAppSettings";
 import { LeagueSelectionProvider } from "./presentation/hooks/useLeagueSelection";
-import "sweetalert2/dist/sweetalert2.min.css";
 import "./styles/global.css";
+
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    void navigator.serviceWorker.register("/sw.js");
+  });
+}
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

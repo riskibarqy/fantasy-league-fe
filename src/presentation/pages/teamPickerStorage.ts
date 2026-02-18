@@ -20,9 +20,18 @@ type PickerResult = {
   playerId: string;
 };
 
+type ScopedPickerContext = PickerContext & {
+  scopeKey: string;
+};
+
+type ScopedPickerResult = PickerResult & {
+  scopeKey: string;
+};
+
 const PICKER_CONTEXT_KEY = "fantasy-picker-context";
 const PICKER_RESULT_KEY = "fantasy-picker-result";
 const LINEUP_DRAFTS_KEY = "fantasy-lineup-drafts";
+const ANON_SCOPE = "anon";
 
 const readJSON = <T>(key: string): T | null => {
   try {
@@ -45,35 +54,78 @@ const writeJSON = (key: string, value: unknown): void => {
   }
 };
 
-export const savePickerContext = (context: PickerContext): void => {
-  writeJSON(PICKER_CONTEXT_KEY, context);
+const resolveScopeKey = (scope?: string): string => {
+  const trimmed = scope?.trim() ?? "";
+  return trimmed || ANON_SCOPE;
 };
 
-export const readPickerContext = (): PickerContext | null => {
-  return readJSON<PickerContext>(PICKER_CONTEXT_KEY);
+const toDraftKey = (leagueId: string, scope?: string): string => {
+  return `${resolveScopeKey(scope)}::${leagueId.trim()}`;
 };
 
-export const clearPickerContext = (): void => {
+export const savePickerContext = (context: PickerContext, scope?: string): void => {
+  writeJSON(PICKER_CONTEXT_KEY, {
+    ...context,
+    scopeKey: resolveScopeKey(scope)
+  } satisfies ScopedPickerContext);
+};
+
+export const readPickerContext = (scope?: string): PickerContext | null => {
+  const parsed = readJSON<ScopedPickerContext>(PICKER_CONTEXT_KEY);
+  if (!parsed || parsed.scopeKey !== resolveScopeKey(scope)) {
+    return null;
+  }
+
+  return {
+    leagueId: parsed.leagueId,
+    target: parsed.target,
+    lineup: parsed.lineup,
+    returnPath: parsed.returnPath
+  };
+};
+
+export const clearPickerContext = (scope?: string): void => {
+  if (typeof scope === "undefined") {
+    localStorage.removeItem(PICKER_CONTEXT_KEY);
+    return;
+  }
+
+  const parsed = readJSON<ScopedPickerContext>(PICKER_CONTEXT_KEY);
+  if (!parsed || parsed.scopeKey !== resolveScopeKey(scope)) {
+    return;
+  }
+
   localStorage.removeItem(PICKER_CONTEXT_KEY);
 };
 
-export const savePickerResult = (result: PickerResult): void => {
-  writeJSON(PICKER_RESULT_KEY, result);
+export const savePickerResult = (result: PickerResult, scope?: string): void => {
+  writeJSON(PICKER_RESULT_KEY, {
+    ...result,
+    scopeKey: resolveScopeKey(scope)
+  } satisfies ScopedPickerResult);
 };
 
-export const consumePickerResult = (): PickerResult | null => {
-  const result = readJSON<PickerResult>(PICKER_RESULT_KEY);
+export const consumePickerResult = (scope?: string): PickerResult | null => {
+  const result = readJSON<ScopedPickerResult>(PICKER_RESULT_KEY);
   localStorage.removeItem(PICKER_RESULT_KEY);
-  return result;
+  if (!result || result.scopeKey !== resolveScopeKey(scope)) {
+    return null;
+  }
+
+  return {
+    leagueId: result.leagueId,
+    target: result.target,
+    playerId: result.playerId
+  };
 };
 
-export const readLineupDraft = (leagueId: string): TeamLineup | null => {
+export const readLineupDraft = (leagueId: string, scope?: string): TeamLineup | null => {
   const drafts = readJSON<Record<string, TeamLineup>>(LINEUP_DRAFTS_KEY) ?? {};
-  return drafts[leagueId] ?? null;
+  return drafts[toDraftKey(leagueId, scope)] ?? null;
 };
 
-export const writeLineupDraft = (lineup: TeamLineup): void => {
+export const writeLineupDraft = (lineup: TeamLineup, scope?: string): void => {
   const drafts = readJSON<Record<string, TeamLineup>>(LINEUP_DRAFTS_KEY) ?? {};
-  drafts[lineup.leagueId] = lineup;
+  drafts[toDraftKey(lineup.leagueId, scope)] = lineup;
   writeJSON(LINEUP_DRAFTS_KEY, drafts);
 };

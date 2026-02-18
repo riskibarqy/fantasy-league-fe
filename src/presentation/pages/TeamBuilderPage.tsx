@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { useNavigate } from "react-router-dom";
 import { ArrowLeftRight, Clock3, Pickaxe, Sparkles, Trophy } from "lucide-react";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
-import { cacheKeys, cacheTtlMs, getOrLoadCached } from "../../app/cache/requestCache";
+import { cacheKeys, cacheTtlMs, getOrLoadCached, peekCached } from "../../app/cache/requestCache";
 import type { Player } from "../../domain/fantasy/entities/Player";
 import type { PlayerDetails } from "../../domain/fantasy/entities/PlayerDetails";
 import type { TeamLineup } from "../../domain/fantasy/entities/Team";
@@ -278,6 +278,7 @@ export const TeamBuilderPage = () => {
   const { getPlayers, getPlayerDetails, getLineup, getDashboard, getFixtures, getMySquad, logout } = useContainer();
   const { leagues, selectedLeagueId, setSelectedLeagueId } = useLeagueSelection();
   const { session, setSession } = useSession();
+  const userScope = session?.user.id ?? "";
   const logoutInProgressRef = useRef(false);
   const pitchBoardRef = useRef<HTMLDivElement | null>(null);
 
@@ -386,8 +387,26 @@ export const TeamBuilderPage = () => {
 
     let mounted = true;
 
+    const optimisticPlayers = peekCached<Player[]>(cacheKeys.players(selectedLeagueId), true) ?? [];
+    const optimisticFixtures = peekCached<Fixture[]>(cacheKeys.fixtures(selectedLeagueId), true) ?? [];
+    const optimisticDraft = readLineupDraft(selectedLeagueId, userScope);
+    const optimisticLineup = optimisticDraft ? normalizeLineup(selectedLeagueId, optimisticDraft) : null;
+
+    if (optimisticPlayers.length > 0) {
+      setPlayers(optimisticPlayers);
+    }
+
+    if (optimisticFixtures.length > 0) {
+      setFixtures(optimisticFixtures);
+    }
+
+    if (optimisticLineup) {
+      setLineup(optimisticLineup);
+    }
+
     const loadLeagueData = async () => {
-      setIsLeagueDataLoading(true);
+      const shouldShowBlockingLoader = optimisticPlayers.length === 0 && !optimisticLineup;
+      setIsLeagueDataLoading(shouldShowBlockingLoader);
 
       try {
         let playersResultRaw: Player[] = [];
@@ -497,12 +516,12 @@ export const TeamBuilderPage = () => {
         }
 
         let normalized = normalizeLineup(selectedLeagueId, resolvedLineup);
-        const draftLineup = readLineupDraft(selectedLeagueId);
+        const draftLineup = readLineupDraft(selectedLeagueId, userScope);
         if (draftLineup) {
           normalized = normalizeLineup(selectedLeagueId, draftLineup);
         }
 
-        const pickerResult = consumePickerResult();
+        const pickerResult = consumePickerResult(userScope);
         if (pickerResult && pickerResult.leagueId === selectedLeagueId) {
           const pickedPlayer = playersResult.find((player) => player.id === pickerResult.playerId);
           if (pickedPlayer) {
@@ -517,7 +536,7 @@ export const TeamBuilderPage = () => {
         }
 
         setLineup(normalized);
-        writeLineupDraft(normalized);
+        writeLineupDraft(normalized, userScope);
         setSelectedPlayerId(null);
         if (shouldRecenterPitch) {
           recenterToPitch();
@@ -581,15 +600,15 @@ export const TeamBuilderPage = () => {
     return () => {
       mounted = false;
     };
-  }, [forceLogout, getFixtures, getLineup, getMySquad, getPlayers, recenterToPitch, selectedLeagueId, session?.accessToken]);
+  }, [forceLogout, getFixtures, getLineup, getMySquad, getPlayers, recenterToPitch, selectedLeagueId, session?.accessToken, userScope]);
 
   useEffect(() => {
     if (!lineup) {
       return;
     }
 
-    writeLineupDraft(lineup);
-  }, [lineup]);
+    writeLineupDraft(lineup, userScope);
+  }, [lineup, userScope]);
 
   const starterIds = useMemo(() => (lineup ? getStarterIds(lineup) : []), [lineup]);
 
@@ -692,11 +711,14 @@ export const TeamBuilderPage = () => {
       return;
     }
 
-    savePickerContext({
-      leagueId: selectedLeagueId,
-      target,
-      lineup
-    });
+    savePickerContext(
+      {
+        leagueId: selectedLeagueId,
+        target,
+        lineup
+      },
+      userScope
+    );
 
     const params = new URLSearchParams({
       leagueId: selectedLeagueId,

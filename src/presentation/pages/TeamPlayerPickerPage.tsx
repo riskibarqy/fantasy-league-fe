@@ -4,6 +4,7 @@ import type { Player } from "../../domain/fantasy/entities/Player";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import { cacheKeys, cacheTtlMs, getOrLoadCached } from "../../app/cache/requestCache";
 import { LoadingState } from "../components/LoadingState";
+import { useSession } from "../hooks/useSession";
 import { appAlert } from "../lib/appAlert";
 import {
   clearPickerContext,
@@ -93,6 +94,8 @@ export const TeamPlayerPickerPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { getPlayers } = useContainer();
+  const { session } = useSession();
+  const userScope = session?.user.id ?? "";
 
   const [players, setPlayers] = useState<Player[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -111,7 +114,7 @@ export const TeamPlayerPickerPage = () => {
   const deferredSearch = useDeferredValue(search);
 
   const context = useMemo(() => {
-    const stored = readPickerContext();
+    const stored = readPickerContext(userScope);
     const leagueId = searchParams.get("leagueId") ?? stored?.leagueId ?? "";
     const zoneRaw = searchParams.get("zone");
     const indexRaw = searchParams.get("index");
@@ -134,7 +137,7 @@ export const TeamPlayerPickerPage = () => {
       lineup: stored.lineup,
       returnPath: stored.returnPath || "/team"
     };
-  }, [searchParams]);
+  }, [searchParams, userScope]);
 
   useEffect(() => {
     if (!context) {
@@ -262,7 +265,7 @@ export const TeamPlayerPickerPage = () => {
   }, [availablePlayers, sortBy]);
 
   const onCancel = () => {
-    clearPickerContext();
+    clearPickerContext(userScope);
     navigate(context?.returnPath || "/team");
   };
 
@@ -278,11 +281,14 @@ export const TeamPlayerPickerPage = () => {
       return;
     }
 
-    savePickerResult({
-      leagueId: context.leagueId,
-      target: context.target,
-      playerId
-    });
+    savePickerResult(
+      {
+        leagueId: context.leagueId,
+        target: context.target,
+        playerId
+      },
+      userScope
+    );
     navigate(context.returnPath || "/team");
   };
 

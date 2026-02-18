@@ -235,6 +235,7 @@ export const OnboardingPage = () => {
   const { getTeams, getPlayers, saveOnboardingFavoriteClub, completeOnboarding } = useContainer();
   const { leagues, selectedLeagueId, setSelectedLeagueId } = useLeagueSelection();
   const { session } = useSession();
+  const userScope = session?.user.id ?? "";
 
   const [step, setStep] = useState<OnboardingStep>(() =>
     searchParams.get("step") === "squad" ? "squad" : "favorite"
@@ -323,10 +324,11 @@ export const OnboardingPage = () => {
           teamsResult.some((team) => team.id === previous) ? previous : teamsResult[0]?.id ?? ""
         );
 
-        if (loadedLeagueRef.current !== leagueId) {
-          const persistedDraft = readLineupDraft(leagueId);
+        const scopedLeagueKey = `${userScope || "anon"}::${leagueId}`;
+        if (loadedLeagueRef.current !== scopedLeagueKey) {
+          const persistedDraft = readLineupDraft(leagueId, userScope);
           setLineupDraft(normalizeLineupDraft(leagueId, persistedDraft));
-          loadedLeagueRef.current = leagueId;
+          loadedLeagueRef.current = scopedLeagueKey;
         }
       } catch (error) {
         if (!mounted) {
@@ -346,7 +348,7 @@ export const OnboardingPage = () => {
     return () => {
       mounted = false;
     };
-  }, [getPlayers, getTeams, leagueId]);
+  }, [getPlayers, getTeams, leagueId, userScope]);
 
   useEffect(() => {
     if (searchParams.get("step") === "squad") {
@@ -369,8 +371,8 @@ export const OnboardingPage = () => {
       return;
     }
 
-    writeLineupDraft(lineupDraft);
-  }, [lineupDraft]);
+    writeLineupDraft(lineupDraft, userScope);
+  }, [lineupDraft, userScope]);
 
   const playersById = useMemo(() => new Map(players.map((player) => [player.id, player])), [players]);
 
@@ -379,7 +381,7 @@ export const OnboardingPage = () => {
       return;
     }
 
-    const result = consumePickerResult();
+    const result = consumePickerResult(userScope);
     if (!result || result.leagueId !== leagueId) {
       return;
     }
@@ -424,7 +426,7 @@ export const OnboardingPage = () => {
     setErrorMessage(null);
     setInfoMessage(`${pickedPlayer.name} selected.`);
     recenterToPitch();
-  }, [leagueId, lineupDraft, playersById]);
+  }, [leagueId, lineupDraft, playersById, userScope]);
 
   const selectedPlayerIds = useMemo(() => toSelectedPlayerIds(lineupDraft), [lineupDraft]);
 
@@ -521,15 +523,18 @@ export const OnboardingPage = () => {
       return;
     }
 
-    savePickerContext({
-      leagueId,
-      target: {
-        zone,
-        index
+    savePickerContext(
+      {
+        leagueId,
+        target: {
+          zone,
+          index
+        },
+        lineup: lineupDraft,
+        returnPath: "/onboarding?step=squad"
       },
-      lineup: lineupDraft,
-      returnPath: "/onboarding?step=squad"
-    });
+      userScope
+    );
 
     navigate(
       `/onboarding/pick?leagueId=${encodeURIComponent(leagueId)}&zone=${encodeURIComponent(zone)}&index=${index}`

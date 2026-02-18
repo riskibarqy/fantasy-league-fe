@@ -130,6 +130,27 @@ export const getOrLoadCached = async <T,>({
   return request;
 };
 
+export const peekCached = <T,>(key: string, includeExpired = true): T | null => {
+  const memoryEntry = memoryCache.get(key) as CacheEnvelope<T> | undefined;
+  if (memoryEntry) {
+    if (includeExpired || isFresh(memoryEntry)) {
+      return memoryEntry.value;
+    }
+  }
+
+  const localEntry = readFromLocalStorage<T>(key);
+  if (!localEntry) {
+    return null;
+  }
+
+  memoryCache.set(key, localEntry as CacheEnvelope<unknown>);
+  if (includeExpired || isFresh(localEntry)) {
+    return localEntry.value;
+  }
+
+  return null;
+};
+
 export const invalidateCached = (key: string): void => {
   memoryCache.delete(key);
   inFlightCache.delete(key);
