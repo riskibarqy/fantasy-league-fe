@@ -409,6 +409,11 @@ button:disabled {
   box-shadow: none;
 }
 
+.fixture-team-lines {
+  display: grid;
+  gap: 0.22rem;
+}
+
 .fixtures-list {
   display: grid;
   gap: 0.65rem;
@@ -559,12 +564,18 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.24rem;
   border-radius: 999px;
   padding: 0.18rem 0.48rem;
   font-size: 0.72rem;
   font-weight: 700;
   border: 1px solid var(--border);
   text-transform: capitalize;
+}
+
+.movement-icon {
+  font-size: 0.82rem;
+  line-height: 1;
 }
 
 .movement-up {
@@ -692,6 +703,15 @@ button:disabled {
   z-index: 1;
 }
 
+.entity-media-cell {
+  white-space: normal !important;
+  min-width: 240px;
+}
+
+.entity-media-cell strong {
+  font-size: 0.84rem;
+}
+
 .team-picker-clickable {
   cursor: pointer;
 }
@@ -706,6 +726,68 @@ button:disabled {
 }
 
 .team-picker-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.onboarding-shell {
+  padding-bottom: 1rem;
+}
+
+.onboarding-hero {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.onboarding-section {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.onboarding-team-grid {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.onboarding-team-card {
+  border: 1px solid var(--border);
+  background: var(--surface-soft);
+  color: inherit;
+  border-radius: 12px;
+  padding: 0.62rem;
+  text-align: left;
+}
+
+.onboarding-team-card.active {
+  border-color: color-mix(in oklab, var(--accent) 55%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 30%, transparent);
+}
+
+.onboarding-summary-grid {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.onboarding-summary-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-soft);
+  padding: 0.6rem;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.onboarding-player-table {
+  max-height: min(52vh, 560px);
+}
+
+.onboarding-picked {
+  background: color-mix(in oklab, var(--accent) 14%, transparent);
+}
+
+.onboarding-actions {
   display: flex;
   justify-content: flex-end;
 }
@@ -1403,12 +1485,73 @@ button:disabled {
   background: rgba(37, 42, 52, 0.84);
 }
 
+.media-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.42rem;
+  min-width: 0;
+}
+
+.media-copy {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.media-thumb {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.12);
+  flex-shrink: 0;
+}
+
+.media-thumb-small {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+}
+
+.media-thumb-fallback {
+  display: grid;
+  place-items: center;
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.media-url {
+  display: block;
+  max-width: 100%;
+  color: var(--muted);
+  font-size: 0.7rem;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.media-url:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
 .player-portrait {
   height: 112px;
   display: grid;
   justify-items: center;
   align-content: end;
   gap: 0.2rem;
+}
+
+.player-portrait-photo {
+  width: 72px;
+  height: 108px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--border);
 }
 
 .player-portrait-head {
@@ -1430,6 +1573,12 @@ button:disabled {
   text-align: left;
   display: grid;
   gap: 0.2rem;
+}
+
+.player-hero-urls {
+  margin-top: 0.15rem;
+  display: grid;
+  gap: 0.25rem;
 }
 
 .player-modal-stats {
@@ -1522,7 +1671,7 @@ button:disabled {
 
 .league-card {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.9rem;
 }
 

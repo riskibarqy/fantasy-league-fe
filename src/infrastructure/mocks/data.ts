@@ -2,6 +2,7 @@ import type { Dashboard, TeamLineup } from "../../domain/fantasy/entities/Team";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
 import type { League } from "../../domain/fantasy/entities/League";
 import type { Player } from "../../domain/fantasy/entities/Player";
+import type { Club } from "../../domain/fantasy/entities/Club";
 
 export const mockLeagues: League[] = [
   {
@@ -29,6 +30,51 @@ export const mockDashboard: Dashboard = {
   selectedLeagueId: "idn-liga-1"
 };
 
+export const mockTeams: Club[] = [
+  {
+    id: "idn-persib",
+    leagueId: "idn-liga-1",
+    name: "Persib Bandung",
+    short: "PSB",
+    logoUrl: "https://upload.wikimedia.org/wikipedia/en/0/07/Persib_Bandung_logo.svg"
+  },
+  {
+    id: "idn-persija",
+    leagueId: "idn-liga-1",
+    name: "Persija Jakarta",
+    short: "PSJ",
+    logoUrl: "https://upload.wikimedia.org/wikipedia/en/4/4c/Persija_Jakarta_logo.svg"
+  },
+  {
+    id: "idn-persebaya",
+    leagueId: "idn-liga-1",
+    name: "Persebaya Surabaya",
+    short: "BAYA",
+    logoUrl: "https://upload.wikimedia.org/wikipedia/en/0/05/Persebaya_logo.svg"
+  },
+  {
+    id: "idn-borneo",
+    leagueId: "idn-liga-1",
+    name: "Borneo FC",
+    short: "BOR",
+    logoUrl: "https://upload.wikimedia.org/wikipedia/en/2/25/Borneo_FC_logo.png"
+  },
+  {
+    id: "eng-arsenal",
+    leagueId: "eng-premier-league",
+    name: "Arsenal",
+    short: "ARS",
+    logoUrl: "https://upload.wikimedia.org/wikipedia/en/5/53/Arsenal_FC.svg"
+  },
+  {
+    id: "eng-liverpool",
+    leagueId: "eng-premier-league",
+    name: "Liverpool",
+    short: "LIV",
+    logoUrl: "https://upload.wikimedia.org/wikipedia/en/0/0c/Liverpool_FC.svg"
+  }
+];
+
 export const mockFixtures: Fixture[] = [
   {
     id: "fx-1",
@@ -36,6 +82,8 @@ export const mockFixtures: Fixture[] = [
     gameweek: 12,
     homeTeam: "Persib Bandung",
     awayTeam: "Persebaya Surabaya",
+    homeTeamLogoUrl: "https://upload.wikimedia.org/wikipedia/en/0/07/Persib_Bandung_logo.svg",
+    awayTeamLogoUrl: "https://upload.wikimedia.org/wikipedia/en/0/05/Persebaya_logo.svg",
     kickoffAt: "2026-02-14T12:30:00.000Z",
     venue: "Stadion Gelora Bandung Lautan Api"
   },
@@ -45,6 +93,8 @@ export const mockFixtures: Fixture[] = [
     gameweek: 12,
     homeTeam: "Persija Jakarta",
     awayTeam: "PSS Sleman",
+    homeTeamLogoUrl: "https://upload.wikimedia.org/wikipedia/en/4/4c/Persija_Jakarta_logo.svg",
+    awayTeamLogoUrl: "https://upload.wikimedia.org/wikipedia/en/8/8b/PSS_Sleman_logo.png",
     kickoffAt: "2026-02-15T08:00:00.000Z",
     venue: "Jakarta International Stadium"
   },
@@ -54,6 +104,8 @@ export const mockFixtures: Fixture[] = [
     gameweek: 26,
     homeTeam: "Liverpool",
     awayTeam: "Arsenal",
+    homeTeamLogoUrl: "https://upload.wikimedia.org/wikipedia/en/0/0c/Liverpool_FC.svg",
+    awayTeamLogoUrl: "https://upload.wikimedia.org/wikipedia/en/5/53/Arsenal_FC.svg",
     kickoffAt: "2026-02-15T16:30:00.000Z",
     venue: "Anfield"
   }

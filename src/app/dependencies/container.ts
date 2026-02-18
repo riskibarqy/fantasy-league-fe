@@ -3,6 +3,7 @@ import { LoginWithPassword } from "../../application/auth/usecases/LoginWithPass
 import { LoginWithGoogleIdToken } from "../../application/auth/usecases/LoginWithGoogleIdToken";
 import { Logout } from "../../application/auth/usecases/Logout";
 import { CreateCustomLeague } from "../../application/fantasy/usecases/CreateCustomLeague";
+import { CompleteOnboarding } from "../../application/fantasy/usecases/CompleteOnboarding";
 import { GetDashboard } from "../../application/fantasy/usecases/GetDashboard";
 import { GetFixtures } from "../../application/fantasy/usecases/GetFixtures";
 import { GetCustomLeague } from "../../application/fantasy/usecases/GetCustomLeague";
@@ -12,8 +13,10 @@ import { GetLineup } from "../../application/fantasy/usecases/GetLineup";
 import { GetMyCustomLeagues } from "../../application/fantasy/usecases/GetMyCustomLeagues";
 import { GetMySquad } from "../../application/fantasy/usecases/GetMySquad";
 import { GetPlayers } from "../../application/fantasy/usecases/GetPlayers";
+import { GetTeams } from "../../application/fantasy/usecases/GetTeams";
 import { JoinCustomLeagueByInvite } from "../../application/fantasy/usecases/JoinCustomLeagueByInvite";
 import { PickSquad } from "../../application/fantasy/usecases/PickSquad";
+import { SaveOnboardingFavoriteClub } from "../../application/fantasy/usecases/SaveOnboardingFavoriteClub";
 import { SaveLineup } from "../../application/fantasy/usecases/SaveLineup";
 import { HttpAuthRepository } from "../../infrastructure/auth/HttpAuthRepository";
 import { MockAuthRepository } from "../../infrastructure/auth/MockAuthRepository";
@@ -47,6 +50,7 @@ export const buildContainer = () => {
     logout: new Logout(repositories.authRepository),
     getDashboard: new GetDashboard(repositories.fantasyRepository),
     getLeagues: new GetLeagues(repositories.fantasyRepository),
+    getTeams: new GetTeams(repositories.fantasyRepository),
     getFixtures: new GetFixtures(repositories.fantasyRepository),
     getMyCustomLeagues: new GetMyCustomLeagues(repositories.fantasyRepository),
     createCustomLeague: new CreateCustomLeague(repositories.fantasyRepository),
@@ -57,6 +61,8 @@ export const buildContainer = () => {
     getLineup: new GetLineup(repositories.fantasyRepository),
     getMySquad: new GetMySquad(repositories.fantasyRepository),
     pickSquad: new PickSquad(repositories.fantasyRepository),
+    saveOnboardingFavoriteClub: new SaveOnboardingFavoriteClub(repositories.fantasyRepository),
+    completeOnboarding: new CompleteOnboarding(repositories.fantasyRepository),
     saveLineup: new SaveLineup(repositories.fantasyRepository)
   };
 };

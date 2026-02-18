@@ -7,6 +7,7 @@ import type { CustomLeague } from "../../domain/fantasy/entities/CustomLeague";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
 import { FixtureCard } from "../components/FixtureCard";
 import { LoadingState } from "../components/LoadingState";
+import { formatRankMovement, RankMovementBadge } from "../components/RankMovementBadge";
 import { getGlobalNewsItems } from "./newsFeed";
 import { useLeagueSelection } from "../hooks/useLeagueSelection";
 import { useSession } from "../hooks/useSession";
@@ -117,6 +118,7 @@ export const DashboardPage = () => {
   const featuredFixtures = useMemo(() => {
     return sortedFixtures.slice(0, 4);
   }, [sortedFixtures]);
+  const leaguesById = useMemo(() => new Map(leagues.map((league) => [league.id, league])), [leagues]);
 
   const newsItems = useMemo(() => getGlobalNewsItems(2), []);
 
@@ -204,9 +206,37 @@ export const DashboardPage = () => {
           {customLeagues.map((group) => (
             <article key={group.id} className="home-news-item">
               <strong>{group.name}</strong>
+              <div className="media-line">
+                {leaguesById.get(group.leagueId)?.logoUrl ? (
+                  <img
+                    src={leaguesById.get(group.leagueId)?.logoUrl}
+                    alt={leaguesById.get(group.leagueId)?.name ?? group.leagueId}
+                    className="media-thumb media-thumb-small"
+                    loading="lazy"
+                  />
+                ) : (
+                  <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
+                    L
+                  </span>
+                )}
+                <a
+                  className="media-url"
+                  href={leaguesById.get(group.leagueId)?.logoUrl || "#"}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(event) => {
+                    if (!leaguesById.get(group.leagueId)?.logoUrl) {
+                      event.preventDefault();
+                    }
+                  }}
+                >
+                  {leaguesById.get(group.leagueId)?.logoUrl || "Logo URL not available"}
+                </a>
+              </div>
               <p className="muted">
-                Rank #{group.myRank > 0 ? group.myRank : "-"} • Movement {group.rankMovement}
+                Rank #{group.myRank > 0 ? group.myRank : "-"} • Movement {formatRankMovement(group.rankMovement)}
               </p>
+              <RankMovementBadge value={group.rankMovement} />
               <span className="small-label">Code: {group.inviteCode}</span>
             </article>
           ))}

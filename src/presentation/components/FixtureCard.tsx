@@ -12,9 +12,58 @@ export const FixtureCard = ({ fixture }: { fixture: Fixture }) => {
   return (
     <article className="card fixture-card">
       <p className="muted">GW {fixture.gameweek}</p>
-      <h3>
-        {fixture.homeTeam} vs {fixture.awayTeam}
-      </h3>
+      <div className="fixture-team-lines">
+        <div className="media-line">
+          {fixture.homeTeamLogoUrl ? (
+            <img src={fixture.homeTeamLogoUrl} alt={fixture.homeTeam} className="media-thumb media-thumb-small" loading="lazy" />
+          ) : (
+            <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
+              H
+            </span>
+          )}
+          <div className="media-copy">
+            <h3>{fixture.homeTeam}</h3>
+            <a
+              className="media-url"
+              href={fixture.homeTeamLogoUrl || "#"}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(event) => {
+                if (!fixture.homeTeamLogoUrl) {
+                  event.preventDefault();
+                }
+              }}
+            >
+              {fixture.homeTeamLogoUrl || "Home team logo URL not available"}
+            </a>
+          </div>
+        </div>
+        <div className="media-line">
+          {fixture.awayTeamLogoUrl ? (
+            <img src={fixture.awayTeamLogoUrl} alt={fixture.awayTeam} className="media-thumb media-thumb-small" loading="lazy" />
+          ) : (
+            <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
+              A
+            </span>
+          )}
+          <div className="media-copy">
+            <h3>{fixture.awayTeam}</h3>
+            <a
+              className="media-url"
+              href={fixture.awayTeamLogoUrl || "#"}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(event) => {
+                if (!fixture.awayTeamLogoUrl) {
+                  event.preventDefault();
+                }
+              }}
+            >
+              {fixture.awayTeamLogoUrl || "Away team logo URL not available"}
+            </a>
+          </div>
+        </div>
+      </div>
       <p>{fixture.venue}</p>
       <p className="small-label">{kickOff} WIB</p>
     </article>

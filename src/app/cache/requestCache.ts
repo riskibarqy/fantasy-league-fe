@@ -155,6 +155,7 @@ export const clearRequestCache = (): void => {
 export const cacheTtlMs = {
   dashboard: 30_000,
   leagues: 5 * 60_000,
+  teams: 5 * 60_000,
   fixtures: 2 * 60_000,
   players: 3 * 60_000,
   customLeagues: 60_000,
@@ -164,6 +165,7 @@ export const cacheTtlMs = {
 export const cacheKeys = {
   dashboard: (): string => "dashboard",
   leagues: (): string => "leagues",
+  teams: (leagueId: string): string => `teams:${leagueId}`,
   fixtures: (leagueId: string): string => `fixtures:${leagueId}`,
   players: (leagueId: string): string => `players:${leagueId}`,
   customLeagues: (userId: string): string => `custom-leagues:${userId}`,

@@ -3,6 +3,13 @@ import type { Dashboard, TeamLineup } from "../../domain/fantasy/entities/Team";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
 import type { League } from "../../domain/fantasy/entities/League";
 import type { Player } from "../../domain/fantasy/entities/Player";
+import type { Club } from "../../domain/fantasy/entities/Club";
+import type {
+  CompleteOnboardingInput,
+  CompleteOnboardingResult,
+  OnboardingProfile,
+  SaveFavoriteClubInput
+} from "../../domain/fantasy/entities/Onboarding";
 import type { PickSquadInput, Squad } from "../../domain/fantasy/entities/Squad";
 import type {
   CreateCustomLeagueInput,
@@ -14,13 +21,15 @@ import {
   mockDashboard,
   mockFixtures,
   mockLeagues,
-  mockPlayers
+  mockPlayers,
+  mockTeams
 } from "../mocks/data";
 
 const STORAGE_KEY = "fantasy-mock-lineups";
 const SQUAD_STORAGE_KEY = "fantasy-mock-squads";
 const CUSTOM_LEAGUE_STORAGE_KEY = "fantasy-mock-custom-leagues";
 const CUSTOM_LEAGUE_STANDING_STORAGE_KEY = "fantasy-mock-custom-league-standings";
+const ONBOARDING_STORAGE_KEY = "fantasy-mock-onboarding-profiles";
 
 export class MockFantasyRepository implements FantasyRepository {
   async getDashboard(): Promise<Dashboard> {
@@ -31,6 +40,11 @@ export class MockFantasyRepository implements FantasyRepository {
   async getLeagues(): Promise<League[]> {
     await delay(250);
     return mockLeagues;
+  }
+
+  async getTeams(leagueId: string): Promise<Club[]> {
+    await delay(200);
+    return mockTeams.filter((team) => team.leagueId === leagueId);
   }
 
   async getFixtures(leagueId: string): Promise<Fixture[]> {
@@ -116,6 +130,87 @@ export class MockFantasyRepository implements FantasyRepository {
     );
 
     return squad;
+  }
+
+  async saveOnboardingFavoriteClub(
+    input: SaveFavoriteClubInput,
+    _accessToken: string
+  ): Promise<OnboardingProfile> {
+    await delay(220);
+
+    const leagueId = input.leagueId.trim();
+    const teamId = input.teamId.trim();
+    if (!leagueId) {
+      throw new Error("League id is required.");
+    }
+    if (!teamId) {
+      throw new Error("Team id is required.");
+    }
+
+    const exists = mockTeams.some((team) => team.leagueId === leagueId && team.id === teamId);
+    if (!exists) {
+      throw new Error("Favorite team not found in selected league.");
+    }
+
+    const profiles = readStoredOnboardingProfiles();
+    const now = new Date().toISOString();
+    const current = profiles["mock-user"];
+    const next: OnboardingProfile = {
+      userId: "mock-user",
+      favoriteLeagueId: leagueId,
+      favoriteTeamId: teamId,
+      countryCode: current?.countryCode || "ID",
+      ipAddress: current?.ipAddress || "127.0.0.1",
+      onboardingCompleted: current?.onboardingCompleted ?? false,
+      updatedAtUtc: now
+    };
+
+    profiles["mock-user"] = next;
+    writeStoredOnboardingProfiles(profiles);
+    return next;
+  }
+
+  async completeOnboarding(
+    input: CompleteOnboardingInput,
+    accessToken: string
+  ): Promise<CompleteOnboardingResult> {
+    await delay(260);
+
+    const pickedSquad = await this.pickSquad(
+      {
+        leagueId: input.leagueId,
+        squadName: input.squadName,
+        playerIds: input.playerIds
+      },
+      accessToken
+    );
+
+    const savedLineup = await this.saveLineup({
+      ...input.lineup,
+      leagueId: input.leagueId,
+      updatedAt: new Date().toISOString()
+    });
+
+    const profiles = readStoredOnboardingProfiles();
+    const current = profiles["mock-user"];
+    const now = new Date().toISOString();
+    const profile: OnboardingProfile = {
+      userId: "mock-user",
+      favoriteLeagueId: input.leagueId,
+      favoriteTeamId: current?.favoriteTeamId,
+      countryCode: current?.countryCode || "ID",
+      ipAddress: current?.ipAddress || "127.0.0.1",
+      onboardingCompleted: true,
+      updatedAtUtc: now
+    };
+    profiles["mock-user"] = profile;
+    writeStoredOnboardingProfiles(profiles);
+
+    return {
+      profile,
+      squad: pickedSquad,
+      lineup: savedLineup
+    };
   }
 
   async getMyCustomLeagues(_accessToken: string): Promise<CustomLeague[]> {
@@ -451,6 +546,26 @@ const writeStoredCustomLeagueStandings = (
   standings: Record<string, CustomLeagueStanding[]>
 ): void => {
   localStorage.setItem(CUSTOM_LEAGUE_STANDING_STORAGE_KEY, JSON.stringify(standings));
+};
+
+const readStoredOnboardingProfiles = (): Record<string, OnboardingProfile> => {
+  const raw = localStorage.getItem(ONBOARDING_STORAGE_KEY);
+  if (!raw) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Record<string, OnboardingProfile>;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+const writeStoredOnboardingProfiles = (
+  profiles: Record<string, OnboardingProfile>
+): void => {
+  localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify(profiles));
 };
 
 const generateInviteCode = (items: CustomLeague[]): string => {

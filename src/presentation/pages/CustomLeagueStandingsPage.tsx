@@ -4,26 +4,11 @@ import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import { cacheKeys, cacheTtlMs, getOrLoadCached } from "../../app/cache/requestCache";
 import type {
   CustomLeague,
-  CustomLeagueStanding,
-  RankMovement
+  CustomLeagueStanding
 } from "../../domain/fantasy/entities/CustomLeague";
 import { LoadingState } from "../components/LoadingState";
+import { RankMovementBadge } from "../components/RankMovementBadge";
 import { useSession } from "../hooks/useSession";
-
-const movementLabel = (value: RankMovement): string => {
-  switch (value) {
-    case "up":
-      return "↑ Up";
-    case "down":
-      return "↓ Down";
-    case "same":
-      return "→ Same";
-    case "new":
-      return "• New";
-    default:
-      return "-";
-  }
-};
 
 const shortValue = (value: string): string => {
   return value.length <= 8 ? value : `${value.slice(0, 4)}...${value.slice(-2)}`;
@@ -171,9 +156,7 @@ export const CustomLeagueStandingsPage = () => {
                     <td>#{item.rank}</td>
                     <td>{resolveTeamName(item)}</td>
                     <td>
-                      <span className={`movement-pill movement-${item.rankMovement}`}>
-                        {movementLabel(item.rankMovement)}
-                      </span>
+                      <RankMovementBadge value={item.rankMovement} />
                     </td>
                     <td>{item.points}</td>
                   </tr>

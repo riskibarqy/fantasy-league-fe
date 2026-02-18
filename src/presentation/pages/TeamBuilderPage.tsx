@@ -204,6 +204,8 @@ const toSelectedPercentage = (playerId: string): number => {
   return Number(Math.min(value, 89.9).toFixed(1));
 };
 
+const normalizeUrl = (value?: string): string => value?.trim() ?? "";
+
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function withRetry<T>(run: () => Promise<T>, retries: number): Promise<T> {
@@ -1045,17 +1047,84 @@ export const TeamBuilderPage = () => {
 
             <div className="player-modal-hero">
               <div className="player-portrait">
-                <span className="player-portrait-head" />
-                <span
-                  className="player-portrait-body"
-                  style={{ background: shirtBackgroundForClub(selectedPlayer.club) }}
-                />
+                {normalizeUrl(selectedPlayer.imageUrl) ? (
+                  <img
+                    src={normalizeUrl(selectedPlayer.imageUrl)}
+                    alt={selectedPlayer.name}
+                    className="player-portrait-photo"
+                    loading="lazy"
+                  />
+                ) : (
+                  <>
+                    <span className="player-portrait-head" />
+                    <span
+                      className="player-portrait-body"
+                      style={{ background: shirtBackgroundForClub(selectedPlayer.club) }}
+                    />
+                  </>
+                )}
               </div>
 
               <div className="player-hero-text">
                 <h3>{selectedPlayer.name}</h3>
                 <p>{selectedPlayer.position}</p>
                 <p>{selectedPlayer.club}</p>
+                <div className="player-hero-urls">
+                  <div className="media-line">
+                    {normalizeUrl(selectedPlayer.teamLogoUrl) ? (
+                      <img
+                        src={normalizeUrl(selectedPlayer.teamLogoUrl)}
+                        alt={selectedPlayer.club}
+                        className="media-thumb media-thumb-small"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
+                        T
+                      </span>
+                    )}
+                    <a
+                      className="media-url"
+                      href={normalizeUrl(selectedPlayer.teamLogoUrl) || "#"}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(event) => {
+                        if (!normalizeUrl(selectedPlayer.teamLogoUrl)) {
+                          event.preventDefault();
+                        }
+                      }}
+                    >
+                      {normalizeUrl(selectedPlayer.teamLogoUrl) || "Team logo URL not available"}
+                    </a>
+                  </div>
+                  <div className="media-line">
+                    {normalizeUrl(selectedPlayer.imageUrl) ? (
+                      <img
+                        src={normalizeUrl(selectedPlayer.imageUrl)}
+                        alt={selectedPlayer.name}
+                        className="media-thumb media-thumb-small"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
+                        P
+                      </span>
+                    )}
+                    <a
+                      className="media-url"
+                      href={normalizeUrl(selectedPlayer.imageUrl) || "#"}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(event) => {
+                        if (!normalizeUrl(selectedPlayer.imageUrl)) {
+                          event.preventDefault();
+                        }
+                      }}
+                    >
+                      {normalizeUrl(selectedPlayer.imageUrl) || "Player image URL not available"}
+                    </a>
+                  </div>
+                </div>
               </div>
             </div>
 

@@ -3,7 +3,14 @@ import type { Dashboard, TeamLineup } from "../../domain/fantasy/entities/Team";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
 import type { League } from "../../domain/fantasy/entities/League";
 import type { Player } from "../../domain/fantasy/entities/Player";
+import type { Club } from "../../domain/fantasy/entities/Club";
 import type { PickSquadInput, Squad } from "../../domain/fantasy/entities/Squad";
+import type {
+  CompleteOnboardingInput,
+  CompleteOnboardingResult,
+  OnboardingProfile,
+  SaveFavoriteClubInput
+} from "../../domain/fantasy/entities/Onboarding";
 import type {
   CreateCustomLeagueInput,
   CustomLeague,
@@ -31,6 +38,22 @@ type SquadDTO = {
   updated_at_utc: string;
 };
 
+type OnboardingProfileDTO = {
+  user_id: string;
+  favorite_league_id?: string;
+  favorite_team_id?: string;
+  country_code?: string;
+  ip_address?: string;
+  onboarding_completed: boolean;
+  updated_at_utc?: string;
+};
+
+type OnboardingCompleteResponseDTO = {
+  profile: OnboardingProfileDTO;
+  squad: SquadDTO;
+  lineup: unknown;
+};
+
 export class HttpFantasyRepository implements FantasyRepository {
   constructor(private readonly httpClient: HttpClient) {}
 
@@ -42,6 +65,13 @@ export class HttpFantasyRepository implements FantasyRepository {
   async getLeagues(): Promise<League[]> {
     const payload = await this.httpClient.get<unknown>("/v1/leagues");
     return mapLeagues(payload);
+  }
+
+  async getTeams(leagueId: string): Promise<Club[]> {
+    const payload = await this.httpClient.get<unknown>(
+      `/v1/leagues/${encodeURIComponent(leagueId)}/teams`
+    );
+    return mapTeams(payload, leagueId);
   }
 
   async getFixtures(leagueId: string): Promise<Fixture[]> {
@@ -98,6 +128,67 @@ export class HttpFantasyRepository implements FantasyRepository {
     );
 
     return mapSquadDTO(data);
+  }
+
+  async saveOnboardingFavoriteClub(
+    input: SaveFavoriteClubInput,
+    accessToken: string
+  ): Promise<OnboardingProfile> {
+    const data = await this.httpClient.put<
+      { league_id: string; team_id: string },
+      OnboardingProfileDTO
+    >(
+      "/v1/onboarding/favorite-club",
+      {
+        league_id: input.leagueId,
+        team_id: input.teamId
+      },
+      this.authHeader(accessToken)
+    );
+
+    return mapOnboardingProfileDTO(data);
+  }
+
+  async completeOnboarding(
+    input: CompleteOnboardingInput,
+    accessToken: string
+  ): Promise<CompleteOnboardingResult> {
+    const data = await this.httpClient.post<
+      {
+        league_id: string;
+        squad_name?: string;
+        player_ids: string[];
+        goalkeeper_id: string;
+        defender_ids: string[];
+        midfielder_ids: string[];
+        forward_ids: string[];
+        substitute_ids: string[];
+        captain_id: string;
+        vice_captain_id: string;
+      },
+      OnboardingCompleteResponseDTO
+    >(
+      "/v1/onboarding/pick-squad",
+      {
+        league_id: input.leagueId,
+        squad_name: input.squadName,
+        player_ids: input.playerIds,
+        goalkeeper_id: input.lineup.goalkeeperId,
+        defender_ids: input.lineup.defenderIds,
+        midfielder_ids: input.lineup.midfielderIds,
+        forward_ids: input.lineup.forwardIds,
+        substitute_ids: input.lineup.substituteIds,
+        captain_id: input.lineup.captainId,
+        vice_captain_id: input.lineup.viceCaptainId
+      },
+      this.authHeader(accessToken)
+    );
+
+    return {
+      profile: mapOnboardingProfileDTO(data.profile),
+      squad: mapSquadDTO(data.squad),
+      lineup: mapLineup(data.lineup, input.leagueId) ?? input.lineup
+    };
   }
 
   async getMyCustomLeagues(accessToken: string): Promise<CustomLeague[]> {
@@ -198,6 +289,18 @@ const mapSquadDTO = (data: SquadDTO): Squad => {
     })),
     createdAtUtc: data.created_at_utc,
     updatedAtUtc: data.updated_at_utc
+  };
+};
+
+const mapOnboardingProfileDTO = (data: OnboardingProfileDTO): OnboardingProfile => {
+  return {
+    userId: data.user_id,
+    favoriteLeagueId: data.favorite_league_id || undefined,
+    favoriteTeamId: data.favorite_team_id || undefined,
+    countryCode: data.country_code || undefined,
+    ipAddress: data.ip_address || undefined,
+    onboardingCompleted: data.onboarding_completed,
+    updatedAtUtc: data.updated_at_utc || undefined
   };
 };
 
@@ -428,6 +531,31 @@ const mapLeagues = (payload: unknown): League[] => {
     .filter((item): item is League => Boolean(item));
 };
 
+const mapTeams = (payload: unknown, fallbackLeagueId: string): Club[] => {
+  return toArray(payload)
+    .map((item) => {
+      const record = asRecord(item);
+      if (!record) {
+        return null;
+      }
+
+      const id = readString(record, "id", "teamId", "team_id", "public_id");
+      if (!id) {
+        return null;
+      }
+
+      return {
+        id,
+        leagueId:
+          readString(record, "leagueId", "league_id", "league_public_id") || fallbackLeagueId,
+        name: readString(record, "name"),
+        short: readString(record, "short", "short_name", "abbreviation"),
+        logoUrl: readString(record, "logoUrl", "logo_url")
+      } satisfies Club;
+    })
+    .filter((item): item is Club => Boolean(item));
+};
+
 const mapFixtures = (payload: unknown): Fixture[] => {
   return toArray(payload)
     .map((item) => {
@@ -441,7 +569,7 @@ const mapFixtures = (payload: unknown): Fixture[] => {
         return null;
       }
 
-      return {
+      const fixture: Fixture = {
         id,
         leagueId: readString(record, "leagueId", "league_id", "league_public_id"),
         gameweek: readNumber(record, "gameweek"),
@@ -449,7 +577,19 @@ const mapFixtures = (payload: unknown): Fixture[] => {
         awayTeam: readString(record, "awayTeam", "away_team"),
         kickoffAt: readString(record, "kickoffAt", "kickoff_at"),
         venue: readString(record, "venue")
-      } satisfies Fixture;
+      };
+
+      const homeTeamLogoUrl = readString(record, "homeTeamLogoUrl", "home_team_logo_url");
+      if (homeTeamLogoUrl) {
+        fixture.homeTeamLogoUrl = homeTeamLogoUrl;
+      }
+
+      const awayTeamLogoUrl = readString(record, "awayTeamLogoUrl", "away_team_logo_url");
+      if (awayTeamLogoUrl) {
+        fixture.awayTeamLogoUrl = awayTeamLogoUrl;
+      }
+
+      return fixture;
     })
     .filter((item): item is Fixture => Boolean(item));
 };
@@ -472,7 +612,7 @@ const mapPlayers = (payload: unknown, fallbackLeagueId: string): Player[] => {
         return null;
       }
 
-      return {
+      const player: Player = {
         id,
         leagueId:
           readString(record, "leagueId", "league_id", "league_public_id") || fallbackLeagueId,
@@ -483,7 +623,35 @@ const mapPlayers = (payload: unknown, fallbackLeagueId: string): Player[] => {
         form: readNumber(record, "form"),
         projectedPoints: readNumber(record, "projectedPoints", "projected_points"),
         isInjured: readBoolean(record, "isInjured", "is_injured")
-      } satisfies Player;
+      };
+
+      const imageUrl = readString(
+        record,
+        "imageUrl",
+        "image_url",
+        "photoUrl",
+        "photo_url",
+        "playerImageUrl",
+        "player_image_url"
+      );
+      if (imageUrl) {
+        player.imageUrl = imageUrl;
+      }
+
+      const teamLogoUrl = readString(
+        record,
+        "teamLogoUrl",
+        "team_logo_url",
+        "clubLogoUrl",
+        "club_logo_url",
+        "teamImageUrl",
+        "team_image_url"
+      );
+      if (teamLogoUrl) {
+        player.teamLogoUrl = teamLogoUrl;
+      }
+
+      return player;
     })
     .filter((item): item is Player => Boolean(item));
 };

@@ -2,7 +2,14 @@ import type { Dashboard, TeamLineup } from "../entities/Team";
 import type { Fixture } from "../entities/Fixture";
 import type { League } from "../entities/League";
 import type { Player } from "../entities/Player";
+import type { Club } from "../entities/Club";
 import type { PickSquadInput, Squad } from "../entities/Squad";
+import type {
+  CompleteOnboardingInput,
+  CompleteOnboardingResult,
+  OnboardingProfile,
+  SaveFavoriteClubInput
+} from "../entities/Onboarding";
 import type {
   CreateCustomLeagueInput,
   CustomLeague,
@@ -12,12 +19,21 @@ import type {
 export interface FantasyRepository {
   getDashboard(): Promise<Dashboard>;
   getLeagues(): Promise<League[]>;
+  getTeams(leagueId: string): Promise<Club[]>;
   getFixtures(leagueId: string): Promise<Fixture[]>;
   getPlayers(leagueId: string): Promise<Player[]>;
   getLineup(leagueId: string): Promise<TeamLineup | null>;
   saveLineup(lineup: TeamLineup): Promise<TeamLineup>;
   getMySquad(leagueId: string, accessToken: string): Promise<Squad | null>;
   pickSquad(input: PickSquadInput, accessToken: string): Promise<Squad>;
+  saveOnboardingFavoriteClub(
+    input: SaveFavoriteClubInput,
+    accessToken: string
+  ): Promise<OnboardingProfile>;
+  completeOnboarding(
+    input: CompleteOnboardingInput,
+    accessToken: string
+  ): Promise<CompleteOnboardingResult>;
   getMyCustomLeagues(accessToken: string): Promise<CustomLeague[]>;
   createCustomLeague(input: CreateCustomLeagueInput, accessToken: string): Promise<CustomLeague>;
   joinCustomLeagueByInvite(inviteCode: string, accessToken: string): Promise<CustomLeague>;

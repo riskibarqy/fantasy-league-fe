@@ -34,6 +34,19 @@ export const LeaguesPage = () => {
             <div>
               <h3>{league.name}</h3>
               <p className="muted">Country: {league.countryCode}</p>
+              <a
+                className="media-url"
+                href={league.logoUrl || "#"}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(event) => {
+                  if (!league.logoUrl) {
+                    event.preventDefault();
+                  }
+                }}
+              >
+                {league.logoUrl || "Logo URL not available"}
+              </a>
               <div className="team-picker-actions">
                 {league.id === selectedLeagueId ? (
                   <span className="small-label">Active League</span>

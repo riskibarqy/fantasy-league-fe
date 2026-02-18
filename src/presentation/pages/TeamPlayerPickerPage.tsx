@@ -78,6 +78,8 @@ const withRetry = async <T,>(run: () => Promise<T>, retries: number): Promise<T>
   throw lastError instanceof Error ? lastError : new Error("Request failed.");
 };
 
+const normalizeUrl = (value?: string): string => value?.trim() ?? "";
+
 export const TeamPlayerPickerPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -381,8 +383,72 @@ export const TeamPlayerPickerPage = () => {
                       tabIndex={0}
                       aria-label={`Pick ${player.name}`}
                     >
-                      <td>{player.name}</td>
-                      <td>{player.club}</td>
+                      <td className="entity-media-cell">
+                        <div className="media-line">
+                          {normalizeUrl(player.imageUrl) ? (
+                            <img
+                              src={normalizeUrl(player.imageUrl)}
+                              alt={player.name}
+                              className="media-thumb"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <span className="media-thumb media-thumb-fallback" aria-hidden="true">
+                              P
+                            </span>
+                          )}
+                          <div className="media-copy">
+                            <strong>{player.name}</strong>
+                            <a
+                              className="media-url"
+                              href={normalizeUrl(player.imageUrl) || "#"}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                if (!normalizeUrl(player.imageUrl)) {
+                                  event.preventDefault();
+                                }
+                              }}
+                            >
+                              {normalizeUrl(player.imageUrl) || "Image URL not available"}
+                            </a>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="entity-media-cell">
+                        <div className="media-line">
+                          {normalizeUrl(player.teamLogoUrl) ? (
+                            <img
+                              src={normalizeUrl(player.teamLogoUrl)}
+                              alt={player.club}
+                              className="media-thumb media-thumb-small"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
+                              T
+                            </span>
+                          )}
+                          <div className="media-copy">
+                            <strong>{player.club}</strong>
+                            <a
+                              className="media-url"
+                              href={normalizeUrl(player.teamLogoUrl) || "#"}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                if (!normalizeUrl(player.teamLogoUrl)) {
+                                  event.preventDefault();
+                                }
+                              }}
+                            >
+                              {normalizeUrl(player.teamLogoUrl) || "Team logo URL not available"}
+                            </a>
+                          </div>
+                        </div>
+                      </td>
                       <td>{player.position}</td>
                       <td>£{player.price.toFixed(1)}</td>
                       <td>{player.form.toFixed(1)}</td>

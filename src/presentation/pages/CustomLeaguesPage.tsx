@@ -9,6 +9,7 @@ import {
 } from "../../app/cache/requestCache";
 import type { CustomLeague } from "../../domain/fantasy/entities/CustomLeague";
 import { LoadingState } from "../components/LoadingState";
+import { RankMovementBadge } from "../components/RankMovementBadge";
 import { useLeagueSelection } from "../hooks/useLeagueSelection";
 import { useSession } from "../hooks/useSession";
 
@@ -95,6 +96,7 @@ export const CustomLeaguesPage = () => {
   }, [searchParams]);
 
   const leagueCount = useMemo(() => groups.length, [groups]);
+  const leaguesById = useMemo(() => new Map(leagues.map((league) => [league.id, league])), [leagues]);
 
   const buildInviteLink = (inviteCode: string): string => {
     if (typeof window === "undefined") {
@@ -302,9 +304,38 @@ export const CustomLeaguesPage = () => {
             <article key={group.id} className="custom-league-item">
               <div className="home-section-head">
                 <strong>{group.name}</strong>
-                <span className={`movement-pill movement-${group.rankMovement}`}>{group.rankMovement}</span>
+                <RankMovementBadge value={group.rankMovement} />
               </div>
-              <p className="muted">League: {group.leagueId}</p>
+              <div className="media-line">
+                {leaguesById.get(group.leagueId)?.logoUrl ? (
+                  <img
+                    src={leaguesById.get(group.leagueId)?.logoUrl}
+                    alt={leaguesById.get(group.leagueId)?.name ?? group.leagueId}
+                    className="media-thumb media-thumb-small"
+                    loading="lazy"
+                  />
+                ) : (
+                  <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
+                    L
+                  </span>
+                )}
+                <div className="media-copy">
+                  <p className="muted">League: {leaguesById.get(group.leagueId)?.name ?? group.leagueId}</p>
+                  <a
+                    className="media-url"
+                    href={leaguesById.get(group.leagueId)?.logoUrl || "#"}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(event) => {
+                      if (!leaguesById.get(group.leagueId)?.logoUrl) {
+                        event.preventDefault();
+                      }
+                    }}
+                  >
+                    {leaguesById.get(group.leagueId)?.logoUrl || "Logo URL not available"}
+                  </a>
+                </div>
+              </div>
               <p className="muted">My Rank: {group.myRank > 0 ? `#${group.myRank}` : "-"}</p>
               <p className="small-label">Invite Code: {group.inviteCode}</p>
               <div className="custom-league-item-actions">

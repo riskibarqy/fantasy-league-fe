@@ -5,6 +5,8 @@ export type Player = {
   leagueId: string;
   name: string;
   club: string;
+  imageUrl?: string;
+  teamLogoUrl?: string;
   position: Position;
   price: number;
   form: number;

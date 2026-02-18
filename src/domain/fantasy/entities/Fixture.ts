@@ -4,6 +4,8 @@ export type Fixture = {
   gameweek: number;
   homeTeam: string;
   awayTeam: string;
+  homeTeamLogoUrl?: string;
+  awayTeamLogoUrl?: string;
   kickoffAt: string;
   venue: string;
 };
