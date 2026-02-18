@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { Bell, LogOut, Palette, UserRound } from "lucide-react";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import { useSession } from "../hooks/useSession";
 import { useAppSettings } from "../hooks/useAppSettings";
@@ -68,7 +69,10 @@ export const SettingsPage = () => {
 
       <Card className="card settings-section">
         <div className="settings-header">
-          <h3>Appearance</h3>
+          <h3 className="section-icon-title">
+            <Palette className="inline-icon" aria-hidden="true" />
+            Appearance
+          </h3>
           <p className="muted">Choose your preferred visual mode.</p>
         </div>
         <div className="segmented-control">
@@ -104,7 +108,10 @@ export const SettingsPage = () => {
 
       <Card className="card settings-section">
         <div className="settings-header">
-          <h3>Experience</h3>
+          <h3 className="section-icon-title">
+            <Bell className="inline-icon" aria-hidden="true" />
+            Experience
+          </h3>
           <p className="muted">Tune the interface behavior.</p>
         </div>
 
@@ -136,7 +143,10 @@ export const SettingsPage = () => {
 
       <Card className="card settings-section">
         <div className="settings-header">
-          <h3>Account</h3>
+          <h3 className="section-icon-title">
+            <UserRound className="inline-icon" aria-hidden="true" />
+            Account
+          </h3>
           <p className="muted">Manage your active session.</p>
         </div>
         <article className="settings-row">
@@ -146,6 +156,7 @@ export const SettingsPage = () => {
           </div>
           <div className="settings-actions">
             <Button type="button" variant="destructive" className="danger-button" onClick={onLogout}>
+              <LogOut className="inline-icon" aria-hidden="true" />
               Logout
             </Button>
           </div>

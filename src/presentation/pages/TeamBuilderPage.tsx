@@ -1,16 +1,19 @@
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
+import { ArrowLeftRight, Clock3, Pickaxe, Sparkles, Trophy } from "lucide-react";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import { cacheKeys, cacheTtlMs, getOrLoadCached } from "../../app/cache/requestCache";
 import type { Player } from "../../domain/fantasy/entities/Player";
+import type { PlayerDetails } from "../../domain/fantasy/entities/PlayerDetails";
 import type { TeamLineup } from "../../domain/fantasy/entities/Team";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
 import { SUBSTITUTE_SIZE } from "../../domain/fantasy/services/lineupRules";
-import { buildLineupFromPlayers, pickAutoSquadPlayerIds } from "../../domain/fantasy/services/squadBuilder";
+import { buildLineupFromPlayers } from "../../domain/fantasy/services/squadBuilder";
 import { LoadingState } from "../components/LoadingState";
 import { useSession } from "../hooks/useSession";
 import { useLeagueSelection } from "../hooks/useLeagueSelection";
 import { appAlert } from "../lib/appAlert";
+import { HttpError } from "../../infrastructure/http/httpClient";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
@@ -212,6 +215,43 @@ const normalizeUrl = (value?: string): string => value?.trim() ?? "";
 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
+const isUnauthorizedError = (error: unknown): boolean => {
+  if (error instanceof HttpError) {
+    return error.statusCode === 401 || error.statusCode === 403;
+  }
+
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("unauthorized") ||
+    message.includes("forbidden") ||
+    message.includes("invalid token") ||
+    message.includes("token expired") ||
+    message.includes("introspection")
+  );
+};
+
+const scrollElementToViewportCenter = (element: HTMLElement) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
+      const rect = element.getBoundingClientRect();
+      const offset = Math.max((window.innerHeight - rect.height) / 2, 0);
+      const targetTop = window.scrollY + rect.top - offset;
+      window.scrollTo({
+        top: Math.max(targetTop, 0),
+        behavior: "smooth"
+      });
+    });
+  });
+};
+
 async function withRetry<T>(run: () => Promise<T>, retries: number): Promise<T> {
   let attempt = 0;
   let lastError: unknown;
@@ -235,9 +275,11 @@ async function withRetry<T>(run: () => Promise<T>, retries: number): Promise<T> 
 
 export const TeamBuilderPage = () => {
   const navigate = useNavigate();
-  const { getPlayers, getLineup, getDashboard, getFixtures, getMySquad, pickSquad } = useContainer();
+  const { getPlayers, getPlayerDetails, getLineup, getDashboard, getFixtures, getMySquad, logout } = useContainer();
   const { leagues, selectedLeagueId, setSelectedLeagueId } = useLeagueSelection();
-  const { session } = useSession();
+  const { session, setSession } = useSession();
+  const logoutInProgressRef = useRef(false);
+  const pitchBoardRef = useRef<HTMLDivElement | null>(null);
 
   const [mode, setMode] = useState<TeamMode>("PAT");
   const [players, setPlayers] = useState<Player[]>([]);
@@ -249,6 +291,40 @@ export const TeamBuilderPage = () => {
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [isLeagueDataLoading, setIsLeagueDataLoading] = useState(false);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+  const [selectedPlayerDetails, setSelectedPlayerDetails] = useState<PlayerDetails | null>(null);
+  const [isSelectedPlayerDetailsLoading, setIsSelectedPlayerDetailsLoading] = useState(false);
+
+  const recenterToPitch = useCallback(() => {
+    if (!pitchBoardRef.current) {
+      return;
+    }
+
+    scrollElementToViewportCenter(pitchBoardRef.current);
+  }, []);
+
+  const forceLogout = useCallback(
+    async (reason: string) => {
+      if (logoutInProgressRef.current) {
+        return;
+      }
+
+      logoutInProgressRef.current = true;
+
+      try {
+        const token = session?.accessToken?.trim() ?? "";
+        if (token) {
+          await logout.execute(token);
+        }
+      } catch {
+        // no-op: local session clear still needs to happen
+      } finally {
+        setSession(null);
+        void appAlert.warning("Session Expired", reason);
+        navigate("/login", { replace: true });
+      }
+    },
+    [logout, navigate, session?.accessToken, setSession]
+  );
 
   useEffect(() => {
     if (errorMessage) {
@@ -365,7 +441,9 @@ export const TeamBuilderPage = () => {
         }
 
         const playersResult = playersResultRaw;
-        let fallbackMessage: string | null = null;
+        let infoToShow: string | null = null;
+        let loadErrorToShow: string | null = null;
+        let shouldRecenterPitch = false;
 
         const lineupResult =
           lineupResultRaw.status === "fulfilled" ? lineupResultRaw.value : null;
@@ -380,44 +458,41 @@ export const TeamBuilderPage = () => {
         if (!resolvedLineup && playersResult.length > 0) {
           const accessToken = session?.accessToken?.trim() ?? "";
 
-          if (accessToken) {
-            try {
-              let squadResult = await getMySquad.execute(selectedLeagueId, accessToken);
-              if (!squadResult) {
-                const playerIds = pickAutoSquadPlayerIds(playersResult);
-                squadResult = await pickSquad.execute(
-                  {
-                    leagueId: selectedLeagueId,
-                    playerIds
-                  },
-                  accessToken
-                );
-                fallbackMessage =
-                  fallbackMessage ??
-                  "Squad was empty. Auto-picked players and synced to Fantasy API.";
-              } else {
-                fallbackMessage = fallbackMessage ?? "Loaded lineup from your current squad.";
-              }
+          if (!accessToken) {
+            await forceLogout("Your session is invalid. Please sign in again.");
+            return;
+          }
 
+          try {
+            const squadResult = await getMySquad.execute(selectedLeagueId, accessToken);
+            if (!squadResult) {
+              void appAlert.info(
+                "Onboarding Required",
+                "No squad found for this league. Please complete onboarding for this league."
+              );
+              navigate(
+                `/onboarding?force=1&step=squad&leagueId=${encodeURIComponent(selectedLeagueId)}`,
+                { replace: true }
+              );
+              return;
+            } else {
               resolvedLineup = buildLineupFromPlayers(
                 selectedLeagueId,
                 playersResult,
                 squadResult.picks.map((pick) => pick.playerId)
               );
-            } catch (error) {
-              const message =
-                error instanceof Error ? error.message : "Unknown error while syncing squad.";
-
-              fallbackMessage =
-                fallbackMessage ??
-                `Squad sync failed (${message}). Showing generated lineup from players.`;
-              resolvedLineup = buildLineupFromPlayers(selectedLeagueId, playersResult);
+              infoToShow = "Loaded lineup from your current squad.";
             }
-          } else {
-            fallbackMessage =
-              fallbackMessage ??
-              "No saved lineup yet. Showing generated lineup from available players.";
-            resolvedLineup = buildLineupFromPlayers(selectedLeagueId, playersResult);
+          } catch (error) {
+            if (isUnauthorizedError(error)) {
+              await forceLogout("Your session has expired. Please sign in again.");
+              return;
+            }
+
+            const message =
+              error instanceof Error ? error.message : "Unknown error while loading squad.";
+            resolvedLineup = createEmptyLineup(selectedLeagueId);
+            loadErrorToShow = `Squad load failed (${message}). Pick players directly on the field.`;
           }
         }
 
@@ -434,15 +509,19 @@ export const TeamBuilderPage = () => {
             normalized = ensureLeadership(
               assignPlayerToTarget(normalized, pickerResult.target, pickerResult.playerId)
             );
-            fallbackMessage = `${pickedPlayer.name} added to ${pickerResult.target.zone} slot.`;
+            infoToShow = `${pickedPlayer.name} added to ${pickerResult.target.zone} slot.`;
+            shouldRecenterPitch = true;
           } else {
-            fallbackMessage = fallbackMessage ?? "Picked player is unavailable for this league.";
+            loadErrorToShow = loadErrorToShow ?? "Picked player is unavailable for this league.";
           }
         }
 
         setLineup(normalized);
         writeLineupDraft(normalized);
         setSelectedPlayerId(null);
+        if (shouldRecenterPitch) {
+          recenterToPitch();
+        }
 
         const nearestKickoff = [...fixturesResult]
           .sort((left, right) => new Date(left.kickoffAt).getTime() - new Date(right.kickoffAt).getTime())[0]?.kickoffAt ?? null;
@@ -457,7 +536,7 @@ export const TeamBuilderPage = () => {
             lineupResultRaw.reason instanceof Error
               ? lineupResultRaw.reason.message
               : "Failed to load lineup.";
-          fallbackMessage = fallbackMessage ?? `Lineup request failed (${message}).`;
+          loadErrorToShow = loadErrorToShow ?? `Lineup request failed (${message}).`;
         }
 
         if (fixturesResultRaw.status === "rejected") {
@@ -465,11 +544,11 @@ export const TeamBuilderPage = () => {
             fixturesResultRaw.reason instanceof Error
               ? fixturesResultRaw.reason.message
               : "Failed to load fixtures.";
-          fallbackMessage = fallbackMessage ?? `Fixtures request failed (${message}).`;
+          loadErrorToShow = loadErrorToShow ?? `Fixtures request failed (${message}).`;
         }
 
-        if (fallbackMessage) {
-          setInfoMessage(fallbackMessage);
+        if (infoToShow) {
+          setInfoMessage(infoToShow);
         } else if (lineupResult) {
           setInfoMessage(`Last saved at ${new Date(lineupResult.updatedAt).toLocaleString("id-ID")}`);
         } else if (playersResult.length === 0) {
@@ -478,9 +557,14 @@ export const TeamBuilderPage = () => {
           setInfoMessage("No lineup saved for this league yet.");
         }
 
-        setErrorMessage(null);
+        setErrorMessage(loadErrorToShow);
       } catch (error) {
         if (!mounted) {
+          return;
+        }
+
+        if (isUnauthorizedError(error)) {
+          await forceLogout("Your session has expired. Please sign in again.");
           return;
         }
 
@@ -497,7 +581,7 @@ export const TeamBuilderPage = () => {
     return () => {
       mounted = false;
     };
-  }, [getFixtures, getLineup, getMySquad, getPlayers, pickSquad, selectedLeagueId, session?.accessToken]);
+  }, [forceLogout, getFixtures, getLineup, getMySquad, getPlayers, recenterToPitch, selectedLeagueId, session?.accessToken]);
 
   useEffect(() => {
     if (!lineup) {
@@ -554,6 +638,55 @@ export const TeamBuilderPage = () => {
     return playersById.get(selectedPlayerId) ?? null;
   }, [playersById, selectedPlayerId]);
 
+  useEffect(() => {
+    if (!selectedPlayer || !selectedLeagueId) {
+      setSelectedPlayerDetails(null);
+      setIsSelectedPlayerDetailsLoading(false);
+      return;
+    }
+
+    let mounted = true;
+
+    const loadPlayerDetails = async () => {
+      setIsSelectedPlayerDetailsLoading(true);
+
+      try {
+        const details = await getOrLoadCached({
+          key: cacheKeys.playerDetails(selectedLeagueId, selectedPlayer.id),
+          ttlMs: cacheTtlMs.playerDetails,
+          loader: () => getPlayerDetails.execute(selectedLeagueId, selectedPlayer.id),
+          allowStaleOnError: true
+        });
+
+        if (!mounted) {
+          return;
+        }
+
+        setSelectedPlayerDetails(details);
+      } catch (error) {
+        if (!mounted) {
+          return;
+        }
+
+        setSelectedPlayerDetails(null);
+        void appAlert.warning(
+          "Player Details",
+          error instanceof Error ? error.message : "Unable to load full player details."
+        );
+      } finally {
+        if (mounted) {
+          setIsSelectedPlayerDetailsLoading(false);
+        }
+      }
+    };
+
+    void loadPlayerDetails();
+
+    return () => {
+      mounted = false;
+    };
+  }, [getPlayerDetails, selectedLeagueId, selectedPlayer]);
+
   const openPlayerPicker = (target: SlotPickerTarget) => {
     if (!lineup || !selectedLeagueId) {
       return;
@@ -595,13 +728,80 @@ export const TeamBuilderPage = () => {
       return null;
     }
 
+    const detailsPlayer = selectedPlayerDetails?.player;
+    const detailsStats = selectedPlayerDetails?.statistics;
+    const pointPerMatchFromSeason =
+      detailsStats && detailsStats.appearances > 0
+        ? (detailsStats.totalPoints / detailsStats.appearances).toFixed(2)
+        : null;
+
     return {
-      price: selectedPlayer.price.toFixed(1),
-      pointPerMatch: ((selectedPlayer.projectedPoints + selectedPlayer.form) / 2).toFixed(2),
-      form: selectedPlayer.form.toFixed(1),
+      price: (detailsPlayer?.price ?? selectedPlayer.price).toFixed(1),
+      pointPerMatch:
+        pointPerMatchFromSeason ??
+        (((detailsPlayer?.projectedPoints ?? selectedPlayer.projectedPoints) +
+          (detailsPlayer?.form ?? selectedPlayer.form)) /
+          2).toFixed(2),
+      form: (detailsPlayer?.form ?? selectedPlayer.form).toFixed(1),
       selectedPercentage: `${toSelectedPercentage(selectedPlayer.id).toFixed(1)}%`
     };
-  }, [selectedPlayer]);
+  }, [selectedPlayer, selectedPlayerDetails]);
+
+  const selectedPlayerProfileItems = useMemo(() => {
+    if (!selectedPlayer) {
+      return [];
+    }
+
+    const profile = selectedPlayerDetails?.player;
+    const toValue = (value: string | number | undefined): string => {
+      if (typeof value === "number") {
+        return String(value);
+      }
+
+      const text = value?.trim() ?? "";
+      return text || "-";
+    };
+
+    const items = [
+      { label: "Player ID", value: selectedPlayer.id },
+      { label: "Full Name", value: toValue(profile?.fullName ?? selectedPlayer.name) },
+      { label: "Nationality", value: toValue(profile?.nationality) },
+      { label: "Country of Birth", value: toValue(profile?.countryOfBirth) },
+      { label: "Birth Date", value: toValue(profile?.birthDate) },
+      { label: "Age", value: toValue(profile?.age) },
+      { label: "Height", value: toValue(profile?.height) },
+      { label: "Weight", value: toValue(profile?.weight) },
+      { label: "Preferred Foot", value: toValue(profile?.preferredFoot) },
+      { label: "Shirt Number", value: toValue(profile?.shirtNumber) },
+      { label: "Market Value", value: toValue(profile?.marketValue) }
+    ];
+
+    const extra =
+      selectedPlayerDetails?.extraInfo.map((entry) => ({
+        label: entry.label,
+        value: entry.value
+      })) ?? [];
+
+    return [...items, ...extra];
+  }, [selectedPlayer, selectedPlayerDetails]);
+
+  const selectedPlayerSeasonStats = useMemo(() => {
+    const stats = selectedPlayerDetails?.statistics;
+    if (!stats) {
+      return [];
+    }
+
+    return [
+      { label: "Appearances", value: String(stats.appearances) },
+      { label: "Minutes Played", value: String(stats.minutesPlayed) },
+      { label: "Goals", value: String(stats.goals) },
+      { label: "Assists", value: String(stats.assists) },
+      { label: "Clean Sheets", value: String(stats.cleanSheets) },
+      { label: "Yellow Cards", value: String(stats.yellowCards) },
+      { label: "Red Cards", value: String(stats.redCards) },
+      { label: "Total Points", value: String(stats.totalPoints) }
+    ];
+  }, [selectedPlayerDetails]);
 
   const fixtureStrip = useMemo(() => {
     if (!selectedPlayer) {
@@ -889,8 +1089,11 @@ export const TeamBuilderPage = () => {
   return (
     <div className="page-grid team-builder-page">
       <section className="section-title">
-        <h2>Team Builder</h2>
-        <p className="muted">Choose mode: Pick A Team (PAT) or Transfers (TRF).</p>
+        <h2 className="section-icon-title">
+          <Trophy className="inline-icon" aria-hidden="true" />
+          Team Builder
+        </h2>
+        <p className="muted">Choose mode: Pick Team or Transfers.</p>
       </section>
 
       <Card className="card team-header-box">
@@ -901,7 +1104,8 @@ export const TeamBuilderPage = () => {
             className={`mode-button ${mode === "PAT" ? "active" : ""}`}
             onClick={() => setMode("PAT")}
           >
-            PAT
+            <Pickaxe className="mode-icon" aria-hidden="true" />
+            Pick Team
           </Button>
           <Button
             type="button"
@@ -909,7 +1113,8 @@ export const TeamBuilderPage = () => {
             className={`mode-button ${mode === "TRF" ? "active" : ""}`}
             onClick={() => setMode("TRF")}
           >
-            TRF
+            <ArrowLeftRight className="mode-icon" aria-hidden="true" />
+            Transfers
           </Button>
         </div>
 
@@ -951,53 +1156,83 @@ export const TeamBuilderPage = () => {
         {mode === "PAT" ? (
           <div className="chips-grid chips-grid-4">
             <article className="chip-card">
-              <p>Wildcard</p>
+              <p className="chip-card-label">
+                <Sparkles className="inline-icon" aria-hidden="true" />
+                Wildcard
+              </p>
               <strong>Available</strong>
             </article>
             <article className="chip-card">
-              <p>Triple Captain</p>
+              <p className="chip-card-label">
+                <Sparkles className="inline-icon" aria-hidden="true" />
+                Triple Captain
+              </p>
               <strong>Available</strong>
             </article>
             <article className="chip-card">
-              <p>Free Hit</p>
+              <p className="chip-card-label">
+                <Sparkles className="inline-icon" aria-hidden="true" />
+                Free Hit
+              </p>
               <strong>Available</strong>
             </article>
             <article className="chip-card">
-              <p>Bench Boost</p>
+              <p className="chip-card-label">
+                <Sparkles className="inline-icon" aria-hidden="true" />
+                Bench Boost
+              </p>
               <strong>Available</strong>
             </article>
           </div>
         ) : (
           <div className="chips-grid chips-grid-6">
             <article className="chip-card">
-              <p>Budget</p>
+              <p className="chip-card-label">
+                <Sparkles className="inline-icon" aria-hidden="true" />
+                Budget
+              </p>
               <strong>£{Math.max(0, 100 - squadCost).toFixed(1)}</strong>
             </article>
             <article className="chip-card">
-              <p>Point Cost</p>
+              <p className="chip-card-label">
+                <Clock3 className="inline-icon" aria-hidden="true" />
+                Point Cost
+              </p>
               <strong>0 pts</strong>
             </article>
             <article className="chip-card">
-              <p>Wildcard</p>
+              <p className="chip-card-label">
+                <Sparkles className="inline-icon" aria-hidden="true" />
+                Wildcard
+              </p>
               <strong>Available</strong>
             </article>
             <article className="chip-card">
-              <p>Triple Captain</p>
+              <p className="chip-card-label">
+                <Sparkles className="inline-icon" aria-hidden="true" />
+                Triple Captain
+              </p>
               <strong>Available</strong>
             </article>
             <article className="chip-card">
-              <p>Free Hit</p>
+              <p className="chip-card-label">
+                <Sparkles className="inline-icon" aria-hidden="true" />
+                Free Hit
+              </p>
               <strong>Available</strong>
             </article>
             <article className="chip-card">
-              <p>Bench Boost</p>
+              <p className="chip-card-label">
+                <Sparkles className="inline-icon" aria-hidden="true" />
+                Bench Boost
+              </p>
               <strong>Available</strong>
             </article>
           </div>
         )}
       </Card>
 
-      <Card className="fpl-board card">
+      <Card ref={pitchBoardRef} className="fpl-board card">
         {mode === "PAT" ? renderPitch(patRows, true, true) : renderPitch(trfRows, false, false)}
 
         {mode === "PAT" ? (
@@ -1065,10 +1300,10 @@ export const TeamBuilderPage = () => {
 
             <div className="player-modal-hero">
               <div className="player-portrait">
-                {normalizeUrl(selectedPlayer.imageUrl) ? (
+                {normalizeUrl(selectedPlayerDetails?.player.imageUrl ?? selectedPlayer.imageUrl) ? (
                   <img
-                    src={normalizeUrl(selectedPlayer.imageUrl)}
-                    alt={selectedPlayer.name}
+                    src={normalizeUrl(selectedPlayerDetails?.player.imageUrl ?? selectedPlayer.imageUrl)}
+                    alt={selectedPlayerDetails?.player.name ?? selectedPlayer.name}
                     className="player-portrait-photo"
                     loading="lazy"
                   />
@@ -1077,22 +1312,24 @@ export const TeamBuilderPage = () => {
                     <span className="player-portrait-head" />
                     <span
                       className="player-portrait-body"
-                      style={{ background: shirtBackgroundForClub(selectedPlayer.club) }}
+                      style={{
+                        background: shirtBackgroundForClub(selectedPlayerDetails?.player.club ?? selectedPlayer.club)
+                      }}
                     />
                   </>
                 )}
               </div>
 
               <div className="player-hero-text">
-                <h3>{selectedPlayer.name}</h3>
-                <p>{selectedPlayer.position}</p>
-                <p>{selectedPlayer.club}</p>
+                <h3>{selectedPlayerDetails?.player.fullName ?? selectedPlayerDetails?.player.name ?? selectedPlayer.name}</h3>
+                <p>{selectedPlayerDetails?.player.position ?? selectedPlayer.position}</p>
+                <p>{selectedPlayerDetails?.player.club ?? selectedPlayer.club}</p>
                 <div className="player-hero-urls">
                   <div className="media-line">
-                    {normalizeUrl(selectedPlayer.teamLogoUrl) ? (
+                    {normalizeUrl(selectedPlayerDetails?.player.teamLogoUrl ?? selectedPlayer.teamLogoUrl) ? (
                       <img
-                        src={normalizeUrl(selectedPlayer.teamLogoUrl)}
-                        alt={selectedPlayer.club}
+                        src={normalizeUrl(selectedPlayerDetails?.player.teamLogoUrl ?? selectedPlayer.teamLogoUrl)}
+                        alt={selectedPlayerDetails?.player.club ?? selectedPlayer.club}
                         className="media-thumb media-thumb-small"
                         loading="lazy"
                       />
@@ -1103,10 +1340,10 @@ export const TeamBuilderPage = () => {
                     )}
                   </div>
                   <div className="media-line">
-                    {normalizeUrl(selectedPlayer.imageUrl) ? (
+                    {normalizeUrl(selectedPlayerDetails?.player.imageUrl ?? selectedPlayer.imageUrl) ? (
                       <img
-                        src={normalizeUrl(selectedPlayer.imageUrl)}
-                        alt={selectedPlayer.name}
+                        src={normalizeUrl(selectedPlayerDetails?.player.imageUrl ?? selectedPlayer.imageUrl)}
+                        alt={selectedPlayerDetails?.player.name ?? selectedPlayer.name}
                         className="media-thumb media-thumb-small"
                         loading="lazy"
                       />
@@ -1119,6 +1356,10 @@ export const TeamBuilderPage = () => {
                 </div>
               </div>
             </div>
+
+            {isSelectedPlayerDetailsLoading ? (
+              <LoadingState label="Loading backend player details" inline compact />
+            ) : null}
 
             <div className="player-modal-stats">
               <article className="modal-stat-card">
@@ -1138,6 +1379,49 @@ export const TeamBuilderPage = () => {
                 <strong>{selectedPlayerStats?.selectedPercentage ?? "-"}</strong>
               </article>
             </div>
+
+            <div className="player-modal-fixtures">
+              <h4>Player Profile (Backend)</h4>
+              <div className="player-modal-profile-grid">
+                {selectedPlayerProfileItems.map((item) => (
+                  <article key={`profile-${item.label}`} className="modal-stat-card">
+                    <p>{item.label}</p>
+                    <strong>{item.value}</strong>
+                  </article>
+                ))}
+              </div>
+            </div>
+
+            {selectedPlayerSeasonStats.length > 0 ? (
+              <div className="player-modal-fixtures">
+                <h4>Season Stats (Backend)</h4>
+                <div className="player-modal-profile-grid">
+                  {selectedPlayerSeasonStats.map((item) => (
+                    <article key={`season-${item.label}`} className="modal-stat-card">
+                      <p>{item.label}</p>
+                      <strong>{item.value}</strong>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {selectedPlayerDetails?.history && selectedPlayerDetails.history.length > 0 ? (
+              <div className="player-modal-fixtures">
+                <h4>Recent Matches (Backend)</h4>
+                <div className="fixture-strip">
+                  {selectedPlayerDetails.history.slice(0, 5).map((item) => (
+                    <article key={`history-${item.fixtureId}-${item.gameweek}`} className="fixture-pill">
+                      <p>GW {item.gameweek}</p>
+                      <strong>
+                        {item.opponent} ({item.homeAway === "home" ? "H" : "A"})
+                      </strong>
+                      <span>{item.points} pts</span>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ) : null}
 
             <div className="player-modal-fixtures">
               <h4>Incoming Fixtures</h4>

@@ -211,6 +211,24 @@ const isLineupDraftComplete = (lineup: TeamLineup | null): boolean => {
   );
 };
 
+const scrollElementToViewportCenter = (element: HTMLElement) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
+      const rect = element.getBoundingClientRect();
+      const offset = Math.max((window.innerHeight - rect.height) / 2, 0);
+      const targetTop = window.scrollY + rect.top - offset;
+      window.scrollTo({
+        top: Math.max(targetTop, 0),
+        behavior: "smooth"
+      });
+    });
+  });
+};
+
 export const OnboardingPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -234,6 +252,15 @@ export const OnboardingPage = () => {
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
   const loadedLeagueRef = useRef("");
+  const pitchBoardRef = useRef<HTMLElement | null>(null);
+
+  const recenterToPitch = () => {
+    if (!pitchBoardRef.current) {
+      return;
+    }
+
+    scrollElementToViewportCenter(pitchBoardRef.current);
+  };
 
   useEffect(() => {
     if (errorMessage) {
@@ -328,6 +355,16 @@ export const OnboardingPage = () => {
   }, [searchParams]);
 
   useEffect(() => {
+    const requestedLeagueId = searchParams.get("leagueId")?.trim() ?? "";
+    if (!requestedLeagueId) {
+      return;
+    }
+
+    setLeagueId((previous) => (previous === requestedLeagueId ? previous : requestedLeagueId));
+    setSelectedLeagueId(requestedLeagueId);
+  }, [searchParams, setSelectedLeagueId]);
+
+  useEffect(() => {
     if (!lineupDraft) {
       return;
     }
@@ -386,6 +423,7 @@ export const OnboardingPage = () => {
     setStep("squad");
     setErrorMessage(null);
     setInfoMessage(`${pickedPlayer.name} selected.`);
+    recenterToPitch();
   }, [leagueId, lineupDraft, playersById]);
 
   const selectedPlayerIds = useMemo(() => toSelectedPlayerIds(lineupDraft), [lineupDraft]);
@@ -732,7 +770,7 @@ export const OnboardingPage = () => {
               <p className="muted">Tap empty slot to pick player. Tap filled slot to replace player. Use × to remove.</p>
             </section>
 
-            <section className="fpl-board card">
+            <section ref={pitchBoardRef} className="fpl-board card">
               <div className="fpl-pitch-stage">
                 <div className="pitch-top-boards">
                   <div>Fantasy</div>

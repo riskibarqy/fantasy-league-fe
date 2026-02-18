@@ -3,6 +3,7 @@ import type { Dashboard, TeamLineup } from "../../domain/fantasy/entities/Team";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
 import type { League } from "../../domain/fantasy/entities/League";
 import type { Player } from "../../domain/fantasy/entities/Player";
+import type { PlayerDetails, PlayerExtraInfo, PlayerMatchHistory, PlayerProfile, PlayerStatistics } from "../../domain/fantasy/entities/PlayerDetails";
 import type { Club } from "../../domain/fantasy/entities/Club";
 import type { PickSquadInput, Squad } from "../../domain/fantasy/entities/Squad";
 import type {
@@ -82,6 +83,13 @@ export class HttpFantasyRepository implements FantasyRepository {
   async getPlayers(leagueId: string): Promise<Player[]> {
     const payload = await this.httpClient.get<unknown>(`/v1/leagues/${leagueId}/players`);
     return mapPlayers(payload, leagueId);
+  }
+
+  async getPlayerDetails(leagueId: string, playerId: string): Promise<PlayerDetails> {
+    const payload = await this.httpClient.get<unknown>(
+      `/v1/leagues/${encodeURIComponent(leagueId)}/players/${encodeURIComponent(playerId)}`
+    );
+    return mapPlayerDetails(payload, leagueId, playerId);
   }
 
   async getLineup(leagueId: string): Promise<TeamLineup | null> {
@@ -446,6 +454,24 @@ const readNumber = (record: Record<string, unknown>, ...keys: string[]): number 
   return 0;
 };
 
+const readOptionalNumber = (record: Record<string, unknown>, ...keys: string[]): number | undefined => {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+
+    if (typeof value === "string" && value.trim()) {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+  }
+
+  return undefined;
+};
+
 const readBoolean = (record: Record<string, unknown>, ...keys: string[]): boolean => {
   for (const key of keys) {
     const value = record[key];
@@ -602,58 +628,357 @@ const mapPlayers = (payload: unknown, fallbackLeagueId: string): Player[] => {
         return null;
       }
 
-      const id = readString(record, "id", "playerId", "player_id", "public_id");
-      if (!id) {
-        return null;
-      }
-
-      const positionRaw = readString(record, "position");
-      if (!positionRaw) {
-        return null;
-      }
-
-      const player: Player = {
-        id,
-        leagueId:
-          readString(record, "leagueId", "league_id", "league_public_id") || fallbackLeagueId,
-        name: readString(record, "name"),
-        club: readString(record, "club", "teamName", "team_name", "teamId", "team_id"),
-        position: normalizePosition(positionRaw),
-        price: normalizePrice(readNumber(record, "price")),
-        form: readNumber(record, "form"),
-        projectedPoints: readNumber(record, "projectedPoints", "projected_points"),
-        isInjured: readBoolean(record, "isInjured", "is_injured")
-      };
-
-      const imageUrl = readString(
-        record,
-        "imageUrl",
-        "image_url",
-        "photoUrl",
-        "photo_url",
-        "playerImageUrl",
-        "player_image_url"
-      );
-      if (imageUrl) {
-        player.imageUrl = imageUrl;
-      }
-
-      const teamLogoUrl = readString(
-        record,
-        "teamLogoUrl",
-        "team_logo_url",
-        "clubLogoUrl",
-        "club_logo_url",
-        "teamImageUrl",
-        "team_image_url"
-      );
-      if (teamLogoUrl) {
-        player.teamLogoUrl = teamLogoUrl;
-      }
-
-      return player;
+      return mapPlayerFromRecord(record, fallbackLeagueId);
     })
     .filter((item): item is Player => Boolean(item));
+};
+
+const mapPlayerFromRecord = (
+  record: Record<string, unknown>,
+  fallbackLeagueId: string
+): Player | null => {
+  const id = readString(record, "id", "playerId", "player_id", "public_id");
+  if (!id) {
+    return null;
+  }
+
+  const positionRaw = readString(record, "position");
+  if (!positionRaw) {
+    return null;
+  }
+
+  const player: Player = {
+    id,
+    leagueId:
+      readString(record, "leagueId", "league_id", "league_public_id") || fallbackLeagueId,
+    name: readString(record, "name"),
+    club: readString(record, "club", "teamName", "team_name", "teamId", "team_id"),
+    position: normalizePosition(positionRaw),
+    price: normalizePrice(readNumber(record, "price")),
+    form: readNumber(record, "form"),
+    projectedPoints: readNumber(record, "projectedPoints", "projected_points"),
+    isInjured: readBoolean(record, "isInjured", "is_injured")
+  };
+
+  const imageUrl = readString(
+    record,
+    "imageUrl",
+    "image_url",
+    "photoUrl",
+    "photo_url",
+    "playerImageUrl",
+    "player_image_url"
+  );
+  if (imageUrl) {
+    player.imageUrl = imageUrl;
+  }
+
+  const teamLogoUrl = readString(
+    record,
+    "teamLogoUrl",
+    "team_logo_url",
+    "clubLogoUrl",
+    "club_logo_url",
+    "teamImageUrl",
+    "team_image_url"
+  );
+  if (teamLogoUrl) {
+    player.teamLogoUrl = teamLogoUrl;
+  }
+
+  return player;
+};
+
+const mapPlayerDetails = (
+  payload: unknown,
+  fallbackLeagueId: string,
+  fallbackPlayerId: string
+): PlayerDetails => {
+  const rootRecord = asRecord(payload);
+  const playerRecord = asRecord(rootRecord?.player) ?? rootRecord;
+  const fallbackPlayerRecord = {
+    id: fallbackPlayerId,
+    leagueId: fallbackLeagueId,
+    name: "Unknown Player",
+    club: "-",
+    position: "MID",
+    price: 0,
+    form: 0,
+    projectedPoints: 0,
+    isInjured: false
+  } satisfies Record<string, unknown>;
+
+  const mappedPlayer =
+    (playerRecord ? mapPlayerFromRecord(playerRecord, fallbackLeagueId) : null) ??
+    mapPlayerFromRecord(fallbackPlayerRecord, fallbackLeagueId);
+  if (!mappedPlayer) {
+    throw new Error("Invalid player details payload.");
+  }
+
+  const profile = mapPlayerProfile(playerRecord ?? fallbackPlayerRecord, mappedPlayer);
+  const statistics = mapPlayerStatistics(asRecord(rootRecord?.statistics));
+  const history = mapPlayerHistory(rootRecord?.history);
+  const extraInfo = mapPlayerExtraInfo(playerRecord ?? fallbackPlayerRecord);
+
+  return {
+    player: profile,
+    statistics,
+    history,
+    extraInfo
+  };
+};
+
+const mapPlayerProfile = (
+  record: Record<string, unknown>,
+  basePlayer: Player
+): PlayerProfile => {
+  const profile: PlayerProfile = {
+    ...basePlayer
+  };
+
+  const fullName = readString(record, "fullName", "full_name");
+  if (fullName) {
+    profile.fullName = fullName;
+  }
+
+  const firstName = readString(record, "firstName", "first_name");
+  if (firstName) {
+    profile.firstName = firstName;
+  }
+
+  const lastName = readString(record, "lastName", "last_name");
+  if (lastName) {
+    profile.lastName = lastName;
+  }
+
+  const nationality = readString(record, "nationality", "nationality_name", "country", "country_name");
+  if (nationality) {
+    profile.nationality = nationality;
+  }
+
+  const countryOfBirth = readString(
+    record,
+    "countryOfBirth",
+    "country_of_birth",
+    "birthCountry",
+    "birth_country"
+  );
+  if (countryOfBirth) {
+    profile.countryOfBirth = countryOfBirth;
+  }
+
+  const birthDate = readString(
+    record,
+    "birthDate",
+    "birth_date",
+    "dateOfBirth",
+    "date_of_birth",
+    "dob"
+  );
+  if (birthDate) {
+    profile.birthDate = birthDate;
+  }
+
+  const age = readOptionalNumber(record, "age");
+  if (typeof age === "number" && age > 0) {
+    profile.age = age;
+  }
+
+  const heightRaw = record.height ?? record.height_cm ?? record.heightCm;
+  const height = primitiveToDisplayString(heightRaw);
+  if (height) {
+    profile.height = height;
+  }
+
+  const weightRaw = record.weight ?? record.weight_kg ?? record.weightKg;
+  const weight = primitiveToDisplayString(weightRaw);
+  if (weight) {
+    profile.weight = weight;
+  }
+
+  const preferredFoot = readString(record, "preferredFoot", "preferred_foot", "foot");
+  if (preferredFoot) {
+    profile.preferredFoot = preferredFoot;
+  }
+
+  const shirtNumber = readOptionalNumber(record, "shirtNumber", "shirt_number", "jerseyNumber", "jersey_number");
+  if (typeof shirtNumber === "number" && shirtNumber > 0) {
+    profile.shirtNumber = shirtNumber;
+  }
+
+  const marketValue = primitiveToDisplayString(
+    record.marketValue ?? record.market_value ?? record.value ?? record.player_value
+  );
+  if (marketValue) {
+    profile.marketValue = marketValue;
+  }
+
+  return profile;
+};
+
+const mapPlayerStatistics = (record: Record<string, unknown> | null): PlayerStatistics => {
+  if (!record) {
+    return {
+      minutesPlayed: 0,
+      goals: 0,
+      assists: 0,
+      cleanSheets: 0,
+      yellowCards: 0,
+      redCards: 0,
+      appearances: 0,
+      totalPoints: 0
+    };
+  }
+
+  return {
+    minutesPlayed: readNumber(record, "minutesPlayed", "minutes_played"),
+    goals: readNumber(record, "goals"),
+    assists: readNumber(record, "assists"),
+    cleanSheets: readNumber(record, "cleanSheets", "clean_sheets"),
+    yellowCards: readNumber(record, "yellowCards", "yellow_cards"),
+    redCards: readNumber(record, "redCards", "red_cards"),
+    appearances: readNumber(record, "appearances"),
+    totalPoints: readNumber(record, "totalPoints", "total_points")
+  };
+};
+
+const mapPlayerHistory = (payload: unknown): PlayerMatchHistory[] => {
+  return toArray(payload)
+    .map((item) => {
+      const record = asRecord(item);
+      if (!record) {
+        return null;
+      }
+
+      return {
+        fixtureId: readString(record, "fixtureId", "fixture_id"),
+        gameweek: readNumber(record, "gameweek"),
+        opponent: readString(record, "opponent"),
+        homeAway: readString(record, "homeAway", "home_away"),
+        kickoffAt: readString(record, "kickoffAt", "kickoff_at"),
+        minutes: readNumber(record, "minutes", "minutesPlayed", "minutes_played"),
+        goals: readNumber(record, "goals"),
+        assists: readNumber(record, "assists"),
+        cleanSheet: readBoolean(record, "cleanSheet", "clean_sheet"),
+        yellowCards: readNumber(record, "yellowCards", "yellow_cards"),
+        redCards: readNumber(record, "redCards", "red_cards"),
+        points: readNumber(record, "points")
+      } satisfies PlayerMatchHistory;
+    })
+    .filter((item): item is PlayerMatchHistory => Boolean(item));
+};
+
+const mapPlayerExtraInfo = (record: Record<string, unknown>): PlayerExtraInfo[] => {
+  const hiddenKeys = new Set([
+    "id",
+    "playerId",
+    "player_id",
+    "public_id",
+    "leagueId",
+    "league_id",
+    "league_public_id",
+    "name",
+    "fullName",
+    "full_name",
+    "firstName",
+    "first_name",
+    "lastName",
+    "last_name",
+    "club",
+    "teamName",
+    "team_name",
+    "teamId",
+    "team_id",
+    "position",
+    "price",
+    "form",
+    "projectedPoints",
+    "projected_points",
+    "isInjured",
+    "is_injured",
+    "imageUrl",
+    "image_url",
+    "photoUrl",
+    "photo_url",
+    "playerImageUrl",
+    "player_image_url",
+    "teamLogoUrl",
+    "team_logo_url",
+    "clubLogoUrl",
+    "club_logo_url",
+    "teamImageUrl",
+    "team_image_url",
+    "nationality",
+    "nationality_name",
+    "country",
+    "country_name",
+    "countryOfBirth",
+    "country_of_birth",
+    "birthCountry",
+    "birth_country",
+    "birthDate",
+    "birth_date",
+    "dateOfBirth",
+    "date_of_birth",
+    "dob",
+    "age",
+    "height",
+    "heightCm",
+    "height_cm",
+    "weight",
+    "weightKg",
+    "weight_kg",
+    "preferredFoot",
+    "preferred_foot",
+    "foot",
+    "shirtNumber",
+    "shirt_number",
+    "jerseyNumber",
+    "jersey_number",
+    "marketValue",
+    "market_value",
+    "value",
+    "player_value"
+  ]);
+
+  return Object.entries(record)
+    .filter(([key, value]) => !hiddenKeys.has(key) && isPrimitiveValue(value))
+    .map(([key, value]) => ({
+      key,
+      label: humanizeKey(key),
+      value: primitiveToDisplayString(value) ?? "-"
+    }))
+    .filter((item) => item.value !== "-")
+    .sort((left, right) => left.label.localeCompare(right.label, "id-ID"));
+};
+
+const isPrimitiveValue = (value: unknown): value is string | number | boolean => {
+  return typeof value === "string" || typeof value === "number" || typeof value === "boolean";
+};
+
+const primitiveToDisplayString = (value: unknown): string | undefined => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "Yes" : "No";
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    return value.trim();
+  }
+
+  return undefined;
+};
+
+const humanizeKey = (key: string): string => {
+  return key
+    .replace(/_/g, " ")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^\w/, (char) => char.toUpperCase());
 };
 
 const mapLineup = (payload: unknown, leagueIdFromPath: string): TeamLineup | null => {

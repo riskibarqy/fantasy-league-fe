@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { ArrowRight, CalendarDays, Newspaper, Shield, Trophy, Users } from "lucide-react";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import { cacheKeys, cacheTtlMs, getOrLoadCached } from "../../app/cache/requestCache";
 import type { Dashboard } from "../../domain/fantasy/entities/Team";
@@ -169,7 +170,10 @@ export const DashboardPage = () => {
     <div className="page-grid dashboard-page">
       <Card className="card home-hero">
         <div>
-          <h2>Home Overview • {selectedLeague?.name ?? "League"}</h2>
+          <h2 className="section-icon-title">
+            <Trophy className="inline-icon" aria-hidden="true" />
+            Home Overview • {selectedLeague?.name ?? "League"}
+          </h2>
           <p className="muted">
             Gameweek {dashboard.gameweek}
             {nextFixture ? ` • Deadline ${formatDeadlineWindow(nextFixture.kickoffAt)}` : ""}
@@ -193,15 +197,24 @@ export const DashboardPage = () => {
 
         <div className="home-quick-grid">
           <Link to="/team" className="home-quick-link">
-            <strong>Manage Team</strong>
+            <strong className="quick-link-title">
+              <Shield className="inline-icon" aria-hidden="true" />
+              Manage Team
+            </strong>
             <small>Edit lineup and transfers</small>
           </Link>
           <Link to="/fixtures" className="home-quick-link">
-            <strong>Fixtures</strong>
+            <strong className="quick-link-title">
+              <CalendarDays className="inline-icon" aria-hidden="true" />
+              Fixtures
+            </strong>
             <small>See match schedule</small>
           </Link>
           <Link to="/leagues" className="home-quick-link">
-            <strong>Leagues</strong>
+            <strong className="quick-link-title">
+              <Trophy className="inline-icon" aria-hidden="true" />
+              Leagues
+            </strong>
             <small>Competition overview</small>
           </Link>
         </div>
@@ -210,11 +223,17 @@ export const DashboardPage = () => {
       <Card className="card home-news">
         <div className="home-section-head">
           <div className="section-title">
-            <h3>Custom Leagues</h3>
+            <h3 className="section-icon-title">
+              <Users className="inline-icon" aria-hidden="true" />
+              Custom Leagues
+            </h3>
             <p className="muted">Your private leagues overview.</p>
           </div>
           <Button asChild size="sm" variant="secondary" className="home-news-more">
-            <Link to="/custom-leagues">See more</Link>
+            <Link to="/custom-leagues">
+              See more
+              <ArrowRight className="inline-icon" aria-hidden="true" />
+            </Link>
           </Button>
         </div>
         <div className="home-news-list">
@@ -249,11 +268,17 @@ export const DashboardPage = () => {
       <Card className="card home-news">
         <div className="home-section-head">
           <div className="section-title">
-            <h3>Latest News</h3>
+            <h3 className="section-icon-title">
+              <Newspaper className="inline-icon" aria-hidden="true" />
+              Latest News
+            </h3>
             <p className="muted">Top 2 highlights from the global news feed.</p>
           </div>
           <Button asChild size="sm" variant="secondary" className="home-news-more">
-            <Link to="/news">See more</Link>
+            <Link to="/news">
+              See more
+              <ArrowRight className="inline-icon" aria-hidden="true" />
+            </Link>
           </Button>
         </div>
         <div className="home-news-list">
@@ -270,11 +295,17 @@ export const DashboardPage = () => {
       <Card className="card home-news">
         <div className="home-section-head">
           <div className="section-title">
-            <h3>Upcoming Fixtures</h3>
+            <h3 className="section-icon-title">
+              <CalendarDays className="inline-icon" aria-hidden="true" />
+              Upcoming Fixtures
+            </h3>
             <p className="muted">{selectedLeague?.countryCode ?? "-"} • {featuredFixtures.length} matches shown</p>
           </div>
           <Button asChild size="sm" variant="secondary" className="home-news-more">
-            <Link to="/fixtures">See more</Link>
+            <Link to="/fixtures">
+              See more
+              <ArrowRight className="inline-icon" aria-hidden="true" />
+            </Link>
           </Button>
         </div>
         <div className="home-news-list">

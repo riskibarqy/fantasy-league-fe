@@ -2,6 +2,7 @@ import type { Dashboard, TeamLineup } from "../entities/Team";
 import type { Fixture } from "../entities/Fixture";
 import type { League } from "../entities/League";
 import type { Player } from "../entities/Player";
+import type { PlayerDetails } from "../entities/PlayerDetails";
 import type { Club } from "../entities/Club";
 import type { PickSquadInput, Squad } from "../entities/Squad";
 import type {
@@ -22,6 +23,7 @@ export interface FantasyRepository {
   getTeams(leagueId: string): Promise<Club[]>;
   getFixtures(leagueId: string): Promise<Fixture[]>;
   getPlayers(leagueId: string): Promise<Player[]>;
+  getPlayerDetails(leagueId: string, playerId: string): Promise<PlayerDetails>;
   getLineup(leagueId: string): Promise<TeamLineup | null>;
   saveLineup(lineup: TeamLineup): Promise<TeamLineup>;
   getMySquad(leagueId: string, accessToken: string): Promise<Squad | null>;

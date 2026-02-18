@@ -12,6 +12,7 @@ import { GetLeagues } from "../../application/fantasy/usecases/GetLeagues";
 import { GetLineup } from "../../application/fantasy/usecases/GetLineup";
 import { GetMyCustomLeagues } from "../../application/fantasy/usecases/GetMyCustomLeagues";
 import { GetMySquad } from "../../application/fantasy/usecases/GetMySquad";
+import { GetPlayerDetails } from "../../application/fantasy/usecases/GetPlayerDetails";
 import { GetPlayers } from "../../application/fantasy/usecases/GetPlayers";
 import { GetTeams } from "../../application/fantasy/usecases/GetTeams";
 import { JoinCustomLeagueByInvite } from "../../application/fantasy/usecases/JoinCustomLeagueByInvite";
@@ -58,6 +59,7 @@ export const buildContainer = () => {
     getCustomLeague: new GetCustomLeague(repositories.fantasyRepository),
     getCustomLeagueStandings: new GetCustomLeagueStandings(repositories.fantasyRepository),
     getPlayers: new GetPlayers(repositories.fantasyRepository),
+    getPlayerDetails: new GetPlayerDetails(repositories.fantasyRepository),
     getLineup: new GetLineup(repositories.fantasyRepository),
     getMySquad: new GetMySquad(repositories.fantasyRepository),
     pickSquad: new PickSquad(repositories.fantasyRepository),

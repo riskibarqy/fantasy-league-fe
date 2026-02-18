@@ -3,6 +3,7 @@ import type { Dashboard, TeamLineup } from "../../domain/fantasy/entities/Team";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
 import type { League } from "../../domain/fantasy/entities/League";
 import type { Player } from "../../domain/fantasy/entities/Player";
+import type { PlayerDetails } from "../../domain/fantasy/entities/PlayerDetails";
 import type { Club } from "../../domain/fantasy/entities/Club";
 import type {
   CompleteOnboardingInput,
@@ -55,6 +56,41 @@ export class MockFantasyRepository implements FantasyRepository {
   async getPlayers(leagueId: string): Promise<Player[]> {
     await delay(240);
     return mockPlayers.filter((player) => player.leagueId === leagueId);
+  }
+
+  async getPlayerDetails(leagueId: string, playerId: string): Promise<PlayerDetails> {
+    await delay(180);
+
+    const player = mockPlayers.find((item) => item.leagueId === leagueId && item.id === playerId);
+    if (!player) {
+      throw new Error("Player not found.");
+    }
+
+    return {
+      player: {
+        ...player,
+        fullName: player.name,
+        nationality: "Indonesia",
+        countryOfBirth: "Indonesia",
+        height: "180 cm",
+        weight: "74 kg",
+        preferredFoot: "Right",
+        shirtNumber: 10,
+        age: 28
+      },
+      statistics: {
+        minutesPlayed: 1080,
+        goals: player.position === "FWD" ? 9 : player.position === "MID" ? 5 : 1,
+        assists: player.position === "FWD" ? 3 : player.position === "MID" ? 7 : 2,
+        cleanSheets: player.position === "GK" || player.position === "DEF" ? 6 : 0,
+        yellowCards: 2,
+        redCards: 0,
+        appearances: 12,
+        totalPoints: Math.round(player.projectedPoints * 11)
+      },
+      history: [],
+      extraInfo: []
+    };
   }
 
   async getLineup(leagueId: string): Promise<TeamLineup | null> {

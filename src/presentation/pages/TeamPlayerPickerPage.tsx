@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import type { Player } from "../../domain/fantasy/entities/Player";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
@@ -80,6 +80,14 @@ const withRetry = async <T,>(run: () => Promise<T>, retries: number): Promise<T>
 };
 
 const normalizeUrl = (value?: string): string => value?.trim() ?? "";
+const normalizeDisplayText = (value: string, fallback: string): string => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return fallback;
+  }
+
+  return /^https?:\/\//i.test(trimmed) ? fallback : trimmed;
+};
 
 export const TeamPlayerPickerPage = () => {
   const navigate = useNavigate();
@@ -100,6 +108,7 @@ export const TeamPlayerPickerPage = () => {
   const [position, setPosition] = useState<PositionFilter>("ALL");
   const [club, setClub] = useState("ALL");
   const [sortBy, setSortBy] = useState<SortOption>("price_desc");
+  const deferredSearch = useDeferredValue(search);
 
   const context = useMemo(() => {
     const stored = readPickerContext();
@@ -220,14 +229,14 @@ export const TeamPlayerPickerPage = () => {
 
       const byPosition = position === "ALL" ? true : player.position === position;
       const byClub = club === "ALL" ? true : player.club === club;
-      const keyword = search.trim().toLowerCase();
+      const keyword = deferredSearch.trim().toLowerCase();
       const bySearch = keyword
         ? player.name.toLowerCase().includes(keyword) || player.club.toLowerCase().includes(keyword)
         : true;
 
       return byPosition && byClub && bySearch;
     });
-  }, [club, context, players, position, search]);
+  }, [club, context, deferredSearch, players, position]);
 
   const sortedPlayers = useMemo(() => {
     const sorted = [...availablePlayers];
@@ -375,66 +384,71 @@ export const TeamPlayerPickerPage = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedPlayers.map((player) => (
-                    <tr
-                      key={player.id}
-                      className="team-picker-clickable"
-                      onClick={() => onPick(player.id)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          onPick(player.id);
-                        }
-                      }}
-                      role="button"
-                      tabIndex={0}
-                      aria-label={`Pick ${player.name}`}
-                    >
-                      <td className="entity-media-cell">
-                        <div className="media-line">
-                          {normalizeUrl(player.imageUrl) ? (
-                            <img
-                              src={normalizeUrl(player.imageUrl)}
-                              alt={player.name}
-                              className="media-thumb"
-                              loading="lazy"
-                            />
-                          ) : (
-                            <span className="media-thumb media-thumb-fallback" aria-hidden="true">
-                              P
-                            </span>
-                          )}
-                          <div className="media-copy">
-                            <strong>{player.name}</strong>
+                  {sortedPlayers.map((player) => {
+                    const playerName = normalizeDisplayText(player.name, "Unknown Player");
+                    const playerClub = normalizeDisplayText(player.club, "Unknown Club");
+
+                    return (
+                      <tr
+                        key={player.id}
+                        className="team-picker-clickable"
+                        onClick={() => onPick(player.id)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            onPick(player.id);
+                          }
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Pick ${playerName}`}
+                      >
+                        <td className="entity-media-cell">
+                          <div className="media-line">
+                            {normalizeUrl(player.imageUrl) ? (
+                              <img
+                                src={normalizeUrl(player.imageUrl)}
+                                alt={playerName}
+                                className="media-thumb"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <span className="media-thumb media-thumb-fallback" aria-hidden="true">
+                                P
+                              </span>
+                            )}
+                            <div className="media-copy">
+                              <strong>{playerName}</strong>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="entity-media-cell">
-                        <div className="media-line">
-                          {normalizeUrl(player.teamLogoUrl) ? (
-                            <img
-                              src={normalizeUrl(player.teamLogoUrl)}
-                              alt={player.club}
-                              className="media-thumb media-thumb-small"
-                              loading="lazy"
-                            />
-                          ) : (
-                            <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
-                              T
-                            </span>
-                          )}
-                          <div className="media-copy">
-                            <strong>{player.club}</strong>
+                        </td>
+                        <td className="entity-media-cell">
+                          <div className="media-line">
+                            {normalizeUrl(player.teamLogoUrl) ? (
+                              <img
+                                src={normalizeUrl(player.teamLogoUrl)}
+                                alt={playerClub}
+                                className="media-thumb media-thumb-small"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
+                                T
+                              </span>
+                            )}
+                            <div className="media-copy">
+                              <strong>{playerClub}</strong>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td>{player.position}</td>
-                      <td>£{player.price.toFixed(1)}</td>
-                      <td>{player.form.toFixed(1)}</td>
-                      <td>{player.projectedPoints.toFixed(1)}</td>
-                      <td>{player.isInjured ? "Yes" : "No"}</td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td>{player.position}</td>
+                        <td>£{player.price.toFixed(1)}</td>
+                        <td>{player.form.toFixed(1)}</td>
+                        <td>{player.projectedPoints.toFixed(1)}</td>
+                        <td>{player.isInjured ? "Yes" : "No"}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

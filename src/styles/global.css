@@ -352,6 +352,30 @@ button:disabled {
   min-width: 0;
 }
 
+.top-bar-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.72rem;
+  min-width: 0;
+}
+
+.brand-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: linear-gradient(120deg, var(--brand-cyan) 0%, var(--brand-pink) 100%);
+  box-shadow: var(--shadow-soft);
+  flex-shrink: 0;
+}
+
+.brand-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
 .top-bar h1 {
   font-size: clamp(1.08rem, 3.2vw, 1.35rem);
   white-space: nowrap;
@@ -420,6 +444,51 @@ button:disabled {
   gap: 0.65rem;
 }
 
+.fixtures-pagination {
+  display: grid;
+  grid-template-columns: auto minmax(150px, 1fr) auto;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.fixtures-page-nav {
+  min-width: 92px;
+}
+
+.fixtures-gw-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.42rem;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  padding: 0.1rem 0.08rem 0.2rem;
+}
+
+.fixtures-gw-chip {
+  appearance: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--text);
+  padding: 0.42rem 0.72rem;
+  font-weight: 700;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease;
+}
+
+.fixtures-gw-chip:hover {
+  border-color: color-mix(in oklab, var(--accent) 45%, var(--border));
+}
+
+.fixtures-gw-chip.active {
+  border-color: transparent;
+  background: linear-gradient(120deg, var(--brand-cyan) 0%, var(--brand-pink) 100%);
+  color: #fff;
+}
+
 .page-section {
   display: grid;
   gap: 0.7rem;
@@ -471,6 +540,12 @@ button:disabled {
   font-size: 0.88rem;
 }
 
+.quick-link-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+}
+
 .home-quick-link small {
   color: var(--muted);
   font-size: 0.74rem;
@@ -505,6 +580,7 @@ button:disabled {
   text-decoration: none;
   display: inline-flex;
   align-items: center;
+  gap: 0.35rem;
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -626,6 +702,11 @@ button:disabled {
 }
 
 .bottom-nav a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
   text-align: center;
   text-decoration: none;
   color: var(--muted);
@@ -639,6 +720,15 @@ button:disabled {
 .bottom-nav a.active {
   background: linear-gradient(120deg, var(--brand-cyan) 0%, var(--brand-pink) 100%);
   color: #fff;
+}
+
+.nav-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.nav-label {
+  line-height: 1;
 }
 
 .players-board {
@@ -968,9 +1058,18 @@ button:disabled {
 }
 
 .mode-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
   background: rgba(37, 42, 52, 0.88);
   color: var(--brand-light);
   border: 1px solid var(--border);
+}
+
+.mode-icon {
+  width: 14px;
+  height: 14px;
 }
 
 .mode-button.active {
@@ -1021,6 +1120,12 @@ button:disabled {
 .chip-card p {
   color: var(--muted);
   font-size: 0.78rem;
+}
+
+.chip-card-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.34rem;
 }
 
 .chip-card strong {
@@ -1270,6 +1375,13 @@ button:disabled {
   margin: 0;
   font: inherit;
   cursor: pointer;
+  transition: transform 150ms ease, filter 150ms ease;
+  will-change: transform;
+}
+
+.player-card-button:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.03);
 }
 
 .player-card-button:focus-visible {
@@ -1656,6 +1768,12 @@ button:disabled {
   gap: 0.5rem;
 }
 
+.player-modal-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
 .modal-stat-card {
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -1759,6 +1877,75 @@ button:disabled {
   margin: 0.8rem 0;
 }
 
+.section-icon-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.inline-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .page-grid {
+    animation: app-fade-in 180ms ease-out;
+  }
+
+  .card {
+    animation: app-rise-in 220ms ease-out both;
+  }
+
+  .player-modal-overlay {
+    animation: app-fade-in 160ms ease-out;
+  }
+
+  .player-modal {
+    animation: app-modal-in 210ms ease-out both;
+  }
+
+  .team-picker-clickable {
+    transition: background-color 140ms ease, transform 140ms ease;
+  }
+
+  .team-picker-clickable:hover {
+    transform: translateY(-0.5px);
+  }
+}
+
+@keyframes app-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes app-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes app-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .centered-page {
   min-height: 100vh;
   display: grid;
@@ -1785,6 +1972,14 @@ button:disabled {
   .fpl-pitch {
     transform: none;
     clip-path: polygon(2% 0, 98% 0, 100% 100%, 0 100%);
+  }
+
+  .fixtures-pagination {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .fixtures-gw-strip {
+    grid-column: 1 / -1;
   }
 
   .bench-grid {
@@ -1854,6 +2049,10 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
+  .player-modal-profile-grid {
+    grid-template-columns: 1fr;
+  }
+
   .bottom-nav a {
     font-size: 0.74rem;
   }
@@ -1889,6 +2088,10 @@ button:disabled {
   }
 
   .player-modal-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .player-modal-profile-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 

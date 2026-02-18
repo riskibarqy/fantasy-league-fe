@@ -9,6 +9,7 @@ const fantasyRepositoryStub = (): FantasyRepository => ({
   getTeams: vi.fn(),
   getFixtures: vi.fn(),
   getPlayers: vi.fn(),
+  getPlayerDetails: vi.fn(),
   getLineup: vi.fn(),
   saveLineup: vi.fn(),
   getMySquad: vi.fn(),

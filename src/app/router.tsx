@@ -1,4 +1,4 @@
-import { Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes, useSearchParams } from "react-router-dom";
 import { useSession } from "../presentation/hooks/useSession";
 import { useOnboardingStatus } from "../presentation/hooks/useOnboardingStatus";
 import { DashboardPage } from "../presentation/pages/DashboardPage";
@@ -46,6 +46,12 @@ const OnboardingRequiredRoutes = () => {
 
 const OnboardingEntryPage = () => {
   const { status } = useOnboardingStatus();
+  const [searchParams] = useSearchParams();
+  const forceOnboarding = searchParams.get("force") === "1" || searchParams.get("force") === "true";
+
+  if (forceOnboarding) {
+    return <OnboardingPage />;
+  }
 
   if (status === "checking") {
     return (
