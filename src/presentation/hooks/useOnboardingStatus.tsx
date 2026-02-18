@@ -55,7 +55,7 @@ export const useOnboardingStatus = () => {
 
   useEffect(() => {
     if (!userId || !accessToken) {
-      setStatus("unknown");
+      setStatus("checking");
       setErrorMessage("Session is missing.");
       return;
     }
@@ -75,7 +75,7 @@ export const useOnboardingStatus = () => {
     );
 
     if (leagueIds.length === 0) {
-      setStatus("unknown");
+      setStatus("required");
       setErrorMessage("No league configured.");
       return;
     }
@@ -103,7 +103,7 @@ export const useOnboardingStatus = () => {
 
       const hasRejected = checks.some((result) => result.status === "rejected");
       if (hasRejected) {
-        setStatus("unknown");
+        setStatus("required");
         setErrorMessage("Unable to verify onboarding status right now.");
         return;
       }

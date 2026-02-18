@@ -67,8 +67,8 @@ const OnboardingRequiredRoutes = () => {
     );
   }
 
-  if (status === "required") {
-    return <Navigate to="/onboarding" replace />;
+  if (status !== "completed") {
+    return <Navigate to="/onboarding?force=1" replace />;
   }
 
   return <Outlet />;
