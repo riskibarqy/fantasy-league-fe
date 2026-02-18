@@ -1,21 +1,214 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { cacheKeys, cacheTtlMs, getOrLoadCached } from "../../app/cache/requestCache";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import type { Club } from "../../domain/fantasy/entities/Club";
 import type { Player } from "../../domain/fantasy/entities/Player";
-import { buildLineupFromPlayers, pickAutoSquadPlayerIds } from "../../domain/fantasy/services/squadBuilder";
+import type { TeamLineup } from "../../domain/fantasy/entities/Team";
 import { LoadingState } from "../components/LoadingState";
 import { useLeagueSelection } from "../hooks/useLeagueSelection";
 import { markOnboardingCompleted } from "../hooks/useOnboardingStatus";
 import { useSession } from "../hooks/useSession";
+import {
+  consumePickerResult,
+  readLineupDraft,
+  savePickerContext,
+  writeLineupDraft,
+  type SlotZone
+} from "./teamPickerStorage";
 
-type PositionFilter = "ALL" | Player["position"];
+type OnboardingStep = "favorite" | "squad";
+type PitchRow = {
+  label: Player["position"];
+  slots: number;
+  ids: string[];
+};
 
 const BUDGET_CAP = 150;
 const MAX_PER_TEAM = 3;
+const FORMATION_SLOTS = {
+  DEF: 4,
+  MID: 4,
+  FWD: 2,
+  BENCH: 4
+} as const;
 
-const normalizeUrl = (value?: string): string => value?.trim() ?? "";
+const shortName = (name: string): string => {
+  const words = name.trim().split(" ");
+  if (words.length <= 1) {
+    return name;
+  }
+
+  const last = words[words.length - 1];
+  return last.length > 12 ? `${words[0]} ${last.slice(0, 1)}.` : `${words[0]} ${last}`;
+};
+
+const hashString = (value: string): number => {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(index);
+    hash |= 0;
+  }
+
+  return Math.abs(hash);
+};
+
+const shirtBackgroundForClub = (club: string): string => {
+  const palette: Array<[string, string, string]> = [
+    ["#233d9d", "#5d8dff", "#f1f4ff"],
+    ["#a6162f", "#e44c62", "#ffd7de"],
+    ["#111e2d", "#f0f0f0", "#ffe16b"],
+    ["#1a8b72", "#64cfb8", "#d8fff5"],
+    ["#5c2d87", "#8f5bc0", "#f2e7ff"],
+    ["#b11e1a", "#ff645e", "#ffe6e5"]
+  ];
+
+  const seed = hashString(club);
+  const [primary, secondary, accent] = palette[seed % palette.length];
+  const pattern = seed % 3;
+
+  if (pattern === 0) {
+    return `linear-gradient(180deg, ${primary} 0%, ${secondary} 100%)`;
+  }
+
+  if (pattern === 1) {
+    return `repeating-linear-gradient(90deg, ${primary} 0 14px, ${secondary} 14px 28px)`;
+  }
+
+  return `linear-gradient(135deg, ${primary} 0 42%, ${secondary} 42% 84%, ${accent} 84% 100%)`;
+};
+
+const createEmptyLineupDraft = (leagueId: string): TeamLineup => ({
+  leagueId,
+  goalkeeperId: "",
+  defenderIds: Array.from({ length: FORMATION_SLOTS.DEF }, () => ""),
+  midfielderIds: Array.from({ length: FORMATION_SLOTS.MID }, () => ""),
+  forwardIds: Array.from({ length: FORMATION_SLOTS.FWD }, () => ""),
+  substituteIds: Array.from({ length: FORMATION_SLOTS.BENCH }, () => ""),
+  captainId: "",
+  viceCaptainId: "",
+  updatedAt: new Date().toISOString()
+});
+
+const normalizeLineupDraft = (leagueId: string, draft: TeamLineup | null): TeamLineup => {
+  if (!draft) {
+    return createEmptyLineupDraft(leagueId);
+  }
+
+  return {
+    ...draft,
+    leagueId,
+    defenderIds: [...draft.defenderIds.slice(0, FORMATION_SLOTS.DEF), ...Array.from({ length: FORMATION_SLOTS.DEF }, () => "")].slice(0, FORMATION_SLOTS.DEF),
+    midfielderIds: [...draft.midfielderIds.slice(0, FORMATION_SLOTS.MID), ...Array.from({ length: FORMATION_SLOTS.MID }, () => "")].slice(0, FORMATION_SLOTS.MID),
+    forwardIds: [...draft.forwardIds.slice(0, FORMATION_SLOTS.FWD), ...Array.from({ length: FORMATION_SLOTS.FWD }, () => "")].slice(0, FORMATION_SLOTS.FWD),
+    substituteIds: [...draft.substituteIds.slice(0, FORMATION_SLOTS.BENCH), ...Array.from({ length: FORMATION_SLOTS.BENCH }, () => "")].slice(0, FORMATION_SLOTS.BENCH)
+  };
+};
+
+const assignAt = (ids: string[], index: number, value: string): string[] => {
+  const next = [...ids];
+  while (next.length <= index) {
+    next.push("");
+  }
+  next[index] = value;
+  return next;
+};
+
+const setSlotPlayerId = (lineup: TeamLineup, zone: SlotZone, index: number, playerId: string): TeamLineup => {
+  if (zone === "GK") {
+    return {
+      ...lineup,
+      goalkeeperId: playerId,
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  if (zone === "DEF") {
+    return {
+      ...lineup,
+      defenderIds: assignAt(lineup.defenderIds, index, playerId),
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  if (zone === "MID") {
+    return {
+      ...lineup,
+      midfielderIds: assignAt(lineup.midfielderIds, index, playerId),
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  if (zone === "FWD") {
+    return {
+      ...lineup,
+      forwardIds: assignAt(lineup.forwardIds, index, playerId),
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  return {
+    ...lineup,
+    substituteIds: assignAt(lineup.substituteIds, index, playerId),
+    updatedAt: new Date().toISOString()
+  };
+};
+
+const clearSlotPlayerId = (lineup: TeamLineup, zone: SlotZone, index: number): TeamLineup => {
+  return setSlotPlayerId(lineup, zone, index, "");
+};
+
+const getSlotPlayerId = (lineup: TeamLineup, zone: SlotZone, index: number): string => {
+  if (zone === "GK") {
+    return lineup.goalkeeperId;
+  }
+  if (zone === "DEF") {
+    return lineup.defenderIds[index] ?? "";
+  }
+  if (zone === "MID") {
+    return lineup.midfielderIds[index] ?? "";
+  }
+  if (zone === "FWD") {
+    return lineup.forwardIds[index] ?? "";
+  }
+  return lineup.substituteIds[index] ?? "";
+};
+
+const toSelectedPlayerIds = (lineup: TeamLineup | null): string[] => {
+  if (!lineup) {
+    return [];
+  }
+
+  return [
+    lineup.goalkeeperId,
+    ...lineup.defenderIds,
+    ...lineup.midfielderIds,
+    ...lineup.forwardIds,
+    ...lineup.substituteIds
+  ].filter(Boolean);
+};
+
+const toStarterIds = (lineup: TeamLineup | null): string[] => {
+  if (!lineup) {
+    return [];
+  }
+
+  return [lineup.goalkeeperId, ...lineup.defenderIds, ...lineup.midfielderIds, ...lineup.forwardIds].filter(Boolean);
+};
+
+const isLineupDraftComplete = (lineup: TeamLineup | null): boolean => {
+  if (!lineup) {
+    return false;
+  }
+
+  return Boolean(
+    lineup.goalkeeperId &&
+      lineup.defenderIds.every(Boolean) &&
+      lineup.midfielderIds.every(Boolean) &&
+      lineup.forwardIds.every(Boolean) &&
+      lineup.substituteIds.every(Boolean)
+  );
+};
 
 export const OnboardingPage = () => {
   const navigate = useNavigate();
@@ -23,14 +216,14 @@ export const OnboardingPage = () => {
   const { leagues, selectedLeagueId, setSelectedLeagueId } = useLeagueSelection();
   const { session } = useSession();
 
+  const [step, setStep] = useState<OnboardingStep>("favorite");
   const [leagueId, setLeagueId] = useState("");
   const [teams, setTeams] = useState<Club[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState("");
-  const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
+  const [lineupDraft, setLineupDraft] = useState<TeamLineup | null>(null);
   const [squadName, setSquadName] = useState("My Squad");
-  const [search, setSearch] = useState("");
-  const [position, setPosition] = useState<PositionFilter>("ALL");
+  const [teamSearch, setTeamSearch] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -88,10 +281,10 @@ export const OnboardingPage = () => {
         );
 
         if (loadedLeagueRef.current !== leagueId) {
-          const autoPlayerIds = pickAutoSquadPlayerIds(playersResult);
-          setSelectedPlayerIds(autoPlayerIds);
+          const persistedDraft = readLineupDraft(leagueId);
+          setLineupDraft(normalizeLineupDraft(leagueId, persistedDraft));
           loadedLeagueRef.current = leagueId;
-          setInfoMessage("Auto-picked 15 players. You can adjust before submit.");
+          setStep("favorite");
         }
       } catch (error) {
         if (!mounted) {
@@ -113,15 +306,73 @@ export const OnboardingPage = () => {
     };
   }, [getPlayers, getTeams, leagueId]);
 
+  useEffect(() => {
+    if (!lineupDraft) {
+      return;
+    }
+
+    writeLineupDraft(lineupDraft);
+  }, [lineupDraft]);
+
   const playersById = useMemo(() => new Map(players.map((player) => [player.id, player])), [players]);
+
+  useEffect(() => {
+    if (!lineupDraft || !leagueId || playersById.size === 0) {
+      return;
+    }
+
+    const result = consumePickerResult();
+    if (!result || result.leagueId !== leagueId) {
+      return;
+    }
+
+    const pickedPlayer = playersById.get(result.playerId);
+    if (!pickedPlayer) {
+      setErrorMessage("Selected player not found. Please retry.");
+      return;
+    }
+
+    const nextDraft = setSlotPlayerId(lineupDraft, result.target.zone, result.target.index, result.playerId);
+    const nextIds = toSelectedPlayerIds(nextDraft);
+    const uniqueIds = new Set(nextIds);
+    if (uniqueIds.size !== nextIds.length) {
+      setErrorMessage("Player is already selected in another slot.");
+      return;
+    }
+
+    const nextPlayers = nextIds
+      .map((id) => playersById.get(id))
+      .filter((item): item is Player => Boolean(item));
+
+    const nextTeamCounter = nextPlayers.reduce<Record<string, number>>((counter, player) => {
+      counter[player.club] = (counter[player.club] ?? 0) + 1;
+      return counter;
+    }, {});
+
+    const teamLimitReached = Object.values(nextTeamCounter).some((count) => count > MAX_PER_TEAM);
+    if (teamLimitReached) {
+      setErrorMessage(`Max ${MAX_PER_TEAM} players per club.`);
+      return;
+    }
+
+    const nextTotalCost = nextPlayers.reduce((sum, player) => sum + player.price, 0);
+    if (nextTotalCost > BUDGET_CAP) {
+      setErrorMessage(`Budget cap exceeded (${BUDGET_CAP.toFixed(1)}).`);
+      return;
+    }
+
+    setLineupDraft(nextDraft);
+    setErrorMessage(null);
+    setInfoMessage(`${pickedPlayer.name} selected.`);
+  }, [leagueId, lineupDraft, playersById]);
+
+  const selectedPlayerIds = useMemo(() => toSelectedPlayerIds(lineupDraft), [lineupDraft]);
 
   const selectedPlayers = useMemo(() => {
     return selectedPlayerIds
       .map((id) => playersById.get(id))
       .filter((player): player is Player => Boolean(player));
   }, [playersById, selectedPlayerIds]);
-
-  const selectedIdsSet = useMemo(() => new Set(selectedPlayerIds), [selectedPlayerIds]);
 
   const teamCounter = useMemo(() => {
     return selectedPlayers.reduce<Record<string, number>>((counter, player) => {
@@ -144,70 +395,94 @@ export const OnboardingPage = () => {
     return selectedPlayers.reduce((sum, player) => sum + player.price, 0);
   }, [selectedPlayers]);
 
-  const filteredPlayers = useMemo(() => {
-    const keyword = search.trim().toLowerCase();
+  const filteredTeams = useMemo(() => {
+    const keyword = teamSearch.trim().toLowerCase();
+    if (!keyword) {
+      return teams;
+    }
 
-    return players.filter((player) => {
-      const byPosition = position === "ALL" ? true : player.position === position;
-      const byKeyword = keyword
-        ? player.name.toLowerCase().includes(keyword) || player.club.toLowerCase().includes(keyword)
-        : true;
-
-      return byPosition && byKeyword;
+    return teams.filter((team) => {
+      const name = team.name.toLowerCase();
+      const short = team.short.toLowerCase();
+      return name.includes(keyword) || short.includes(keyword);
     });
-  }, [players, position, search]);
+  }, [teamSearch, teams]);
+
+  const selectedTeamName = useMemo(() => {
+    return teams.find((team) => team.id === selectedTeamId)?.name ?? "-";
+  }, [selectedTeamId, teams]);
+
+  const starterIds = useMemo(() => toStarterIds(lineupDraft), [lineupDraft]);
 
   const canSubmit = Boolean(
     leagueId &&
       selectedTeamId &&
-      selectedPlayers.length === 15 &&
+      isLineupDraftComplete(lineupDraft) &&
+      selectedPlayerIds.length === 15 &&
+      new Set(selectedPlayerIds).size === 15 &&
       positionCounter.GK >= 1 &&
       positionCounter.DEF >= 3 &&
       positionCounter.MID >= 3 &&
       positionCounter.FWD >= 1 &&
-      totalCost <= BUDGET_CAP
+      totalCost <= BUDGET_CAP &&
+      Object.values(teamCounter).every((count) => count <= MAX_PER_TEAM)
   );
 
-  const togglePlayer = (playerId: string) => {
-    const player = playersById.get(playerId);
-    if (!player) {
+  const pitchRows = useMemo<PitchRow[]>(() => {
+    if (!lineupDraft) {
+      return [
+        { label: "GK", slots: 1, ids: [] },
+        { label: "DEF", slots: FORMATION_SLOTS.DEF, ids: [] },
+        { label: "MID", slots: FORMATION_SLOTS.MID, ids: [] },
+        { label: "FWD", slots: FORMATION_SLOTS.FWD, ids: [] }
+      ];
+    }
+
+    return [
+      { label: "GK", slots: 1, ids: [lineupDraft.goalkeeperId] },
+      { label: "DEF", slots: FORMATION_SLOTS.DEF, ids: lineupDraft.defenderIds },
+      { label: "MID", slots: FORMATION_SLOTS.MID, ids: lineupDraft.midfielderIds },
+      { label: "FWD", slots: FORMATION_SLOTS.FWD, ids: lineupDraft.forwardIds }
+    ];
+  }, [lineupDraft]);
+
+  const onNextStep = () => {
+    if (!selectedTeamId) {
+      setErrorMessage("Please select your favorite club first.");
       return;
     }
 
     setErrorMessage(null);
-
-    if (selectedIdsSet.has(playerId)) {
-      setSelectedPlayerIds((previous) => previous.filter((id) => id !== playerId));
-      return;
-    }
-
-    if (selectedPlayerIds.length >= 15) {
-      setErrorMessage("Squad can only contain 15 players.");
-      return;
-    }
-
-    if ((teamCounter[player.club] ?? 0) >= MAX_PER_TEAM) {
-      setErrorMessage(`Max ${MAX_PER_TEAM} players from ${player.club}.`);
-      return;
-    }
-
-    if (totalCost + player.price > BUDGET_CAP) {
-      setErrorMessage(`Budget cap exceeded (${BUDGET_CAP.toFixed(1)}).`);
-      return;
-    }
-
-    setSelectedPlayerIds((previous) => [...previous, playerId]);
+    setStep("squad");
   };
 
-  const onAutoPick = () => {
-    if (players.length === 0) {
+  const openPicker = (zone: SlotZone, index: number) => {
+    if (!leagueId || !lineupDraft) {
       return;
     }
 
-    const autoPlayerIds = pickAutoSquadPlayerIds(players);
-    setSelectedPlayerIds(autoPlayerIds);
+    savePickerContext({
+      leagueId,
+      target: {
+        zone,
+        index
+      },
+      lineup: lineupDraft,
+      returnPath: "/onboarding"
+    });
+
+    navigate(
+      `/onboarding/pick?leagueId=${encodeURIComponent(leagueId)}&zone=${encodeURIComponent(zone)}&index=${index}`
+    );
+  };
+
+  const onRemoveFromSlot = (zone: SlotZone, index: number) => {
+    if (!lineupDraft) {
+      return;
+    }
+
+    setLineupDraft(clearSlotPlayerId(lineupDraft, zone, index));
     setErrorMessage(null);
-    setInfoMessage("Auto-picked 15 players using valid formation constraints.");
   };
 
   const onSubmit = async () => {
@@ -217,13 +492,13 @@ export const OnboardingPage = () => {
       return;
     }
 
-    if (!leagueId || !selectedTeamId) {
+    if (!leagueId || !selectedTeamId || !lineupDraft) {
       setErrorMessage("League and favorite club are required.");
       return;
     }
 
     if (!canSubmit) {
-      setErrorMessage("Squad is not valid yet. Check count, positions, team limit, and budget.");
+      setErrorMessage("Complete all field slots with valid budget and team composition.");
       return;
     }
 
@@ -232,7 +507,16 @@ export const OnboardingPage = () => {
       setErrorMessage(null);
       setInfoMessage(null);
 
-      const lineup = buildLineupFromPlayers(leagueId, selectedPlayers, selectedPlayerIds);
+      const sortedStarters = starterIds
+        .map((id) => playersById.get(id))
+        .filter((player): player is Player => Boolean(player))
+        .sort((left, right) => right.projectedPoints - left.projectedPoints);
+
+      const captainId = sortedStarters[0]?.id ?? starterIds[0] ?? "";
+      const viceCaptainId =
+        sortedStarters.find((player) => player.id !== captainId)?.id ??
+        starterIds.find((id) => id !== captainId) ??
+        "";
 
       await saveOnboardingFavoriteClub.execute(
         {
@@ -247,14 +531,23 @@ export const OnboardingPage = () => {
           leagueId,
           squadName: squadName.trim(),
           playerIds: selectedPlayerIds,
-          lineup
+          lineup: {
+            ...lineupDraft,
+            defenderIds: lineupDraft.defenderIds.filter(Boolean),
+            midfielderIds: lineupDraft.midfielderIds.filter(Boolean),
+            forwardIds: lineupDraft.forwardIds.filter(Boolean),
+            substituteIds: lineupDraft.substituteIds.filter(Boolean),
+            captainId,
+            viceCaptainId,
+            updatedAt: new Date().toISOString()
+          }
         },
         accessToken
       );
 
       setSelectedLeagueId(leagueId);
       markOnboardingCompleted(session?.user.id ?? "");
-      navigate("/team", { replace: true });
+      navigate("/", { replace: true });
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to complete onboarding.");
     } finally {
@@ -262,199 +555,209 @@ export const OnboardingPage = () => {
     }
   };
 
+  const renderPitchCard = (zone: SlotZone, index: number, label: string, player: Player | null) => {
+    if (!player) {
+      return (
+        <button type="button" className="fpl-player-card empty-slot pick-slot-button" onClick={() => openPicker(zone, index)}>
+          <span>{`Pick ${label}`}</span>
+        </button>
+      );
+    }
+
+    return (
+      <div
+        className="fpl-player-card onboarding-filled-card"
+        role="button"
+        tabIndex={0}
+        onClick={() => openPicker(zone, index)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            openPicker(zone, index);
+          }
+        }}
+      >
+        <button
+          type="button"
+          className="onboarding-slot-remove"
+          aria-label={`Remove ${player.name}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onRemoveFromSlot(zone, index);
+          }}
+        >
+          ×
+        </button>
+        <div className="player-price-chip">£{player.price.toFixed(1)}m</div>
+        <div className="shirt-holder">
+          <div className="shirt" style={{ background: shirtBackgroundForClub(player.club) }} />
+        </div>
+        <div className="player-info-chip">
+          <div className="player-name-chip">{shortName(player.name)}</div>
+          <div className="player-fixture-chip">{player.club}</div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="app-shell onboarding-shell">
       <main className="content">
         <section className="card onboarding-hero">
           <p className="small-label">Onboarding</p>
-          <h2>Set Your Favorite Club and Build First Squad</h2>
-          <p className="muted">
-            Complete this once to start playing. Backend endpoints used:{" "}
-            <code>/v1/onboarding/favorite-club</code> and <code>/v1/onboarding/pick-squad</code>.
-          </p>
+          <h2>Set Favorite Club and Build First Squad</h2>
+          <p className="muted">Step {step === "favorite" ? "1" : "2"} of 2.</p>
         </section>
 
-        <section className="card onboarding-section">
-          <div className="home-section-head">
-            <h3>1. Favorite Club</h3>
-          </div>
+        {step === "favorite" ? (
+          <section className="card onboarding-section">
+            <div className="home-section-head">
+              <h3>1. Pick Favorite Club</h3>
+            </div>
 
-          <div className="page-filter-grid">
-            <label>
-              League
-              <select value={leagueId} onChange={(event) => setLeagueId(event.target.value)}>
-                {leagues.map((league) => (
-                  <option key={league.id} value={league.id}>
-                    {league.name}
-                  </option>
+            <div className="page-filter-grid">
+              <label>
+                League
+                <select value={leagueId} onChange={(event) => setLeagueId(event.target.value)}>
+                  {leagues.map((league) => (
+                    <option key={league.id} value={league.id}>
+                      {league.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                Search Club Name
+                <input
+                  type="text"
+                  value={teamSearch}
+                  onChange={(event) => setTeamSearch(event.target.value)}
+                  placeholder="Search club"
+                />
+              </label>
+            </div>
+
+            {isLoading ? <LoadingState label="Loading clubs and players" /> : null}
+
+            <div className="onboarding-team-list-scroll">
+              <div className="onboarding-team-grid onboarding-team-grid-single">
+                {filteredTeams.map((team) => (
+                  <button
+                    key={team.id}
+                    type="button"
+                    className={`onboarding-team-card ${selectedTeamId === team.id ? "active" : ""}`}
+                    onClick={() => setSelectedTeamId(team.id)}
+                  >
+                    <div className="media-line">
+                      <img src={team.logoUrl} alt={team.name} className="media-thumb media-thumb-small" loading="lazy" />
+                      <div className="media-copy">
+                        <strong>{team.name}</strong>
+                        <small className="muted">{team.short || team.id}</small>
+                      </div>
+                    </div>
+                  </button>
                 ))}
-              </select>
-            </label>
-          </div>
+              </div>
+            </div>
 
-          {isLoading ? <LoadingState label="Loading clubs and players" /> : null}
+            {!isLoading && filteredTeams.length === 0 ? <p className="muted">No club found for this keyword.</p> : null}
 
-          <div className="onboarding-team-grid">
-            {teams.map((team) => (
-              <button
-                key={team.id}
-                type="button"
-                className={`onboarding-team-card ${selectedTeamId === team.id ? "active" : ""}`}
-                onClick={() => setSelectedTeamId(team.id)}
-              >
-                <div className="media-line">
-                  <img src={team.logoUrl} alt={team.name} className="media-thumb media-thumb-small" loading="lazy" />
-                  <div className="media-copy">
-                    <strong>{team.name}</strong>
-                    <small className="muted">{team.short || team.id}</small>
-                    <span className="media-url">{team.logoUrl}</span>
-                  </div>
-                </div>
+            <section className="onboarding-actions onboarding-actions-between">
+              <div className="small-label">Selected: {selectedTeamName}</div>
+              <button type="button" onClick={onNextStep} disabled={!selectedTeamId || isLoading}>
+                Continue to Squad
               </button>
-            ))}
-          </div>
-        </section>
+            </section>
+          </section>
+        ) : null}
 
-        <section className="card onboarding-section">
-          <div className="home-section-head">
-            <h3>2. Select Squad (15 Players)</h3>
-            <button type="button" className="secondary-button" onClick={onAutoPick}>
-              Auto Pick
-            </button>
-          </div>
+        {step === "squad" ? (
+          <>
+            <section className="card team-header-box">
+              <div className="page-filter-grid">
+                <label>
+                  Squad Name
+                  <input
+                    type="text"
+                    value={squadName}
+                    onChange={(event) => setSquadName(event.target.value)}
+                    maxLength={100}
+                  />
+                </label>
+              </div>
 
-          <div className="page-filter-grid">
-            <label>
-              Squad Name
-              <input
-                type="text"
-                value={squadName}
-                onChange={(event) => setSquadName(event.target.value)}
-                maxLength={100}
-              />
-            </label>
-            <label>
-              Search
-              <input
-                type="text"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search by player or club"
-              />
-            </label>
-            <label>
-              Position
-              <select value={position} onChange={(event) => setPosition(event.target.value as PositionFilter)}>
-                <option value="ALL">All</option>
-                <option value="GK">GK</option>
-                <option value="DEF">DEF</option>
-                <option value="MID">MID</option>
-                <option value="FWD">FWD</option>
-              </select>
-            </label>
-          </div>
+              <div className="team-meta-grid">
+                <article className="team-meta-item">
+                  <p className="small-label">Selected Players</p>
+                  <strong>{selectedPlayerIds.length} / 15</strong>
+                </article>
+                <article className="team-meta-item">
+                  <p className="small-label">Budget</p>
+                  <strong>
+                    £{totalCost.toFixed(1)} / £{BUDGET_CAP.toFixed(1)}
+                  </strong>
+                </article>
+                <article className="team-meta-item">
+                  <p className="small-label">Team Limit</p>
+                  <strong>{MAX_PER_TEAM} per club</strong>
+                </article>
+              </div>
 
-          <div className="onboarding-summary-grid">
-            <article className="onboarding-summary-card">
-              <p className="small-label">Selected</p>
-              <strong>{selectedPlayers.length} / 15</strong>
-            </article>
-            <article className="onboarding-summary-card">
-              <p className="small-label">Budget</p>
-              <strong>
-                £{totalCost.toFixed(1)} / £{BUDGET_CAP.toFixed(1)}
-              </strong>
-            </article>
-            <article className="onboarding-summary-card">
-              <p className="small-label">Position Min</p>
-              <strong>
-                GK {positionCounter.GK} · DEF {positionCounter.DEF} · MID {positionCounter.MID} · FWD{" "}
-                {positionCounter.FWD}
-              </strong>
-            </article>
-          </div>
+              <p className="muted">Tap empty slot to pick player. Tap filled slot to replace player. Use × to remove.</p>
+            </section>
 
-          <div className="team-picker-table-wrap onboarding-player-table">
-            <table className="team-picker-table">
-              <thead>
-                <tr>
-                  <th>Pick</th>
-                  <th>Name</th>
-                  <th>Club</th>
-                  <th>Pos</th>
-                  <th>Price</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPlayers.map((player) => {
-                  const picked = selectedIdsSet.has(player.id);
-                  const teamCount = teamCounter[player.club] ?? 0;
-                  const blockedByTeamLimit = !picked && teamCount >= MAX_PER_TEAM;
-                  const blockedByBudget = !picked && totalCost + player.price > BUDGET_CAP;
+            <section className="fpl-board card">
+              <div className="fpl-pitch-stage">
+                <div className="pitch-top-boards">
+                  <div>Fantasy</div>
+                  <div>Fantasy</div>
+                </div>
 
-                  return (
-                    <tr
-                      key={player.id}
-                      className={`team-picker-clickable ${picked ? "onboarding-picked" : ""}`}
-                      onClick={() => togglePlayer(player.id)}
-                    >
-                      <td>{picked ? "✓" : "+"}</td>
-                      <td className="entity-media-cell">
-                        <div className="media-line">
-                          {normalizeUrl(player.imageUrl) ? (
-                            <img src={normalizeUrl(player.imageUrl)} alt={player.name} className="media-thumb" loading="lazy" />
-                          ) : (
-                            <span className="media-thumb media-thumb-fallback" aria-hidden="true">
-                              P
-                            </span>
-                          )}
-                          <div className="media-copy">
-                            <strong>{player.name}</strong>
-                            <span className="media-url">{normalizeUrl(player.imageUrl) || "No player image URL"}</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="media-line">
-                          {normalizeUrl(player.teamLogoUrl) ? (
-                            <img
-                              src={normalizeUrl(player.teamLogoUrl)}
-                              alt={player.club}
-                              className="media-thumb media-thumb-small"
-                              loading="lazy"
-                            />
-                          ) : (
-                            <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
-                              T
-                            </span>
-                          )}
-                          <div className="media-copy">
-                            <strong>{player.club}</strong>
-                            {blockedByTeamLimit ? <small className="error-text">Team limit reached</small> : null}
-                            {!blockedByTeamLimit && blockedByBudget ? (
-                              <small className="error-text">Budget exceeded</small>
-                            ) : null}
-                          </div>
-                        </div>
-                      </td>
-                      <td>{player.position}</td>
-                      <td>£{player.price.toFixed(1)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
+                <div className="fpl-pitch">
+                  <div className="pitch-lines">
+                    <div className="penalty-box" />
+                    <div className="center-circle" />
+                    <div className="half-line" />
+                  </div>
+
+                  {pitchRows.map((row) => (
+                    <div key={row.label} className="fpl-line" style={{ "--slot-count": row.slots } as CSSProperties}>
+                      {Array.from({ length: row.slots }).map((_, index) => {
+                        const playerId = row.ids[index];
+                        const player = playerId ? playersById.get(playerId) ?? null : null;
+                        return <div key={`${row.label}-${index}`}>{renderPitchCard(row.label, index, row.label, player)}</div>;
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="fpl-bench">
+                <p className="small-label">Substitutes</p>
+                <div className="bench-grid">
+                  {Array.from({ length: FORMATION_SLOTS.BENCH }).map((_, index) => {
+                    const playerId = getSlotPlayerId(lineupDraft ?? createEmptyLineupDraft(leagueId), "BENCH", index);
+                    const player = playerId ? playersById.get(playerId) ?? null : null;
+                    return <div key={`bench-${index}`}>{renderPitchCard("BENCH", index, "BENCH", player)}</div>;
+                  })}
+                </div>
+              </div>
+            </section>
+
+            <section className="onboarding-actions onboarding-actions-between">
+              <button type="button" className="secondary-button" onClick={() => setStep("favorite")}>
+                Back
+              </button>
+              <button type="button" onClick={onSubmit} disabled={isSubmitting || isLoading || !canSubmit}>
+                {isSubmitting ? "Saving..." : "Complete"}
+              </button>
+            </section>
+          </>
+        ) : null}
 
         {errorMessage ? <p className="error-text">{errorMessage}</p> : null}
         {infoMessage ? <p className="small-label">{infoMessage}</p> : null}
-
-        <section className="onboarding-actions">
-          <button type="button" onClick={onSubmit} disabled={isSubmitting || isLoading || !canSubmit}>
-            {isSubmitting ? "Saving..." : "Complete Onboarding"}
-          </button>
-        </section>
       </main>
     </div>
   );

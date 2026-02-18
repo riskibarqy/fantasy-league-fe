@@ -74,6 +74,7 @@ export const AppRouter = () => {
 
       <Route element={<ProtectedRoutes />}>
         <Route path="/onboarding" element={<OnboardingEntryPage />} />
+        <Route path="/onboarding/pick" element={<TeamPlayerPickerPage />} />
         <Route element={<OnboardingRequiredRoutes />}>
           <Route element={<MainLayout />}>
             <Route path="/" element={<DashboardPage />} />

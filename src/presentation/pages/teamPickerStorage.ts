@@ -11,6 +11,7 @@ type PickerContext = {
   leagueId: string;
   target: SlotPickerTarget;
   lineup: TeamLineup;
+  returnPath?: string;
 };
 
 type PickerResult = {

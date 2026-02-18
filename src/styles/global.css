@@ -750,6 +750,16 @@ button:disabled {
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
 }
 
+.onboarding-team-grid-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.onboarding-team-list-scroll {
+  max-height: 14.8rem;
+  overflow-y: auto;
+  padding-right: 0.2rem;
+}
+
 .onboarding-team-card {
   border: 1px solid var(--border);
   background: var(--surface-soft);
@@ -790,6 +800,45 @@ button:disabled {
 .onboarding-actions {
   display: flex;
   justify-content: flex-end;
+}
+
+.onboarding-actions-between {
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.onboarding-filled-card {
+  position: relative;
+  cursor: pointer;
+}
+
+.onboarding-filled-card:hover {
+  border-color: rgba(8, 217, 214, 0.78);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.32), inset 0 0 0 1px rgba(8, 217, 214, 0.26);
+}
+
+.onboarding-slot-remove {
+  position: absolute;
+  top: 0.12rem;
+  right: 0.12rem;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  background: rgba(20, 27, 42, 0.9);
+  color: #fff;
+  font-size: 0.78rem;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.onboarding-slot-remove:hover {
+  background: var(--brand-pink);
+  border-color: transparent;
 }
 
 .settings-page {

@@ -115,7 +115,8 @@ export const TeamPlayerPickerPage = () => {
     return {
       leagueId,
       target: parsedTarget,
-      lineup: stored.lineup
+      lineup: stored.lineup,
+      returnPath: stored.returnPath || "/team"
     };
   }, [searchParams]);
 
@@ -246,7 +247,7 @@ export const TeamPlayerPickerPage = () => {
 
   const onCancel = () => {
     clearPickerContext();
-    navigate("/team");
+    navigate(context?.returnPath || "/team");
   };
 
   const onResetFilters = () => {
@@ -266,7 +267,7 @@ export const TeamPlayerPickerPage = () => {
       target: context.target,
       playerId
     });
-    navigate("/team");
+    navigate(context.returnPath || "/team");
   };
 
   if (!context) {
