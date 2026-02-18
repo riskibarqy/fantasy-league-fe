@@ -11,6 +11,9 @@ import { LoadingState } from "../components/LoadingState";
 import { useSession } from "../hooks/useSession";
 import { useLeagueSelection } from "../hooks/useLeagueSelection";
 import { appAlert } from "../lib/appAlert";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Select } from "@/components/ui/select";
 import {
   consumePickerResult,
   readLineupDraft,
@@ -890,28 +893,30 @@ export const TeamBuilderPage = () => {
         <p className="muted">Choose mode: Pick A Team (PAT) or Transfers (TRF).</p>
       </section>
 
-      <section className="card team-header-box">
+      <Card className="card team-header-box">
         <div className="mode-switch">
-          <button
+          <Button
             type="button"
+            variant={mode === "PAT" ? "default" : "secondary"}
             className={`mode-button ${mode === "PAT" ? "active" : ""}`}
             onClick={() => setMode("PAT")}
           >
             PAT
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant={mode === "TRF" ? "default" : "secondary"}
             className={`mode-button ${mode === "TRF" ? "active" : ""}`}
             onClick={() => setMode("TRF")}
           >
             TRF
-          </button>
+          </Button>
         </div>
 
         <div>
           <label>
             League
-            <select
+            <Select
               value={selectedLeagueId}
               onChange={(event) => setSelectedLeagueId(event.target.value)}
             >
@@ -920,7 +925,7 @@ export const TeamBuilderPage = () => {
                   {league.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
         </div>
 
@@ -940,9 +945,9 @@ export const TeamBuilderPage = () => {
         </div>
 
         {isLeagueDataLoading ? <LoadingState label="Loading latest team data" inline compact /> : null}
-      </section>
+      </Card>
 
-      <section className="card team-chip-box">
+      <Card className="card team-chip-box">
         {mode === "PAT" ? (
           <div className="chips-grid chips-grid-4">
             <article className="chip-card">
@@ -990,9 +995,9 @@ export const TeamBuilderPage = () => {
             </article>
           </div>
         )}
-      </section>
+      </Card>
 
-      <section className="fpl-board card">
+      <Card className="fpl-board card">
         {mode === "PAT" ? renderPitch(patRows, true, true) : renderPitch(trfRows, false, false)}
 
         {mode === "PAT" ? (
@@ -1043,18 +1048,20 @@ export const TeamBuilderPage = () => {
             </div>
           </div>
         ) : null}
-      </section>
+      </Card>
 
       {selectedPlayer ? (
         <div className="player-modal-overlay" onClick={() => setSelectedPlayerId(null)}>
-          <section className="player-modal card" onClick={(event) => event.stopPropagation()}>
-            <button
+          <Card className="player-modal card" onClick={(event) => event.stopPropagation()}>
+            <Button
               type="button"
-              className="player-modal-close ghost-button"
+              variant="secondary"
+              size="sm"
+              className="player-modal-close"
               onClick={() => setSelectedPlayerId(null)}
             >
               Close
-            </button>
+            </Button>
 
             <div className="player-modal-hero">
               <div className="player-portrait">
@@ -1175,7 +1182,7 @@ export const TeamBuilderPage = () => {
             {selectedPlayerIsBench ? (
               <p className="muted">Captain and vice captain can only be assigned to starting players.</p>
             ) : null}
-          </section>
+          </Card>
         </div>
       ) : null}
     </div>

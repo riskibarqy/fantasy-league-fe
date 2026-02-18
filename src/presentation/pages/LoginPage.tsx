@@ -5,6 +5,9 @@ import { appEnv } from "../../app/config/env";
 import { LoadingState } from "../components/LoadingState";
 import { useSession } from "../hooks/useSession";
 import { appAlert } from "../lib/appAlert";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 
 type GoogleCredentialResponse = {
   credential: string;
@@ -158,7 +161,7 @@ export const LoginPage = () => {
 
   return (
     <div className="login-page">
-      <section className="login-card">
+      <Card className="login-card">
         <p className="small-label">Fantasy Nusantara</p>
         <h1>Manage your dream squad</h1>
         <p className="muted">
@@ -169,29 +172,31 @@ export const LoginPage = () => {
         <form onSubmit={onSubmit} className="form-grid">
           <label>
             Email
-            <input
+            <Input
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               autoComplete="email"
               required
+              className="mt-2"
             />
           </label>
 
           <label>
             Password
-            <input
+            <Input
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               autoComplete="current-password"
               required
+              className="mt-2"
             />
           </label>
 
-          <button type="submit" disabled={isSubmitting || isGoogleSubmitting}>
+          <Button type="submit" disabled={isSubmitting || isGoogleSubmitting} className="w-full">
             {isSubmitting ? "Signing in..." : "Sign in"}
-          </button>
+          </Button>
         </form>
 
         <div className="auth-divider">
@@ -199,9 +204,9 @@ export const LoginPage = () => {
         </div>
 
         {appEnv.useMocks ? (
-          <button type="button" className="secondary-button" onClick={onMockGoogle}>
+          <Button type="button" variant="secondary" className="secondary-button w-full" onClick={onMockGoogle}>
             {isGoogleSubmitting ? "Signing in with Google..." : "Sign in with Google (Mock)"}
-          </button>
+          </Button>
         ) : (
           <>
             <div className="google-button-host" ref={googleButtonRef} />
@@ -212,7 +217,7 @@ export const LoginPage = () => {
         )}
 
         <p className="small-label">Demo password (mock mode): password123</p>
-      </section>
+      </Card>
     </div>
   );
 };

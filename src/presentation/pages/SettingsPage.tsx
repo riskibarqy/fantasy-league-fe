@@ -4,29 +4,9 @@ import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import { useSession } from "../hooks/useSession";
 import { useAppSettings } from "../hooks/useAppSettings";
 import { appAlert } from "../lib/appAlert";
-
-const ToggleSwitch = ({
-  checked,
-  onToggle,
-  ariaLabel
-}: {
-  checked: boolean;
-  onToggle: (next: boolean) => void;
-  ariaLabel: string;
-}) => {
-  return (
-    <button
-      type="button"
-      className={`toggle-switch ${checked ? "on" : ""}`}
-      role="switch"
-      aria-checked={checked}
-      aria-label={ariaLabel}
-      onClick={() => onToggle(!checked)}
-    >
-      <span className="toggle-thumb" />
-    </button>
-  );
-};
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
 
 export const SettingsPage = () => {
   const {
@@ -86,37 +66,43 @@ export const SettingsPage = () => {
         <p className="muted">Personalize the app for speed, focus, and comfort.</p>
       </section>
 
-      <section className="card settings-section">
+      <Card className="card settings-section">
         <div className="settings-header">
           <h3>Appearance</h3>
           <p className="muted">Choose your preferred visual mode.</p>
         </div>
         <div className="segmented-control">
-          <button
+          <Button
             type="button"
+            variant={settings.theme === "system" ? "default" : "ghost"}
+            size="sm"
             className={`segment ${settings.theme === "system" ? "active" : ""}`}
             onClick={() => setTheme("system")}
           >
             System
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant={settings.theme === "light" ? "default" : "ghost"}
+            size="sm"
             className={`segment ${settings.theme === "light" ? "active" : ""}`}
             onClick={() => setTheme("light")}
           >
             Light
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant={settings.theme === "dark" ? "default" : "ghost"}
+            size="sm"
             className={`segment ${settings.theme === "dark" ? "active" : ""}`}
             onClick={() => setTheme("dark")}
           >
             Dark
-          </button>
+          </Button>
         </div>
-      </section>
+      </Card>
 
-      <section className="card settings-section">
+      <Card className="card settings-section">
         <div className="settings-header">
           <h3>Experience</h3>
           <p className="muted">Tune the interface behavior.</p>
@@ -127,9 +113,9 @@ export const SettingsPage = () => {
             <strong>Notifications</strong>
             <p className="muted">Enable browser notifications for important events.</p>
           </div>
-          <ToggleSwitch
+          <Switch
             checked={settings.notificationsEnabled}
-            onToggle={onToggleNotifications}
+            onCheckedChange={onToggleNotifications}
             ariaLabel="Toggle notifications"
           />
         </article>
@@ -139,16 +125,16 @@ export const SettingsPage = () => {
             <strong>Deadline Reminder</strong>
             <p className="muted">Remind before transfer deadline each gameweek.</p>
           </div>
-          <ToggleSwitch
+          <Switch
             checked={settings.deadlineReminderEnabled}
-            onToggle={setDeadlineReminderEnabled}
+            onCheckedChange={setDeadlineReminderEnabled}
             ariaLabel="Toggle deadline reminder"
           />
         </article>
 
-      </section>
+      </Card>
 
-      <section className="card settings-section">
+      <Card className="card settings-section">
         <div className="settings-header">
           <h3>Account</h3>
           <p className="muted">Manage your active session.</p>
@@ -159,12 +145,12 @@ export const SettingsPage = () => {
             <p className="muted">{session?.user.email ?? "-"}</p>
           </div>
           <div className="settings-actions">
-            <button type="button" className="danger-button" onClick={onLogout}>
+            <Button type="button" variant="destructive" className="danger-button" onClick={onLogout}>
               Logout
-            </button>
+            </Button>
           </div>
         </article>
-      </section>
+      </Card>
     </div>
   );
 };

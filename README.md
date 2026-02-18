@@ -5,6 +5,7 @@ Frontend for fantasy football platform focused on Indonesian leagues first, but 
 ## Tech Stack
 
 - React 18 + TypeScript + Vite
+- Tailwind CSS v4 (Vite plugin) + shadcn/ui primitives
 - Capacitor (Android + iOS wrapper for mobile app install)
 - Clean Architecture + DDD boundaries
 - Vitest for unit tests

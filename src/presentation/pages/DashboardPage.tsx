@@ -12,6 +12,9 @@ import { getGlobalNewsItems } from "./newsFeed";
 import { useLeagueSelection } from "../hooks/useLeagueSelection";
 import { useSession } from "../hooks/useSession";
 import { appAlert } from "../lib/appAlert";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Select } from "@/components/ui/select";
 
 const formatDeadlineWindow = (kickoffAt: string): string => {
   const diffMs = new Date(kickoffAt).getTime() - Date.now();
@@ -133,38 +136,38 @@ export const DashboardPage = () => {
     if (errorMessage) {
       return (
         <div className="page-grid">
-          <section className="card home-hero">
+          <Card className="card home-hero">
             <p className="muted">Unable to load dashboard right now. Please refresh and try again.</p>
-          </section>
+          </Card>
         </div>
       );
     }
 
     return (
       <div className="page-grid">
-        <section className="card home-hero">
+        <Card className="card home-hero">
           <LoadingState label="Preparing dashboard data" />
           <div className="home-quick-grid">
             <div className="skeleton-card" />
             <div className="skeleton-card" />
             <div className="skeleton-card" />
           </div>
-        </section>
-        <section className="card home-news">
+        </Card>
+        <Card className="card home-news">
           <div className="skeleton-card" />
           <div className="skeleton-card" />
-        </section>
-        <section className="card home-news">
+        </Card>
+        <Card className="card home-news">
           <div className="skeleton-card" />
           <div className="skeleton-card" />
-        </section>
+        </Card>
       </div>
     );
   }
 
   return (
     <div className="page-grid dashboard-page">
-      <section className="card home-hero">
+      <Card className="card home-hero">
         <div>
           <h2>Home Overview • {selectedLeague?.name ?? "League"}</h2>
           <p className="muted">
@@ -174,7 +177,7 @@ export const DashboardPage = () => {
           {leagues.length > 0 ? (
             <label className="dashboard-league-select">
               League
-              <select
+              <Select
                 value={selectedLeagueId || dashboard.selectedLeagueId}
                 onChange={(event) => setSelectedLeagueId(event.target.value)}
               >
@@ -183,7 +186,7 @@ export const DashboardPage = () => {
                     {league.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
           ) : null}
         </div>
@@ -202,17 +205,17 @@ export const DashboardPage = () => {
             <small>Competition overview</small>
           </Link>
         </div>
-      </section>
+      </Card>
 
-      <section className="card home-news">
+      <Card className="card home-news">
         <div className="home-section-head">
           <div className="section-title">
             <h3>Custom Leagues</h3>
             <p className="muted">Your private leagues overview.</p>
           </div>
-          <Link to="/custom-leagues" className="secondary-button home-news-more">
-            See more
-          </Link>
+          <Button asChild size="sm" variant="secondary" className="home-news-more">
+            <Link to="/custom-leagues">See more</Link>
+          </Button>
         </div>
         <div className="home-news-list">
           {customLeagues.length === 0 ? <p className="muted">No custom leagues yet.</p> : null}
@@ -241,17 +244,17 @@ export const DashboardPage = () => {
             </article>
           ))}
         </div>
-      </section>
+      </Card>
 
-      <section className="card home-news">
+      <Card className="card home-news">
         <div className="home-section-head">
           <div className="section-title">
             <h3>Latest News</h3>
             <p className="muted">Top 2 highlights from the global news feed.</p>
           </div>
-          <Link to="/news" className="secondary-button home-news-more">
-            See more
-          </Link>
+          <Button asChild size="sm" variant="secondary" className="home-news-more">
+            <Link to="/news">See more</Link>
+          </Button>
         </div>
         <div className="home-news-list">
           {newsItems.map((item) => (
@@ -262,17 +265,17 @@ export const DashboardPage = () => {
             </article>
           ))}
         </div>
-      </section>
+      </Card>
 
-      <section className="card home-news">
+      <Card className="card home-news">
         <div className="home-section-head">
           <div className="section-title">
             <h3>Upcoming Fixtures</h3>
             <p className="muted">{selectedLeague?.countryCode ?? "-"} • {featuredFixtures.length} matches shown</p>
           </div>
-          <Link to="/fixtures" className="secondary-button home-news-more">
-            See more
-          </Link>
+          <Button asChild size="sm" variant="secondary" className="home-news-more">
+            <Link to="/fixtures">See more</Link>
+          </Button>
         </div>
         <div className="home-news-list">
           {featuredFixtures.length === 0 ? <p className="muted">No fixtures found.</p> : null}
@@ -280,7 +283,7 @@ export const DashboardPage = () => {
             <FixtureCard key={fixture.id} fixture={fixture} />
           ))}
         </div>
-      </section>
+      </Card>
     </div>
   );
 };
