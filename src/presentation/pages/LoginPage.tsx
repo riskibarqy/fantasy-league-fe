@@ -4,6 +4,7 @@ import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import { appEnv } from "../../app/config/env";
 import { LoadingState } from "../components/LoadingState";
 import { useSession } from "../hooks/useSession";
+import { appAlert } from "../lib/appAlert";
 
 type GoogleCredentialResponse = {
   credential: string;
@@ -46,15 +47,14 @@ export const LoginPage = () => {
 
   const [email, setEmail] = useState("manager@fantasy.id");
   const [password, setPassword] = useState("password123");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
   const [googleReady, setGoogleReady] = useState(false);
 
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
+  const googleClientWarningShownRef = useRef(false);
 
   const handleGoogleLogin = async (idToken: string) => {
-    setErrorMessage(null);
     setIsGoogleSubmitting(true);
 
     try {
@@ -62,7 +62,8 @@ export const LoginPage = () => {
       setSession(session);
       navigate("/", { replace: true });
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Google login failed.");
+      const message = error instanceof Error ? error.message : "Google login failed.";
+      void appAlert.error("Google Sign-in Failed", message);
     } finally {
       setIsGoogleSubmitting(false);
     }
@@ -70,6 +71,10 @@ export const LoginPage = () => {
 
   useEffect(() => {
     if (appEnv.useMocks || !appEnv.googleClientId) {
+      if (!appEnv.useMocks && !appEnv.googleClientId && !googleClientWarningShownRef.current) {
+        googleClientWarningShownRef.current = true;
+        void appAlert.warning("Google Sign-in", "Set VITE_GOOGLE_CLIENT_ID to enable Google sign-in.");
+      }
       return;
     }
 
@@ -133,7 +138,6 @@ export const LoginPage = () => {
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    setErrorMessage(null);
     setIsSubmitting(true);
 
     try {
@@ -141,7 +145,8 @@ export const LoginPage = () => {
       setSession(session);
       navigate("/", { replace: true });
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Login failed.");
+      const message = error instanceof Error ? error.message : "Login failed.";
+      void appAlert.error("Sign-in Failed", message);
     } finally {
       setIsSubmitting(false);
     }
@@ -184,8 +189,6 @@ export const LoginPage = () => {
             />
           </label>
 
-          {errorMessage ? <p className="error-text">{errorMessage}</p> : null}
-
           <button type="submit" disabled={isSubmitting || isGoogleSubmitting}>
             {isSubmitting ? "Signing in..." : "Sign in"}
           </button>
@@ -202,9 +205,7 @@ export const LoginPage = () => {
         ) : (
           <>
             <div className="google-button-host" ref={googleButtonRef} />
-            {!appEnv.googleClientId ? (
-              <p className="error-text">Set VITE_GOOGLE_CLIENT_ID to enable Google sign-in.</p>
-            ) : !googleReady ? (
+            {!appEnv.googleClientId ? null : !googleReady ? (
               <LoadingState label="Loading Google sign-in" inline compact />
             ) : null}
           </>

@@ -23,19 +23,6 @@ export const FixtureCard = ({ fixture }: { fixture: Fixture }) => {
           )}
           <div className="media-copy">
             <h3>{fixture.homeTeam}</h3>
-            <a
-              className="media-url"
-              href={fixture.homeTeamLogoUrl || "#"}
-              target="_blank"
-              rel="noreferrer"
-              onClick={(event) => {
-                if (!fixture.homeTeamLogoUrl) {
-                  event.preventDefault();
-                }
-              }}
-            >
-              {fixture.homeTeamLogoUrl || "Home team logo URL not available"}
-            </a>
           </div>
         </div>
         <div className="media-line">
@@ -48,19 +35,6 @@ export const FixtureCard = ({ fixture }: { fixture: Fixture }) => {
           )}
           <div className="media-copy">
             <h3>{fixture.awayTeam}</h3>
-            <a
-              className="media-url"
-              href={fixture.awayTeamLogoUrl || "#"}
-              target="_blank"
-              rel="noreferrer"
-              onClick={(event) => {
-                if (!fixture.awayTeamLogoUrl) {
-                  event.preventDefault();
-                }
-              }}
-            >
-              {fixture.awayTeamLogoUrl || "Away team logo URL not available"}
-            </a>
           </div>
         </div>
       </div>

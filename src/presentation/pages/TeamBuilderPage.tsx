@@ -10,6 +10,7 @@ import { buildLineupFromPlayers, pickAutoSquadPlayerIds } from "../../domain/fan
 import { LoadingState } from "../components/LoadingState";
 import { useSession } from "../hooks/useSession";
 import { useLeagueSelection } from "../hooks/useLeagueSelection";
+import { appAlert } from "../lib/appAlert";
 import {
   consumePickerResult,
   readLineupDraft,
@@ -245,6 +246,18 @@ export const TeamBuilderPage = () => {
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [isLeagueDataLoading, setIsLeagueDataLoading] = useState(false);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (errorMessage) {
+      void appAlert.error("Team Load Failed", errorMessage);
+    }
+  }, [errorMessage]);
+
+  useEffect(() => {
+    if (infoMessage) {
+      void appAlert.info("Team Update", infoMessage);
+    }
+  }, [infoMessage]);
 
   const playersById = useMemo(() => new Map(players.map((player) => [player.id, player])), [players]);
 
@@ -926,9 +939,7 @@ export const TeamBuilderPage = () => {
           </article>
         </div>
 
-        {errorMessage ? <p className="error-text">{errorMessage}</p> : null}
         {isLeagueDataLoading ? <LoadingState label="Loading latest team data" inline compact /> : null}
-        {infoMessage ? <p className="small-label">{infoMessage}</p> : null}
       </section>
 
       <section className="card team-chip-box">
@@ -1083,19 +1094,6 @@ export const TeamBuilderPage = () => {
                         T
                       </span>
                     )}
-                    <a
-                      className="media-url"
-                      href={normalizeUrl(selectedPlayer.teamLogoUrl) || "#"}
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={(event) => {
-                        if (!normalizeUrl(selectedPlayer.teamLogoUrl)) {
-                          event.preventDefault();
-                        }
-                      }}
-                    >
-                      {normalizeUrl(selectedPlayer.teamLogoUrl) || "Team logo URL not available"}
-                    </a>
                   </div>
                   <div className="media-line">
                     {normalizeUrl(selectedPlayer.imageUrl) ? (
@@ -1110,19 +1108,6 @@ export const TeamBuilderPage = () => {
                         P
                       </span>
                     )}
-                    <a
-                      className="media-url"
-                      href={normalizeUrl(selectedPlayer.imageUrl) || "#"}
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={(event) => {
-                        if (!normalizeUrl(selectedPlayer.imageUrl)) {
-                          event.preventDefault();
-                        }
-                      }}
-                    >
-                      {normalizeUrl(selectedPlayer.imageUrl) || "Player image URL not available"}
-                    </a>
                   </div>
                 </div>
               </div>

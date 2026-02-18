@@ -11,6 +11,7 @@ import { formatRankMovement, RankMovementBadge } from "../components/RankMovemen
 import { getGlobalNewsItems } from "./newsFeed";
 import { useLeagueSelection } from "../hooks/useLeagueSelection";
 import { useSession } from "../hooks/useSession";
+import { appAlert } from "../lib/appAlert";
 
 const formatDeadlineWindow = (kickoffAt: string): string => {
   const diffMs = new Date(kickoffAt).getTime() - Date.now();
@@ -43,6 +44,12 @@ export const DashboardPage = () => {
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [customLeagues, setCustomLeagues] = useState<CustomLeague[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (errorMessage) {
+      void appAlert.error("Dashboard Failed", errorMessage);
+    }
+  }, [errorMessage]);
 
   useEffect(() => {
     let mounted = true;
@@ -122,11 +129,17 @@ export const DashboardPage = () => {
 
   const newsItems = useMemo(() => getGlobalNewsItems(2), []);
 
-  if (errorMessage) {
-    return <p className="error-text">{errorMessage}</p>;
-  }
-
   if (!dashboard) {
+    if (errorMessage) {
+      return (
+        <div className="page-grid">
+          <section className="card home-hero">
+            <p className="muted">Unable to load dashboard right now. Please refresh and try again.</p>
+          </section>
+        </div>
+      );
+    }
+
     return (
       <div className="page-grid">
         <section className="card home-hero">
@@ -219,19 +232,6 @@ export const DashboardPage = () => {
                     L
                   </span>
                 )}
-                <a
-                  className="media-url"
-                  href={leaguesById.get(group.leagueId)?.logoUrl || "#"}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={(event) => {
-                    if (!leaguesById.get(group.leagueId)?.logoUrl) {
-                      event.preventDefault();
-                    }
-                  }}
-                >
-                  {leaguesById.get(group.leagueId)?.logoUrl || "Logo URL not available"}
-                </a>
               </div>
               <p className="muted">
                 Rank #{group.myRank > 0 ? group.myRank : "-"} • Movement {formatRankMovement(group.rankMovement)}

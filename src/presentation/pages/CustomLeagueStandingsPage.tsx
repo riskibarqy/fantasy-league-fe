@@ -9,6 +9,7 @@ import type {
 import { LoadingState } from "../components/LoadingState";
 import { RankMovementBadge } from "../components/RankMovementBadge";
 import { useSession } from "../hooks/useSession";
+import { appAlert } from "../lib/appAlert";
 
 const shortValue = (value: string): string => {
   return value.length <= 8 ? value : `${value.slice(0, 4)}...${value.slice(-2)}`;
@@ -36,6 +37,12 @@ export const CustomLeagueStandingsPage = () => {
   const [standings, setStandings] = useState<CustomLeagueStanding[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (errorMessage) {
+      void appAlert.error("Standings Load Failed", errorMessage);
+    }
+  }, [errorMessage]);
 
   useEffect(() => {
     const accessToken = session?.accessToken?.trim() ?? "";
@@ -134,7 +141,6 @@ export const CustomLeagueStandingsPage = () => {
       </section>
 
       <section className="card page-section">
-        {errorMessage ? <p className="error-text">{errorMessage}</p> : null}
         {isLoading ? <LoadingState label="Loading standings" /> : null}
 
         {!isLoading && standings.length === 0 ? <p className="muted">No standings data yet.</p> : null}

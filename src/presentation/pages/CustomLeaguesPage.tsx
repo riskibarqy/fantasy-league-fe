@@ -12,6 +12,7 @@ import { LoadingState } from "../components/LoadingState";
 import { RankMovementBadge } from "../components/RankMovementBadge";
 import { useLeagueSelection } from "../hooks/useLeagueSelection";
 import { useSession } from "../hooks/useSession";
+import { appAlert } from "../lib/appAlert";
 
 const sortCustomLeagues = (items: CustomLeague[]): CustomLeague[] => {
   return [...items].sort((left, right) => {
@@ -76,6 +77,18 @@ export const CustomLeaguesPage = () => {
   useEffect(() => {
     void loadGroups(false);
   }, [loadGroups]);
+
+  useEffect(() => {
+    if (errorMessage) {
+      void appAlert.error("Custom League Error", errorMessage);
+    }
+  }, [errorMessage]);
+
+  useEffect(() => {
+    if (actionMessage) {
+      void appAlert.info("Custom Leagues", actionMessage);
+    }
+  }, [actionMessage]);
 
   useEffect(() => {
     if (createLeagueId) {
@@ -172,9 +185,8 @@ export const CustomLeaguesPage = () => {
       setSelectedLeagueId(leagueId);
       setActionMessage(`Custom league created. Invite code: ${created.inviteCode}`);
     } catch (error) {
-      setActionMessage(
-        error instanceof Error ? error.message : "Failed to create custom league."
-      );
+      const message = error instanceof Error ? error.message : "Failed to create custom league.";
+      setActionMessage(message);
     } finally {
       setIsCreateLoading(false);
     }
@@ -203,9 +215,8 @@ export const CustomLeaguesPage = () => {
       setJoinValue(inviteCode);
       setActionMessage(`Joined "${joined.name}".`);
     } catch (error) {
-      setActionMessage(
-        error instanceof Error ? error.message : "Failed to join custom league."
-      );
+      const message = error instanceof Error ? error.message : "Failed to join custom league.";
+      setActionMessage(message);
     } finally {
       setIsJoinLoading(false);
     }
@@ -290,11 +301,9 @@ export const CustomLeaguesPage = () => {
           </article>
         </div>
 
-        {actionMessage ? <p className="small-label">{actionMessage}</p> : null}
       </section>
 
       <section className="card page-section">
-        {errorMessage ? <p className="error-text">{errorMessage}</p> : null}
         {isLoading ? <LoadingState label="Loading custom leagues" /> : null}
 
         {!isLoading && groups.length === 0 ? <p className="muted">No custom leagues found.</p> : null}
@@ -321,19 +330,6 @@ export const CustomLeaguesPage = () => {
                 )}
                 <div className="media-copy">
                   <p className="muted">League: {leaguesById.get(group.leagueId)?.name ?? group.leagueId}</p>
-                  <a
-                    className="media-url"
-                    href={leaguesById.get(group.leagueId)?.logoUrl || "#"}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={(event) => {
-                      if (!leaguesById.get(group.leagueId)?.logoUrl) {
-                        event.preventDefault();
-                      }
-                    }}
-                  >
-                    {leaguesById.get(group.leagueId)?.logoUrl || "Logo URL not available"}
-                  </a>
                 </div>
               </div>
               <p className="muted">My Rank: {group.myRank > 0 ? `#${group.myRank}` : "-"}</p>

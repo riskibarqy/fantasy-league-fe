@@ -5,6 +5,7 @@ import type { Fixture } from "../../domain/fantasy/entities/Fixture";
 import { FixtureCard } from "../components/FixtureCard";
 import { LoadingState } from "../components/LoadingState";
 import { useLeagueSelection } from "../hooks/useLeagueSelection";
+import { appAlert } from "../lib/appAlert";
 
 export const FixturesPage = () => {
   const { getFixtures } = useContainer();
@@ -18,6 +19,18 @@ export const FixturesPage = () => {
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [isFixturesLoading, setIsFixturesLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (leagueErrorMessage) {
+      void appAlert.error("League Load Failed", leagueErrorMessage);
+    }
+  }, [leagueErrorMessage]);
+
+  useEffect(() => {
+    if (errorMessage) {
+      void appAlert.error("Fixtures Load Failed", errorMessage);
+    }
+  }, [errorMessage]);
 
   useEffect(() => {
     if (!selectedLeagueId) {
@@ -103,9 +116,6 @@ export const FixturesPage = () => {
           </div>
         </div>
 
-        {leagueErrorMessage || errorMessage ? (
-          <p className="error-text">{leagueErrorMessage ?? errorMessage}</p>
-        ) : null}
         {isFixturesLoading ? <LoadingState label="Loading fixtures" /> : null}
         {isFixturesLoading ? (
           <>

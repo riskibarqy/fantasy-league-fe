@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import { useSession } from "../hooks/useSession";
 import { useAppSettings } from "../hooks/useAppSettings";
+import { appAlert } from "../lib/appAlert";
 
 const ToggleSwitch = ({
   checked,
@@ -37,8 +38,6 @@ export const SettingsPage = () => {
   const navigate = useNavigate();
   const { logout } = useContainer();
   const { session, setSession } = useSession();
-  const [notificationInfo, setNotificationInfo] = useState<string | null>(null);
-  const [logoutError, setLogoutError] = useState<string | null>(null);
 
   const notificationSupported = useMemo(() => {
     return typeof window !== "undefined" && "Notification" in window;
@@ -46,7 +45,7 @@ export const SettingsPage = () => {
 
   const onToggleNotifications = async (enabled: boolean) => {
     if (enabled && !notificationSupported) {
-      setNotificationInfo("Browser notifications are not supported on this device.");
+      void appAlert.warning("Notifications", "Browser notifications are not supported on this device.");
       setNotificationsEnabled(false);
       return;
     }
@@ -54,29 +53,29 @@ export const SettingsPage = () => {
     if (enabled && notificationSupported) {
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
-        setNotificationInfo("Notification permission denied by browser.");
+        void appAlert.warning("Notifications", "Notification permission denied by browser.");
         setNotificationsEnabled(false);
         return;
       }
-      setNotificationInfo("Notifications enabled for this browser.");
+      void appAlert.success("Notifications", "Notifications enabled for this browser.");
       setNotificationsEnabled(true);
       return;
     }
 
-    setNotificationInfo(enabled ? null : "Notifications disabled.");
+    void appAlert.info("Notifications", "Notifications disabled.");
     setNotificationsEnabled(enabled);
   };
 
   const onLogout = async () => {
     try {
-      setLogoutError(null);
       if (session) {
         await logout.execute(session.accessToken);
       }
       setSession(null);
       navigate("/login", { replace: true });
     } catch (error) {
-      setLogoutError(error instanceof Error ? error.message : "Logout failed.");
+      const message = error instanceof Error ? error.message : "Logout failed.";
+      void appAlert.error("Logout Failed", message);
     }
   };
 
@@ -147,10 +146,6 @@ export const SettingsPage = () => {
           />
         </article>
 
-        {notificationInfo ? <p className="small-label">{notificationInfo}</p> : null}
-        {!notificationSupported ? (
-          <p className="small-label">Browser notifications are not supported on this device.</p>
-        ) : null}
       </section>
 
       <section className="card settings-section">
@@ -169,7 +164,6 @@ export const SettingsPage = () => {
             </button>
           </div>
         </article>
-        {logoutError ? <p className="error-text">{logoutError}</p> : null}
       </section>
     </div>
   );

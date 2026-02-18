@@ -1,5 +1,7 @@
+import { useEffect } from "react";
 import { LoadingState } from "../components/LoadingState";
 import { useLeagueSelection } from "../hooks/useLeagueSelection";
+import { appAlert } from "../lib/appAlert";
 
 export const LeaguesPage = () => {
   const {
@@ -10,6 +12,12 @@ export const LeaguesPage = () => {
     errorMessage
   } = useLeagueSelection();
 
+  useEffect(() => {
+    if (errorMessage) {
+      void appAlert.error("Load Leagues Failed", errorMessage);
+    }
+  }, [errorMessage]);
+
   return (
     <div className="page-grid">
       <section className="section-title">
@@ -18,7 +26,6 @@ export const LeaguesPage = () => {
       </section>
 
       <section className="leagues-grid">
-        {errorMessage ? <p className="error-text">{errorMessage}</p> : null}
         {isLoading ? <LoadingState label="Loading leagues" /> : null}
         {isLoading ? (
           <>
@@ -34,19 +41,6 @@ export const LeaguesPage = () => {
             <div>
               <h3>{league.name}</h3>
               <p className="muted">Country: {league.countryCode}</p>
-              <a
-                className="media-url"
-                href={league.logoUrl || "#"}
-                target="_blank"
-                rel="noreferrer"
-                onClick={(event) => {
-                  if (!league.logoUrl) {
-                    event.preventDefault();
-                  }
-                }}
-              >
-                {league.logoUrl || "Logo URL not available"}
-              </a>
               <div className="team-picker-actions">
                 {league.id === selectedLeagueId ? (
                   <span className="small-label">Active League</span>

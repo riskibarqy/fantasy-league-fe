@@ -1587,6 +1587,25 @@ button:disabled {
   text-decoration: underline;
 }
 
+.app-alert-popup {
+  border-radius: 16px;
+  border: 1px solid rgba(234, 234, 234, 0.2);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.4);
+}
+
+.app-alert-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.app-alert-confirm,
+.app-alert-cancel {
+  border: 0 !important;
+  border-radius: 10px !important;
+  font-weight: 700 !important;
+  padding: 0.55rem 1rem !important;
+}
+
 .player-portrait {
   height: 112px;
   display: grid;

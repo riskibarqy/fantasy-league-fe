@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { cacheKeys, cacheTtlMs, getOrLoadCached } from "../../app/cache/requestCache";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import type { Club } from "../../domain/fantasy/entities/Club";
@@ -9,6 +9,7 @@ import { LoadingState } from "../components/LoadingState";
 import { useLeagueSelection } from "../hooks/useLeagueSelection";
 import { markOnboardingCompleted } from "../hooks/useOnboardingStatus";
 import { useSession } from "../hooks/useSession";
+import { appAlert } from "../lib/appAlert";
 import {
   consumePickerResult,
   readLineupDraft,
@@ -212,11 +213,14 @@ const isLineupDraftComplete = (lineup: TeamLineup | null): boolean => {
 
 export const OnboardingPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { getTeams, getPlayers, saveOnboardingFavoriteClub, completeOnboarding } = useContainer();
   const { leagues, selectedLeagueId, setSelectedLeagueId } = useLeagueSelection();
   const { session } = useSession();
 
-  const [step, setStep] = useState<OnboardingStep>("favorite");
+  const [step, setStep] = useState<OnboardingStep>(() =>
+    searchParams.get("step") === "squad" ? "squad" : "favorite"
+  );
   const [leagueId, setLeagueId] = useState("");
   const [teams, setTeams] = useState<Club[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -230,6 +234,18 @@ export const OnboardingPage = () => {
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
   const loadedLeagueRef = useRef("");
+
+  useEffect(() => {
+    if (errorMessage) {
+      void appAlert.error("Onboarding", errorMessage);
+    }
+  }, [errorMessage]);
+
+  useEffect(() => {
+    if (infoMessage) {
+      void appAlert.info("Onboarding", infoMessage);
+    }
+  }, [infoMessage]);
 
   useEffect(() => {
     if (leagueId) {
@@ -284,7 +300,6 @@ export const OnboardingPage = () => {
           const persistedDraft = readLineupDraft(leagueId);
           setLineupDraft(normalizeLineupDraft(leagueId, persistedDraft));
           loadedLeagueRef.current = leagueId;
-          setStep("favorite");
         }
       } catch (error) {
         if (!mounted) {
@@ -305,6 +320,12 @@ export const OnboardingPage = () => {
       mounted = false;
     };
   }, [getPlayers, getTeams, leagueId]);
+
+  useEffect(() => {
+    if (searchParams.get("step") === "squad") {
+      setStep("squad");
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!lineupDraft) {
@@ -362,6 +383,7 @@ export const OnboardingPage = () => {
     }
 
     setLineupDraft(nextDraft);
+    setStep("squad");
     setErrorMessage(null);
     setInfoMessage(`${pickedPlayer.name} selected.`);
   }, [leagueId, lineupDraft, playersById]);
@@ -468,7 +490,7 @@ export const OnboardingPage = () => {
         index
       },
       lineup: lineupDraft,
-      returnPath: "/onboarding"
+      returnPath: "/onboarding?step=squad"
     });
 
     navigate(
@@ -547,9 +569,12 @@ export const OnboardingPage = () => {
 
       setSelectedLeagueId(leagueId);
       markOnboardingCompleted(session?.user.id ?? "");
+      void appAlert.success("Onboarding Completed", "Your first squad is ready.");
       navigate("/", { replace: true });
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to complete onboarding.");
+      const message =
+        error instanceof Error ? error.message : "Failed to complete onboarding.";
+      setErrorMessage(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -756,8 +781,6 @@ export const OnboardingPage = () => {
           </>
         ) : null}
 
-        {errorMessage ? <p className="error-text">{errorMessage}</p> : null}
-        {infoMessage ? <p className="small-label">{infoMessage}</p> : null}
       </main>
     </div>
   );

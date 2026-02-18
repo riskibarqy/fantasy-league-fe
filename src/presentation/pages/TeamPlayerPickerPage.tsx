@@ -4,6 +4,7 @@ import type { Player } from "../../domain/fantasy/entities/Player";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import { cacheKeys, cacheTtlMs, getOrLoadCached } from "../../app/cache/requestCache";
 import { LoadingState } from "../components/LoadingState";
+import { appAlert } from "../lib/appAlert";
 import {
   clearPickerContext,
   readPickerContext,
@@ -88,6 +89,12 @@ export const TeamPlayerPickerPage = () => {
   const [players, setPlayers] = useState<Player[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (errorMessage) {
+      void appAlert.error("Player List Failed", errorMessage);
+    }
+  }, [errorMessage]);
 
   const [search, setSearch] = useState("");
   const [position, setPosition] = useState<PositionFilter>("ALL");
@@ -344,7 +351,6 @@ export const TeamPlayerPickerPage = () => {
       </section>
 
       <section className="card team-picker-list">
-        {errorMessage ? <p className="error-text">{errorMessage}</p> : null}
         {isLoading ? <LoadingState label="Loading players list" /> : null}
 
         {!isLoading && sortedPlayers.length === 0 ? (
@@ -400,20 +406,6 @@ export const TeamPlayerPickerPage = () => {
                           )}
                           <div className="media-copy">
                             <strong>{player.name}</strong>
-                            <a
-                              className="media-url"
-                              href={normalizeUrl(player.imageUrl) || "#"}
-                              target="_blank"
-                              rel="noreferrer"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                if (!normalizeUrl(player.imageUrl)) {
-                                  event.preventDefault();
-                                }
-                              }}
-                            >
-                              {normalizeUrl(player.imageUrl) || "Image URL not available"}
-                            </a>
                           </div>
                         </div>
                       </td>
@@ -433,20 +425,6 @@ export const TeamPlayerPickerPage = () => {
                           )}
                           <div className="media-copy">
                             <strong>{player.club}</strong>
-                            <a
-                              className="media-url"
-                              href={normalizeUrl(player.teamLogoUrl) || "#"}
-                              target="_blank"
-                              rel="noreferrer"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                if (!normalizeUrl(player.teamLogoUrl)) {
-                                  event.preventDefault();
-                                }
-                              }}
-                            >
-                              {normalizeUrl(player.teamLogoUrl) || "Team logo URL not available"}
-                            </a>
                           </div>
                         </div>
                       </td>
