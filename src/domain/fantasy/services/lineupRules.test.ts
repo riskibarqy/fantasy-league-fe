@@ -72,4 +72,31 @@ describe("validateLineup", () => {
     expect(result.valid).toBe(false);
     expect(result.reason).toContain("Substitutes");
   });
+
+  it("allows flexible outfield bench for formation changes", () => {
+    const byId = new Map(players.map((player) => [player.id, player]));
+    const result = validateLineup(
+      {
+        ...validLineup,
+        substituteIds: ["gk2", "d5", "f3", "f4"]
+      },
+      byId
+    );
+
+    expect(result.valid).toBe(true);
+  });
+
+  it("fails when substitutes do not include exactly one goalkeeper", () => {
+    const byId = new Map(players.map((player) => [player.id, player]));
+    const result = validateLineup(
+      {
+        ...validLineup,
+        substituteIds: ["d5", "m5", "f3", "f4"]
+      },
+      byId
+    );
+
+    expect(result.valid).toBe(false);
+    expect(result.reason).toContain("exactly one GK");
+  });
 });

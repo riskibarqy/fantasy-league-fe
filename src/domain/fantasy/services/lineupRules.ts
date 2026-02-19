@@ -3,39 +3,42 @@ import type { TeamLineup } from "../entities/Team";
 
 export const FORMATION_LIMITS = {
   GK: { min: 1, max: 1 },
-  DEF: { min: 2, max: 5 },
-  MID: { min: 0, max: 5 },
-  FWD: { min: 0, max: 3 }
+  DEF: { min: 3, max: 5 },
+  MID: { min: 3, max: 5 },
+  FWD: { min: 1, max: 3 }
 } as const;
 
 export const STARTER_SIZE = 11;
 export const SUBSTITUTE_SIZE = 4;
 export const SQUAD_SIZE = STARTER_SIZE + SUBSTITUTE_SIZE;
+export const BENCH_SLOT_POSITIONS: Player["position"][] = ["GK", "DEF", "MID", "FWD"];
 
 export const validateLineup = (
   lineup: TeamLineup,
   playersById: Map<string, Player>
 ): { valid: boolean; reason?: string } => {
+  const defenders = lineup.defenderIds.filter(Boolean);
+  const midfielders = lineup.midfielderIds.filter(Boolean);
+  const forwards = lineup.forwardIds.filter(Boolean);
+  const substitutes = lineup.substituteIds.filter(Boolean);
   const starterIds = [
     lineup.goalkeeperId,
-    ...lineup.defenderIds,
-    ...lineup.midfielderIds,
-    ...lineup.forwardIds
+    ...defenders,
+    ...midfielders,
+    ...forwards
   ];
-  const substituteIds = lineup.substituteIds;
-  const squadIds = [...starterIds, ...substituteIds];
+  const squadIds = [...starterIds, ...substitutes];
 
   const uniqueStarterIds = new Set(starterIds);
   if (starterIds.length !== STARTER_SIZE || uniqueStarterIds.size !== STARTER_SIZE) {
     return { valid: false, reason: "Starting lineup must have 11 unique players." };
   }
 
-  if (lineup.substituteIds.length !== SUBSTITUTE_SIZE) {
+  if (substitutes.length !== SUBSTITUTE_SIZE) {
     return { valid: false, reason: "Substitute bench must contain exactly 4 players." };
   }
 
-  // Bench can contain any position but cannot include starting players.
-  if (substituteIds.some((id) => uniqueStarterIds.has(id))) {
+  if (substitutes.some((id) => uniqueStarterIds.has(id))) {
     return { valid: false, reason: "Substitutes must be different from starters." };
   }
 
@@ -45,18 +48,18 @@ export const validateLineup = (
   }
 
   if (
-    lineup.defenderIds.length < FORMATION_LIMITS.DEF.min ||
-    lineup.defenderIds.length > FORMATION_LIMITS.DEF.max
+    defenders.length < FORMATION_LIMITS.DEF.min ||
+    defenders.length > FORMATION_LIMITS.DEF.max
   ) {
-    return { valid: false, reason: "Defender count must be between 2 and 5." };
+    return { valid: false, reason: "Defender count must be between 3 and 5." };
   }
 
-  if (lineup.midfielderIds.length > FORMATION_LIMITS.MID.max) {
-    return { valid: false, reason: "Midfielder count must not exceed 5." };
+  if (midfielders.length < FORMATION_LIMITS.MID.min || midfielders.length > FORMATION_LIMITS.MID.max) {
+    return { valid: false, reason: "Midfielder count must be between 3 and 5." };
   }
 
-  if (lineup.forwardIds.length > FORMATION_LIMITS.FWD.max) {
-    return { valid: false, reason: "Forward count must not exceed 3." };
+  if (forwards.length < FORMATION_LIMITS.FWD.min || forwards.length > FORMATION_LIMITS.FWD.max) {
+    return { valid: false, reason: "Forward count must be between 1 and 3." };
   }
 
   if (!uniqueStarterIds.has(lineup.captainId) || !uniqueStarterIds.has(lineup.viceCaptainId)) {
@@ -84,16 +87,21 @@ export const validateLineup = (
     return ids.every((id) => playersById.get(id)?.position === position);
   };
 
-  if (!validatePosition(lineup.defenderIds, "DEF")) {
+  if (!validatePosition(defenders, "DEF")) {
     return { valid: false, reason: "All defender slots must contain DEF players." };
   }
 
-  if (!validatePosition(lineup.midfielderIds, "MID")) {
+  if (!validatePosition(midfielders, "MID")) {
     return { valid: false, reason: "All midfielder slots must contain MID players." };
   }
 
-  if (!validatePosition(lineup.forwardIds, "FWD")) {
+  if (!validatePosition(forwards, "FWD")) {
     return { valid: false, reason: "All forward slots must contain FWD players." };
+  }
+
+  const benchGoalkeepers = substitutes.filter((id) => playersById.get(id)?.position === "GK").length;
+  if (benchGoalkeepers !== 1) {
+    return { valid: false, reason: "Substitutes must include exactly one GK." };
   }
 
   return { valid: true };

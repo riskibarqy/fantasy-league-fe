@@ -11,9 +11,11 @@ describe("squadBuilder", () => {
     const lineup = buildLineupFromPlayers("idn-liga-1", idnPlayers, preferred);
 
     expect(lineup.goalkeeperId).toBeTruthy();
-    expect(lineup.defenderIds.length).toBeGreaterThanOrEqual(2);
+    expect(lineup.defenderIds.length).toBeGreaterThanOrEqual(3);
     expect(lineup.defenderIds.length).toBeLessThanOrEqual(5);
+    expect(lineup.midfielderIds.length).toBeGreaterThanOrEqual(3);
     expect(lineup.midfielderIds.length).toBeLessThanOrEqual(5);
+    expect(lineup.forwardIds.length).toBeGreaterThanOrEqual(1);
     expect(lineup.forwardIds.length).toBeLessThanOrEqual(3);
     expect(
       1 + lineup.defenderIds.length + lineup.midfielderIds.length + lineup.forwardIds.length

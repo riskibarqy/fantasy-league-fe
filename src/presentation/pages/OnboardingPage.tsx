@@ -5,6 +5,12 @@ import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import type { Club } from "../../domain/fantasy/entities/Club";
 import type { Player } from "../../domain/fantasy/entities/Player";
 import type { TeamLineup } from "../../domain/fantasy/entities/Team";
+import {
+  BENCH_SLOT_POSITIONS,
+  FORMATION_LIMITS,
+  STARTER_SIZE,
+  SUBSTITUTE_SIZE
+} from "../../domain/fantasy/services/lineupRules";
 import { LoadingState } from "../components/LoadingState";
 import { useLeagueSelection } from "../hooks/useLeagueSelection";
 import { markOnboardingCompleted } from "../hooks/useOnboardingStatus";
@@ -27,12 +33,18 @@ type PitchRow = {
 
 const BUDGET_CAP = 150;
 const MAX_PER_TEAM = 3;
-const FORMATION_SLOTS = {
-  DEF: 4,
-  MID: 4,
-  FWD: 2,
-  BENCH: 4
+const FORMATION_MIN_SLOTS = {
+  DEF: FORMATION_LIMITS.DEF.min,
+  MID: FORMATION_LIMITS.MID.min,
+  FWD: FORMATION_LIMITS.FWD.min,
+  BENCH: SUBSTITUTE_SIZE
 } as const;
+const FORMATION_MAX_SLOTS = {
+  DEF: FORMATION_LIMITS.DEF.max,
+  MID: FORMATION_LIMITS.MID.max,
+  FWD: FORMATION_LIMITS.FWD.max
+} as const;
+const OUTFIELD_STARTER_SIZE = STARTER_SIZE - 1;
 
 const shortName = (name: string): string => {
   const words = name.trim().split(" ");
@@ -79,13 +91,72 @@ const shirtBackgroundForClub = (club: string): string => {
   return `linear-gradient(135deg, ${primary} 0 42%, ${secondary} 42% 84%, ${accent} 84% 100%)`;
 };
 
+const sanitizeStarterIds = (ids: string[], max: number): string[] => {
+  return ids.filter(Boolean).slice(0, max);
+};
+
+const normalizeBenchIds = (ids: string[]): string[] => {
+  return [...ids.filter(Boolean).slice(0, SUBSTITUTE_SIZE), ...Array.from({ length: SUBSTITUTE_SIZE }, () => "")].slice(
+    0,
+    SUBSTITUTE_SIZE
+  );
+};
+
+const upsertStarterId = (ids: string[], index: number, playerId: string, max: number): string[] => {
+  const next = sanitizeStarterIds(ids, max);
+  if (index < next.length) {
+    next[index] = playerId;
+    return next;
+  }
+
+  if (next.length < max) {
+    next.push(playerId);
+  }
+
+  return next;
+};
+
+const removeStarterId = (ids: string[], index: number, min: number, max: number): string[] => {
+  const next = sanitizeStarterIds(ids, max);
+  if (index >= 0 && index < next.length) {
+    next.splice(index, 1);
+  }
+
+  while (next.length < min) {
+    next.push("");
+  }
+
+  return next;
+};
+
+const buildFlexibleRowIds = (
+  ids: string[],
+  min: number,
+  max: number,
+  outfieldCount: number
+): string[] => {
+  const filled = sanitizeStarterIds(ids, max);
+  const row = [...filled];
+
+  while (row.length < min) {
+    row.push("");
+  }
+
+  const canExpand = outfieldCount < OUTFIELD_STARTER_SIZE && filled.length < max;
+  if (canExpand && row.every(Boolean) && row.length < max) {
+    row.push("");
+  }
+
+  return row;
+};
+
 const createEmptyLineupDraft = (leagueId: string): TeamLineup => ({
   leagueId,
   goalkeeperId: "",
-  defenderIds: Array.from({ length: FORMATION_SLOTS.DEF }, () => ""),
-  midfielderIds: Array.from({ length: FORMATION_SLOTS.MID }, () => ""),
-  forwardIds: Array.from({ length: FORMATION_SLOTS.FWD }, () => ""),
-  substituteIds: Array.from({ length: FORMATION_SLOTS.BENCH }, () => ""),
+  defenderIds: Array.from({ length: FORMATION_MIN_SLOTS.DEF }, () => ""),
+  midfielderIds: Array.from({ length: FORMATION_MIN_SLOTS.MID }, () => ""),
+  forwardIds: Array.from({ length: FORMATION_MIN_SLOTS.FWD }, () => ""),
+  substituteIds: Array.from({ length: FORMATION_MIN_SLOTS.BENCH }, () => ""),
   captainId: "",
   viceCaptainId: "",
   updatedAt: new Date().toISOString()
@@ -99,20 +170,32 @@ const normalizeLineupDraft = (leagueId: string, draft: TeamLineup | null): TeamL
   return {
     ...draft,
     leagueId,
-    defenderIds: [...draft.defenderIds.slice(0, FORMATION_SLOTS.DEF), ...Array.from({ length: FORMATION_SLOTS.DEF }, () => "")].slice(0, FORMATION_SLOTS.DEF),
-    midfielderIds: [...draft.midfielderIds.slice(0, FORMATION_SLOTS.MID), ...Array.from({ length: FORMATION_SLOTS.MID }, () => "")].slice(0, FORMATION_SLOTS.MID),
-    forwardIds: [...draft.forwardIds.slice(0, FORMATION_SLOTS.FWD), ...Array.from({ length: FORMATION_SLOTS.FWD }, () => "")].slice(0, FORMATION_SLOTS.FWD),
-    substituteIds: [...draft.substituteIds.slice(0, FORMATION_SLOTS.BENCH), ...Array.from({ length: FORMATION_SLOTS.BENCH }, () => "")].slice(0, FORMATION_SLOTS.BENCH)
+    defenderIds: buildFlexibleRowIds(
+      draft.defenderIds,
+      FORMATION_MIN_SLOTS.DEF,
+      FORMATION_MAX_SLOTS.DEF,
+      sanitizeStarterIds(draft.defenderIds, FORMATION_MAX_SLOTS.DEF).length +
+        sanitizeStarterIds(draft.midfielderIds, FORMATION_MAX_SLOTS.MID).length +
+        sanitizeStarterIds(draft.forwardIds, FORMATION_MAX_SLOTS.FWD).length
+    ),
+    midfielderIds: buildFlexibleRowIds(
+      draft.midfielderIds,
+      FORMATION_MIN_SLOTS.MID,
+      FORMATION_MAX_SLOTS.MID,
+      sanitizeStarterIds(draft.defenderIds, FORMATION_MAX_SLOTS.DEF).length +
+        sanitizeStarterIds(draft.midfielderIds, FORMATION_MAX_SLOTS.MID).length +
+        sanitizeStarterIds(draft.forwardIds, FORMATION_MAX_SLOTS.FWD).length
+    ),
+    forwardIds: buildFlexibleRowIds(
+      draft.forwardIds,
+      FORMATION_MIN_SLOTS.FWD,
+      FORMATION_MAX_SLOTS.FWD,
+      sanitizeStarterIds(draft.defenderIds, FORMATION_MAX_SLOTS.DEF).length +
+        sanitizeStarterIds(draft.midfielderIds, FORMATION_MAX_SLOTS.MID).length +
+        sanitizeStarterIds(draft.forwardIds, FORMATION_MAX_SLOTS.FWD).length
+    ),
+    substituteIds: normalizeBenchIds(draft.substituteIds)
   };
-};
-
-const assignAt = (ids: string[], index: number, value: string): string[] => {
-  const next = [...ids];
-  while (next.length <= index) {
-    next.push("");
-  }
-  next[index] = value;
-  return next;
 };
 
 const setSlotPlayerId = (lineup: TeamLineup, zone: SlotZone, index: number, playerId: string): TeamLineup => {
@@ -127,7 +210,7 @@ const setSlotPlayerId = (lineup: TeamLineup, zone: SlotZone, index: number, play
   if (zone === "DEF") {
     return {
       ...lineup,
-      defenderIds: assignAt(lineup.defenderIds, index, playerId),
+      defenderIds: upsertStarterId(lineup.defenderIds, index, playerId, FORMATION_MAX_SLOTS.DEF),
       updatedAt: new Date().toISOString()
     };
   }
@@ -135,7 +218,7 @@ const setSlotPlayerId = (lineup: TeamLineup, zone: SlotZone, index: number, play
   if (zone === "MID") {
     return {
       ...lineup,
-      midfielderIds: assignAt(lineup.midfielderIds, index, playerId),
+      midfielderIds: upsertStarterId(lineup.midfielderIds, index, playerId, FORMATION_MAX_SLOTS.MID),
       updatedAt: new Date().toISOString()
     };
   }
@@ -143,20 +226,67 @@ const setSlotPlayerId = (lineup: TeamLineup, zone: SlotZone, index: number, play
   if (zone === "FWD") {
     return {
       ...lineup,
-      forwardIds: assignAt(lineup.forwardIds, index, playerId),
+      forwardIds: upsertStarterId(lineup.forwardIds, index, playerId, FORMATION_MAX_SLOTS.FWD),
       updatedAt: new Date().toISOString()
     };
   }
 
+  const nextBench = [...lineup.substituteIds];
+  while (nextBench.length <= index) {
+    nextBench.push("");
+  }
+  nextBench[index] = playerId;
+
   return {
     ...lineup,
-    substituteIds: assignAt(lineup.substituteIds, index, playerId),
+    substituteIds: normalizeBenchIds(nextBench),
     updatedAt: new Date().toISOString()
   };
 };
 
 const clearSlotPlayerId = (lineup: TeamLineup, zone: SlotZone, index: number): TeamLineup => {
-  return setSlotPlayerId(lineup, zone, index, "");
+  if (zone === "GK") {
+    return {
+      ...lineup,
+      goalkeeperId: "",
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  if (zone === "DEF") {
+    return {
+      ...lineup,
+      defenderIds: removeStarterId(lineup.defenderIds, index, FORMATION_MIN_SLOTS.DEF, FORMATION_MAX_SLOTS.DEF),
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  if (zone === "MID") {
+    return {
+      ...lineup,
+      midfielderIds: removeStarterId(lineup.midfielderIds, index, FORMATION_MIN_SLOTS.MID, FORMATION_MAX_SLOTS.MID),
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  if (zone === "FWD") {
+    return {
+      ...lineup,
+      forwardIds: removeStarterId(lineup.forwardIds, index, FORMATION_MIN_SLOTS.FWD, FORMATION_MAX_SLOTS.FWD),
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  const nextBench = [...lineup.substituteIds];
+  if (index >= 0 && index < nextBench.length) {
+    nextBench[index] = "";
+  }
+
+  return {
+    ...lineup,
+    substituteIds: normalizeBenchIds(nextBench),
+    updatedAt: new Date().toISOString()
+  };
 };
 
 const getSlotPlayerId = (lineup: TeamLineup, zone: SlotZone, index: number): string => {
@@ -202,12 +332,21 @@ const isLineupDraftComplete = (lineup: TeamLineup | null): boolean => {
     return false;
   }
 
+  const defenderCount = lineup.defenderIds.filter(Boolean).length;
+  const midfielderCount = lineup.midfielderIds.filter(Boolean).length;
+  const forwardCount = lineup.forwardIds.filter(Boolean).length;
+  const outfieldCount = defenderCount + midfielderCount + forwardCount;
+
   return Boolean(
     lineup.goalkeeperId &&
-      lineup.defenderIds.every(Boolean) &&
-      lineup.midfielderIds.every(Boolean) &&
-      lineup.forwardIds.every(Boolean) &&
-      lineup.substituteIds.every(Boolean)
+      lineup.substituteIds.every(Boolean) &&
+      defenderCount >= FORMATION_MIN_SLOTS.DEF &&
+      defenderCount <= FORMATION_MAX_SLOTS.DEF &&
+      midfielderCount >= FORMATION_MIN_SLOTS.MID &&
+      midfielderCount <= FORMATION_MAX_SLOTS.MID &&
+      forwardCount >= FORMATION_MIN_SLOTS.FWD &&
+      forwardCount <= FORMATION_MAX_SLOTS.FWD &&
+      outfieldCount === OUTFIELD_STARTER_SIZE
   );
 };
 
@@ -483,28 +622,75 @@ export const OnboardingPage = () => {
       selectedPlayerIds.length === 15 &&
       new Set(selectedPlayerIds).size === 15 &&
       positionCounter.GK >= 1 &&
-      positionCounter.DEF >= 3 &&
-      positionCounter.MID >= 3 &&
-      positionCounter.FWD >= 1 &&
+      positionCounter.DEF >= FORMATION_MIN_SLOTS.DEF &&
+      positionCounter.DEF <= FORMATION_MAX_SLOTS.DEF &&
+      positionCounter.MID >= FORMATION_MIN_SLOTS.MID &&
+      positionCounter.MID <= FORMATION_MAX_SLOTS.MID &&
+      positionCounter.FWD >= FORMATION_MIN_SLOTS.FWD &&
+      positionCounter.FWD <= FORMATION_MAX_SLOTS.FWD &&
+      (lineupDraft
+        ? BENCH_SLOT_POSITIONS.every((position, index) => {
+            const playerId = lineupDraft.substituteIds[index];
+            const player = playerId ? playersById.get(playerId) : null;
+            return player?.position === position;
+          })
+        : false) &&
       totalCost <= BUDGET_CAP &&
       Object.values(teamCounter).every((count) => count <= MAX_PER_TEAM)
   );
 
   const pitchRows = useMemo<PitchRow[]>(() => {
+    const outfieldCount = lineupDraft
+      ? lineupDraft.defenderIds.filter(Boolean).length +
+        lineupDraft.midfielderIds.filter(Boolean).length +
+        lineupDraft.forwardIds.filter(Boolean).length
+      : 0;
+
     if (!lineupDraft) {
       return [
         { label: "GK", slots: 1, ids: [] },
-        { label: "DEF", slots: FORMATION_SLOTS.DEF, ids: [] },
-        { label: "MID", slots: FORMATION_SLOTS.MID, ids: [] },
-        { label: "FWD", slots: FORMATION_SLOTS.FWD, ids: [] }
+        {
+          label: "DEF",
+          slots: FORMATION_MIN_SLOTS.DEF,
+          ids: Array.from({ length: FORMATION_MIN_SLOTS.DEF }, () => "")
+        },
+        {
+          label: "MID",
+          slots: FORMATION_MIN_SLOTS.MID,
+          ids: Array.from({ length: FORMATION_MIN_SLOTS.MID }, () => "")
+        },
+        {
+          label: "FWD",
+          slots: FORMATION_MIN_SLOTS.FWD,
+          ids: Array.from({ length: FORMATION_MIN_SLOTS.FWD }, () => "")
+        }
       ];
     }
 
+    const defenderIds = buildFlexibleRowIds(
+      lineupDraft.defenderIds,
+      FORMATION_MIN_SLOTS.DEF,
+      FORMATION_MAX_SLOTS.DEF,
+      outfieldCount
+    );
+    const midfielderIds = buildFlexibleRowIds(
+      lineupDraft.midfielderIds,
+      FORMATION_MIN_SLOTS.MID,
+      FORMATION_MAX_SLOTS.MID,
+      outfieldCount
+    );
+    const forwardIds = buildFlexibleRowIds(
+      lineupDraft.forwardIds,
+      FORMATION_MIN_SLOTS.FWD,
+      FORMATION_MAX_SLOTS.FWD,
+      outfieldCount
+    );
+
     return [
       { label: "GK", slots: 1, ids: [lineupDraft.goalkeeperId] },
-      { label: "DEF", slots: FORMATION_SLOTS.DEF, ids: lineupDraft.defenderIds },
-      { label: "MID", slots: FORMATION_SLOTS.MID, ids: lineupDraft.midfielderIds },
-      { label: "FWD", slots: FORMATION_SLOTS.FWD, ids: lineupDraft.forwardIds }
+      { label: "DEF", slots: defenderIds.length, ids: defenderIds },
+      { label: "MID", slots: midfielderIds.length, ids: midfielderIds },
+      { label: "FWD", slots: forwardIds.length, ids: forwardIds }
     ];
   }, [lineupDraft]);
 
@@ -520,6 +706,12 @@ export const OnboardingPage = () => {
 
   const openPicker = (zone: SlotZone, index: number) => {
     if (!leagueId || !lineupDraft) {
+      return;
+    }
+
+    const currentSlotId = getSlotPlayerId(lineupDraft, zone, index);
+    if (zone !== "BENCH" && !currentSlotId && starterIds.length >= STARTER_SIZE) {
+      setInfoMessage("Starting XI is full. Remove one starter first.");
       return;
     }
 
@@ -804,10 +996,11 @@ export const OnboardingPage = () => {
               <div className="fpl-bench">
                 <p className="small-label">Substitutes</p>
                 <div className="bench-grid">
-                  {Array.from({ length: FORMATION_SLOTS.BENCH }).map((_, index) => {
+                  {Array.from({ length: FORMATION_MIN_SLOTS.BENCH }).map((_, index) => {
                     const playerId = getSlotPlayerId(lineupDraft ?? createEmptyLineupDraft(leagueId), "BENCH", index);
                     const player = playerId ? playersById.get(playerId) ?? null : null;
-                    return <div key={`bench-${index}`}>{renderPitchCard("BENCH", index, "BENCH", player)}</div>;
+                    const benchPosition = BENCH_SLOT_POSITIONS[index] ?? "BENCH";
+                    return <div key={`bench-${index}`}>{renderPitchCard("BENCH", index, benchPosition, player)}</div>;
                   })}
                 </div>
               </div>

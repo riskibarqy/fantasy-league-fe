@@ -14,8 +14,8 @@ type Formation = {
 
 const STARTER_FORMATIONS: Formation[] = [];
 
-for (let defender = 2; defender <= 5; defender += 1) {
-  for (let midfielder = 2; midfielder <= 5; midfielder += 1) {
+for (let defender = 3; defender <= 5; defender += 1) {
+  for (let midfielder = 3; midfielder <= 5; midfielder += 1) {
     for (let forward = 1; forward <= 3; forward += 1) {
       if (defender + midfielder + forward === 10) {
         STARTER_FORMATIONS.push({

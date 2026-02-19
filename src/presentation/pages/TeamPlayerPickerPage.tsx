@@ -1,6 +1,7 @@
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import type { Player } from "../../domain/fantasy/entities/Player";
+import { BENCH_SLOT_POSITIONS } from "../../domain/fantasy/services/lineupRules";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import { cacheKeys, cacheTtlMs, getOrLoadCached } from "../../app/cache/requestCache";
 import { LoadingState } from "../components/LoadingState";
@@ -31,7 +32,8 @@ const isSlotZone = (value: string | null): value is SlotZone => {
 
 const toTargetTitle = (target: SlotPickerTarget): string => {
   if (target.zone === "BENCH") {
-    return `Pick Bench Player ${target.index + 1}`;
+    const requiredPosition = BENCH_SLOT_POSITIONS[target.index];
+    return `Pick Bench ${requiredPosition ?? "Player"} (${target.index + 1})`;
   }
 
   return `Pick ${target.zone} Player ${target.index + 1}`;
@@ -145,6 +147,22 @@ export const TeamPlayerPickerPage = () => {
       return;
     }
 
+    if (context.target.zone === "BENCH") {
+      const benchPosition = BENCH_SLOT_POSITIONS[context.target.index];
+      if (benchPosition) {
+        setPosition(benchPosition);
+      }
+      return;
+    }
+
+    setPosition("ALL");
+  }, [context]);
+
+  useEffect(() => {
+    if (!context) {
+      return;
+    }
+
     let mounted = true;
 
     const loadPlayers = async () => {
@@ -214,6 +232,13 @@ export const TeamPlayerPickerPage = () => {
       return [];
     }
 
+    const benchRequiredPosition =
+      context.target.zone === "BENCH" ? BENCH_SLOT_POSITIONS[context.target.index] : null;
+    const targetPosition = context.target.zone === "BENCH" ? benchRequiredPosition : context.target.zone;
+    if (!targetPosition) {
+      return [];
+    }
+
     const currentTargetPlayerId = getPlayerIdAtTarget(context.lineup, context.target);
     const usedIds = new Set(
       [
@@ -226,7 +251,7 @@ export const TeamPlayerPickerPage = () => {
     );
 
     return players.filter((player) => {
-      const byTarget = context.target.zone === "BENCH" ? true : player.position === context.target.zone;
+      const byTarget = player.position === targetPosition;
       if (!byTarget || usedIds.has(player.id)) {
         return false;
       }
@@ -314,6 +339,11 @@ export const TeamPlayerPickerPage = () => {
       <section className="section-title">
         <h2>{toTargetTitle(context.target)}</h2>
         <p className="muted">Tap/click a table row to pick player for this slot.</p>
+        {context.target.zone === "BENCH" ? (
+          <p className="small-label">
+            Required Position: {BENCH_SLOT_POSITIONS[context.target.index] ?? "-"}
+          </p>
+        ) : null}
       </section>
 
       <section className="card team-picker-filters">

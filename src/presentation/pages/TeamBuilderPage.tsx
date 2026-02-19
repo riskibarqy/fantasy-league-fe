@@ -7,7 +7,12 @@ import type { Player } from "../../domain/fantasy/entities/Player";
 import type { PlayerDetails } from "../../domain/fantasy/entities/PlayerDetails";
 import type { TeamLineup } from "../../domain/fantasy/entities/Team";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
-import { SUBSTITUTE_SIZE } from "../../domain/fantasy/services/lineupRules";
+import {
+  BENCH_SLOT_POSITIONS,
+  FORMATION_LIMITS,
+  STARTER_SIZE,
+  SUBSTITUTE_SIZE
+} from "../../domain/fantasy/services/lineupRules";
 import { buildLineupFromPlayers } from "../../domain/fantasy/services/squadBuilder";
 import { LoadingState } from "../components/LoadingState";
 import { useSession } from "../hooks/useSession";
@@ -27,6 +32,7 @@ import {
 
 type TeamMode = "PAT" | "TRF";
 type Position = Player["position"];
+type OutfieldPosition = Exclude<Position, "GK">;
 
 type PitchRow = {
   label: Position;
@@ -34,11 +40,19 @@ type PitchRow = {
   ids: string[];
 };
 
-const PAT_DEFAULT_SLOTS = {
-  DEF: 4,
-  MID: 4,
-  FWD: 2
+type CardVisualState = "source" | "target" | null;
+
+const PAT_MIN_SLOTS = {
+  DEF: FORMATION_LIMITS.DEF.min,
+  MID: FORMATION_LIMITS.MID.min,
+  FWD: FORMATION_LIMITS.FWD.min
 } as const;
+const PAT_MAX_SLOTS = {
+  DEF: FORMATION_LIMITS.DEF.max,
+  MID: FORMATION_LIMITS.MID.max,
+  FWD: FORMATION_LIMITS.FWD.max
+} as const;
+const OUTFIELD_STARTER_SIZE = STARTER_SIZE - 1;
 
 const TRF_SLOTS = {
   GK: 2,
@@ -46,6 +60,79 @@ const TRF_SLOTS = {
   MID: 5,
   FWD: 3
 } as const;
+const SUBSTITUTION_MIN_STARTERS = {
+  DEF: 3,
+  MID: 3,
+  FWD: 1
+} as const;
+
+const sanitizeStarterIds = (ids: string[], max: number): string[] => {
+  return ids.filter(Boolean).slice(0, max);
+};
+
+const upsertStarterId = (ids: string[], index: number, playerId: string, max: number): string[] => {
+  const next = sanitizeStarterIds(ids, max);
+  if (index < next.length) {
+    next[index] = playerId;
+    return next;
+  }
+
+  if (next.length < max) {
+    next.push(playerId);
+  }
+
+  return next;
+};
+
+const upsertBenchId = (ids: string[], index: number, playerId: string): string[] => {
+  const next = [...ids.slice(0, SUBSTITUTE_SIZE)];
+  while (next.length <= index && next.length < SUBSTITUTE_SIZE) {
+    next.push("");
+  }
+
+  if (index >= 0 && index < SUBSTITUTE_SIZE) {
+    next[index] = playerId;
+  }
+
+  return next;
+};
+
+const replaceAtIndex = (ids: string[], index: number, value: string): string[] => {
+  const next = [...ids];
+  if (index >= 0 && index < next.length) {
+    next[index] = value;
+  }
+  return next;
+};
+
+const removeAtIndex = (ids: string[], index: number): string[] => {
+  if (index < 0 || index >= ids.length) {
+    return [...ids];
+  }
+
+  return ids.filter((_, currentIndex) => currentIndex !== index);
+};
+
+const buildFlexibleRowIds = (
+  ids: string[],
+  min: number,
+  max: number,
+  outfieldCount: number
+): string[] => {
+  const filled = sanitizeStarterIds(ids, max);
+  const row = [...filled];
+
+  while (row.length < min) {
+    row.push("");
+  }
+
+  const canExpand = outfieldCount < OUTFIELD_STARTER_SIZE && filled.length < max;
+  if (canExpand && row.every(Boolean) && row.length < max) {
+    row.push("");
+  }
+
+  return row;
+};
 
 const createEmptyLineup = (leagueId: string): TeamLineup => ({
   leagueId,
@@ -58,15 +145,6 @@ const createEmptyLineup = (leagueId: string): TeamLineup => ({
   viceCaptainId: "",
   updatedAt: new Date().toISOString()
 });
-
-const assignAt = (ids: string[], index: number, value: string): string[] => {
-  const next = [...ids];
-  while (next.length <= index) {
-    next.push("");
-  }
-  next[index] = value;
-  return next;
-};
 
 const assignPlayerToTarget = (
   lineup: TeamLineup,
@@ -82,28 +160,90 @@ const assignPlayerToTarget = (
     case "DEF":
       return {
         ...lineup,
-        defenderIds: assignAt(lineup.defenderIds, target.index, playerId)
+        defenderIds: upsertStarterId(lineup.defenderIds, target.index, playerId, PAT_MAX_SLOTS.DEF)
       };
     case "MID":
       return {
         ...lineup,
-        midfielderIds: assignAt(lineup.midfielderIds, target.index, playerId)
+        midfielderIds: upsertStarterId(lineup.midfielderIds, target.index, playerId, PAT_MAX_SLOTS.MID)
       };
     case "FWD":
       return {
         ...lineup,
-        forwardIds: assignAt(lineup.forwardIds, target.index, playerId)
+        forwardIds: upsertStarterId(lineup.forwardIds, target.index, playerId, PAT_MAX_SLOTS.FWD)
       };
     case "BENCH":
       return {
         ...lineup,
-        substituteIds: assignAt(lineup.substituteIds, target.index, playerId)
+        substituteIds: upsertBenchId(lineup.substituteIds, target.index, playerId)
       };
   }
 };
 
 const getStarterIds = (lineup: TeamLineup): string[] => {
   return [lineup.goalkeeperId, ...lineup.defenderIds, ...lineup.midfielderIds, ...lineup.forwardIds].filter(Boolean);
+};
+
+const getPlayerIdAtTarget = (lineup: TeamLineup, target: SlotPickerTarget): string => {
+  switch (target.zone) {
+    case "GK":
+      return lineup.goalkeeperId;
+    case "DEF":
+      return lineup.defenderIds[target.index] ?? "";
+    case "MID":
+      return lineup.midfielderIds[target.index] ?? "";
+    case "FWD":
+      return lineup.forwardIds[target.index] ?? "";
+    case "BENCH":
+      return lineup.substituteIds[target.index] ?? "";
+  }
+};
+
+const getTargetForPlayerId = (lineup: TeamLineup, playerId: string): SlotPickerTarget | null => {
+  if (!playerId) {
+    return null;
+  }
+
+  if (lineup.goalkeeperId === playerId) {
+    return {
+      zone: "GK",
+      index: 0
+    };
+  }
+
+  const defenderIndex = lineup.defenderIds.findIndex((id) => id === playerId);
+  if (defenderIndex >= 0) {
+    return {
+      zone: "DEF",
+      index: defenderIndex
+    };
+  }
+
+  const midfielderIndex = lineup.midfielderIds.findIndex((id) => id === playerId);
+  if (midfielderIndex >= 0) {
+    return {
+      zone: "MID",
+      index: midfielderIndex
+    };
+  }
+
+  const forwardIndex = lineup.forwardIds.findIndex((id) => id === playerId);
+  if (forwardIndex >= 0) {
+    return {
+      zone: "FWD",
+      index: forwardIndex
+    };
+  }
+
+  const benchIndex = lineup.substituteIds.findIndex((id) => id === playerId);
+  if (benchIndex >= 0) {
+    return {
+      zone: "BENCH",
+      index: benchIndex
+    };
+  }
+
+  return null;
 };
 
 const ensureLeadership = (lineup: TeamLineup): TeamLineup => {
@@ -129,8 +269,28 @@ const normalizeLineup = (leagueId: string, lineup: TeamLineup | null): TeamLineu
   return ensureLeadership({
     ...lineup,
     leagueId,
+    defenderIds: sanitizeStarterIds(lineup.defenderIds ?? [], PAT_MAX_SLOTS.DEF),
+    midfielderIds: sanitizeStarterIds(lineup.midfielderIds ?? [], PAT_MAX_SLOTS.MID),
+    forwardIds: sanitizeStarterIds(lineup.forwardIds ?? [], PAT_MAX_SLOTS.FWD),
     substituteIds: (lineup.substituteIds ?? []).slice(0, SUBSTITUTE_SIZE)
   });
+};
+
+const toComparableLineup = (lineup: TeamLineup | null) => {
+  if (!lineup) {
+    return null;
+  }
+
+  return {
+    leagueId: lineup.leagueId,
+    goalkeeperId: lineup.goalkeeperId,
+    defenderIds: lineup.defenderIds.filter(Boolean),
+    midfielderIds: lineup.midfielderIds.filter(Boolean),
+    forwardIds: lineup.forwardIds.filter(Boolean),
+    substituteIds: lineup.substituteIds.filter(Boolean).slice(0, SUBSTITUTE_SIZE),
+    captainId: lineup.captainId,
+    viceCaptainId: lineup.viceCaptainId
+  };
 };
 
 const shortName = (name: string): string => {
@@ -275,7 +435,7 @@ async function withRetry<T>(run: () => Promise<T>, retries: number): Promise<T> 
 
 export const TeamBuilderPage = () => {
   const navigate = useNavigate();
-  const { getPlayers, getPlayerDetails, getLineup, getDashboard, getFixtures, getMySquad, logout } = useContainer();
+  const { getPlayers, getPlayerDetails, getLineup, getDashboard, getFixtures, getMySquad, logout, saveLineup } = useContainer();
   const { leagues, selectedLeagueId, setSelectedLeagueId } = useLeagueSelection();
   const { session, setSession } = useSession();
   const userScope = session?.user.id ?? "";
@@ -294,6 +454,10 @@ export const TeamBuilderPage = () => {
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [selectedPlayerDetails, setSelectedPlayerDetails] = useState<PlayerDetails | null>(null);
   const [isSelectedPlayerDetailsLoading, setIsSelectedPlayerDetailsLoading] = useState(false);
+  const [isFullProfileVisible, setIsFullProfileVisible] = useState(false);
+  const [substitutionSourcePlayerId, setSubstitutionSourcePlayerId] = useState<string | null>(null);
+  const [lastSavedLineup, setLastSavedLineup] = useState<TeamLineup | null>(null);
+  const [isSavingLineup, setIsSavingLineup] = useState(false);
 
   const recenterToPitch = useCallback(() => {
     if (!pitchBoardRef.current) {
@@ -386,6 +550,9 @@ export const TeamBuilderPage = () => {
     }
 
     let mounted = true;
+    setLastSavedLineup(null);
+    setIsSavingLineup(false);
+    setSubstitutionSourcePlayerId(null);
 
     const optimisticPlayers = peekCached<Player[]>(cacheKeys.players(selectedLeagueId), true) ?? [];
     const optimisticFixtures = peekCached<Fixture[]>(cacheKeys.fixtures(selectedLeagueId), true) ?? [];
@@ -515,7 +682,8 @@ export const TeamBuilderPage = () => {
           }
         }
 
-        let normalized = normalizeLineup(selectedLeagueId, resolvedLineup);
+        const savedNormalized = normalizeLineup(selectedLeagueId, resolvedLineup);
+        let normalized = savedNormalized;
         const draftLineup = readLineupDraft(selectedLeagueId, userScope);
         if (draftLineup) {
           normalized = normalizeLineup(selectedLeagueId, draftLineup);
@@ -536,8 +704,10 @@ export const TeamBuilderPage = () => {
         }
 
         setLineup(normalized);
+        setLastSavedLineup(savedNormalized);
         writeLineupDraft(normalized, userScope);
         setSelectedPlayerId(null);
+        setSubstitutionSourcePlayerId(null);
         if (shouldRecenterPitch) {
           recenterToPitch();
         }
@@ -610,6 +780,18 @@ export const TeamBuilderPage = () => {
     writeLineupDraft(lineup, userScope);
   }, [lineup, userScope]);
 
+  useEffect(() => {
+    if (!selectedPlayerId) {
+      setIsFullProfileVisible(false);
+    }
+  }, [selectedPlayerId]);
+
+  useEffect(() => {
+    if (mode !== "PAT") {
+      setSubstitutionSourcePlayerId(null);
+    }
+  }, [mode]);
+
   const starterIds = useMemo(() => (lineup ? getStarterIds(lineup) : []), [lineup]);
 
   const squadIds = useMemo(() => {
@@ -619,6 +801,16 @@ export const TeamBuilderPage = () => {
 
     return [...new Set([...starterIds, ...lineup.substituteIds])];
   }, [lineup, starterIds]);
+
+  useEffect(() => {
+    if (!substitutionSourcePlayerId) {
+      return;
+    }
+
+    if (!squadIds.includes(substitutionSourcePlayerId)) {
+      setSubstitutionSourcePlayerId(null);
+    }
+  }, [squadIds, substitutionSourcePlayerId]);
 
   const squadPlayers = useMemo(() => {
     return squadIds
@@ -711,6 +903,12 @@ export const TeamBuilderPage = () => {
       return;
     }
 
+    const currentSlotId = getPlayerIdAtTarget(lineup, target);
+    if (target.zone !== "BENCH" && !currentSlotId && getStarterIds(lineup).length >= STARTER_SIZE) {
+      void appAlert.info("Formation Full", "Starting XI is full. Remove one starter first.");
+      return;
+    }
+
     savePickerContext(
       {
         leagueId: selectedLeagueId,
@@ -744,6 +942,248 @@ export const TeamBuilderPage = () => {
 
     return lineup.substituteIds.includes(selectedPlayer.id);
   }, [lineup, selectedPlayer]);
+
+  const substitutionSourceTarget = useMemo(() => {
+    if (!lineup || !substitutionSourcePlayerId) {
+      return null;
+    }
+
+    return getTargetForPlayerId(lineup, substitutionSourcePlayerId);
+  }, [lineup, substitutionSourcePlayerId]);
+
+  const starterPositionCounts = useMemo(() => {
+    return {
+      DEF: lineup?.defenderIds.filter(Boolean).length ?? 0,
+      MID: lineup?.midfielderIds.filter(Boolean).length ?? 0,
+      FWD: lineup?.forwardIds.filter(Boolean).length ?? 0
+    };
+  }, [lineup]);
+
+  const isSubstitutionAllowedForTargets = useCallback(
+    (sourceTarget: SlotPickerTarget, targetTarget: SlotPickerTarget): boolean => {
+      if (!lineup) {
+        return false;
+      }
+
+      // Substitution can only happen from field (starter) to bench.
+      if (sourceTarget.zone === "BENCH" || targetTarget.zone !== "BENCH") {
+        return false;
+      }
+
+      const sourcePlayerId = getPlayerIdAtTarget(lineup, sourceTarget);
+      const targetPlayerId = getPlayerIdAtTarget(lineup, targetTarget);
+      const sourcePlayer = playersById.get(sourcePlayerId);
+      const targetPlayer = playersById.get(targetPlayerId);
+      if (!sourcePlayer || !targetPlayer) {
+        return false;
+      }
+
+      // GK can only be substituted by GK.
+      if (sourceTarget.zone === "GK") {
+        return targetPlayer.position === "GK";
+      }
+
+      if (targetPlayer.position === "GK") {
+        return false;
+      }
+
+      const nextCounts = { ...starterPositionCounts };
+      const sourcePosition = sourceTarget.zone as OutfieldPosition;
+      const targetPosition = targetPlayer.position as OutfieldPosition;
+      nextCounts[sourcePosition] -= 1;
+      nextCounts[targetPosition] += 1;
+
+      return (
+        nextCounts.DEF >= SUBSTITUTION_MIN_STARTERS.DEF &&
+        nextCounts.MID >= SUBSTITUTION_MIN_STARTERS.MID &&
+        nextCounts.FWD >= SUBSTITUTION_MIN_STARTERS.FWD &&
+        nextCounts.DEF <= PAT_MAX_SLOTS.DEF &&
+        nextCounts.MID <= PAT_MAX_SLOTS.MID &&
+        nextCounts.FWD <= PAT_MAX_SLOTS.FWD
+      );
+    },
+    [lineup, playersById, starterPositionCounts]
+  );
+
+  const getSubstitutionTargetsForSource = useCallback(
+    (sourcePlayerId: string): Set<string> => {
+      const enabledTargets = new Set<string>();
+      if (mode !== "PAT" || !lineup) {
+        return enabledTargets;
+      }
+
+      const sourceTarget = getTargetForPlayerId(lineup, sourcePlayerId);
+      if (!sourceTarget || sourceTarget.zone === "BENCH") {
+        return enabledTargets;
+      }
+
+      for (const targetPlayerId of lineup.substituteIds.filter(Boolean)) {
+        const targetTarget = getTargetForPlayerId(lineup, targetPlayerId);
+        if (!targetTarget) {
+          continue;
+        }
+
+        if (isSubstitutionAllowedForTargets(sourceTarget, targetTarget)) {
+          enabledTargets.add(targetPlayerId);
+        }
+      }
+
+      return enabledTargets;
+    },
+    [isSubstitutionAllowedForTargets, lineup, mode]
+  );
+
+  const substitutionTargetIds = useMemo(() => {
+    if (!substitutionSourcePlayerId) {
+      return new Set<string>();
+    }
+
+    return getSubstitutionTargetsForSource(substitutionSourcePlayerId);
+  }, [getSubstitutionTargetsForSource, substitutionSourcePlayerId]);
+
+  const selectedPlayerSubstitutionTargets = useMemo(() => {
+    if (!selectedPlayer) {
+      return new Set<string>();
+    }
+
+    return getSubstitutionTargetsForSource(selectedPlayer.id);
+  }, [getSubstitutionTargetsForSource, selectedPlayer]);
+
+  useEffect(() => {
+    if (!substitutionSourcePlayerId) {
+      return;
+    }
+
+    if (substitutionTargetIds.size === 0) {
+      setSubstitutionSourcePlayerId(null);
+      void appAlert.warning("Substitution", "No valid substitution target is available.");
+    }
+  }, [substitutionSourcePlayerId, substitutionTargetIds]);
+
+  const applySubstitution = useCallback(
+    (targetPlayerId: string) => {
+      if (!lineup || !substitutionSourcePlayerId || !substitutionSourceTarget) {
+        return;
+      }
+
+      const target = getTargetForPlayerId(lineup, targetPlayerId);
+      if (!target) {
+        return;
+      }
+
+      if (!isSubstitutionAllowedForTargets(substitutionSourceTarget, target)) {
+        void appAlert.warning("Invalid Substitution", "This player cannot replace the selected starter.");
+        return;
+      }
+
+      const sourcePlayerId = getPlayerIdAtTarget(lineup, substitutionSourceTarget);
+      const targetBenchPlayerId = getPlayerIdAtTarget(lineup, target);
+      const incomingPlayer = playersById.get(targetBenchPlayerId);
+      if (!sourcePlayerId || !targetBenchPlayerId || !incomingPlayer) {
+        return;
+      }
+
+      const nextBenchIds = upsertBenchId(lineup.substituteIds, target.index, sourcePlayerId);
+      let nextLineup: TeamLineup = {
+        ...lineup,
+        substituteIds: nextBenchIds
+      };
+
+      if (substitutionSourceTarget.zone === "GK") {
+        nextLineup = {
+          ...nextLineup,
+          goalkeeperId: targetBenchPlayerId
+        };
+      } else if (incomingPlayer.position === substitutionSourceTarget.zone) {
+        if (substitutionSourceTarget.zone === "DEF") {
+          nextLineup = {
+            ...nextLineup,
+            defenderIds: replaceAtIndex(lineup.defenderIds, substitutionSourceTarget.index, targetBenchPlayerId)
+          };
+        } else if (substitutionSourceTarget.zone === "MID") {
+          nextLineup = {
+            ...nextLineup,
+            midfielderIds: replaceAtIndex(lineup.midfielderIds, substitutionSourceTarget.index, targetBenchPlayerId)
+          };
+        } else {
+          nextLineup = {
+            ...nextLineup,
+            forwardIds: replaceAtIndex(lineup.forwardIds, substitutionSourceTarget.index, targetBenchPlayerId)
+          };
+        }
+      } else {
+        const sourceZone = substitutionSourceTarget.zone;
+        const sourceIndex = substitutionSourceTarget.index;
+
+        if (sourceZone === "DEF") {
+          nextLineup = {
+            ...nextLineup,
+            defenderIds: removeAtIndex(lineup.defenderIds, sourceIndex)
+          };
+        } else if (sourceZone === "MID") {
+          nextLineup = {
+            ...nextLineup,
+            midfielderIds: removeAtIndex(lineup.midfielderIds, sourceIndex)
+          };
+        } else {
+          nextLineup = {
+            ...nextLineup,
+            forwardIds: removeAtIndex(lineup.forwardIds, sourceIndex)
+          };
+        }
+
+        if (incomingPlayer.position === "DEF") {
+          nextLineup = {
+            ...nextLineup,
+            defenderIds: [...nextLineup.defenderIds, targetBenchPlayerId]
+          };
+        } else if (incomingPlayer.position === "MID") {
+          nextLineup = {
+            ...nextLineup,
+            midfielderIds: [...nextLineup.midfielderIds, targetBenchPlayerId]
+          };
+        } else if (incomingPlayer.position === "FWD") {
+          nextLineup = {
+            ...nextLineup,
+            forwardIds: [...nextLineup.forwardIds, targetBenchPlayerId]
+          };
+        }
+      }
+
+      const swapped = ensureLeadership({
+        ...nextLineup,
+        updatedAt: new Date().toISOString()
+      });
+
+      setLineup(swapped);
+      setSubstitutionSourcePlayerId(null);
+      setSelectedPlayerId(null);
+      const sourceName = playersById.get(substitutionSourcePlayerId)?.name ?? "Player";
+      const targetName = playersById.get(targetPlayerId)?.name ?? "Player";
+      void appAlert.success("Substitution Applied", `${sourceName} swapped with ${targetName}.`);
+      recenterToPitch();
+    },
+    [
+      isSubstitutionAllowedForTargets,
+      lineup,
+      playersById,
+      recenterToPitch,
+      substitutionSourcePlayerId,
+      substitutionSourceTarget
+    ]
+  );
+
+  const selectedPlayerCanSubstitute = Boolean(
+    mode === "PAT" &&
+      selectedPlayer &&
+      selectedPlayerIsStarter &&
+      lineup &&
+      selectedPlayerSubstitutionTargets.size > 0 &&
+      substitutionSourcePlayerId !== selectedPlayer.id
+  );
+  const selectedPlayerIsSubstitutionSource = Boolean(
+    selectedPlayer && substitutionSourcePlayerId === selectedPlayer.id
+  );
 
   const selectedPlayerStats = useMemo(() => {
     if (!selectedPlayer) {
@@ -868,14 +1308,51 @@ export const TeamBuilderPage = () => {
   }, [fixtures, gameweek, selectedPlayer]);
 
   const patRows = useMemo<PitchRow[]>(() => {
+    const lineupOutfieldCount = lineup
+      ? lineup.defenderIds.filter(Boolean).length +
+        lineup.midfielderIds.filter(Boolean).length +
+        lineup.forwardIds.filter(Boolean).length
+      : 0;
+
     if (!lineup) {
       return [
         { label: "GK", slots: 1, ids: [] },
-        { label: "DEF", slots: PAT_DEFAULT_SLOTS.DEF, ids: [] },
-        { label: "MID", slots: PAT_DEFAULT_SLOTS.MID, ids: [] },
-        { label: "FWD", slots: PAT_DEFAULT_SLOTS.FWD, ids: [] }
+        {
+          label: "DEF",
+          slots: PAT_MIN_SLOTS.DEF,
+          ids: Array.from({ length: PAT_MIN_SLOTS.DEF }, () => "")
+        },
+        {
+          label: "MID",
+          slots: PAT_MIN_SLOTS.MID,
+          ids: Array.from({ length: PAT_MIN_SLOTS.MID }, () => "")
+        },
+        {
+          label: "FWD",
+          slots: PAT_MIN_SLOTS.FWD,
+          ids: Array.from({ length: PAT_MIN_SLOTS.FWD }, () => "")
+        }
       ];
     }
+
+    const defenderIds = buildFlexibleRowIds(
+      lineup.defenderIds,
+      PAT_MIN_SLOTS.DEF,
+      PAT_MAX_SLOTS.DEF,
+      lineupOutfieldCount
+    );
+    const midfielderIds = buildFlexibleRowIds(
+      lineup.midfielderIds,
+      PAT_MIN_SLOTS.MID,
+      PAT_MAX_SLOTS.MID,
+      lineupOutfieldCount
+    );
+    const forwardIds = buildFlexibleRowIds(
+      lineup.forwardIds,
+      PAT_MIN_SLOTS.FWD,
+      PAT_MAX_SLOTS.FWD,
+      lineupOutfieldCount
+    );
 
     return [
       {
@@ -885,18 +1362,18 @@ export const TeamBuilderPage = () => {
       },
       {
         label: "DEF",
-        slots: Math.max(PAT_DEFAULT_SLOTS.DEF, lineup.defenderIds.length),
-        ids: lineup.defenderIds
+        slots: defenderIds.length,
+        ids: defenderIds
       },
       {
         label: "MID",
-        slots: Math.max(PAT_DEFAULT_SLOTS.MID, lineup.midfielderIds.length),
-        ids: lineup.midfielderIds
+        slots: midfielderIds.length,
+        ids: midfielderIds
       },
       {
         label: "FWD",
-        slots: Math.max(PAT_DEFAULT_SLOTS.FWD, lineup.forwardIds.length),
-        ids: lineup.forwardIds
+        slots: forwardIds.length,
+        ids: forwardIds
       }
     ];
   }, [lineup]);
@@ -946,15 +1423,58 @@ export const TeamBuilderPage = () => {
     ];
   }, [players, playersById, squadIds]);
 
+  const resolveCardInteraction = useCallback(
+    (playerId: string) => {
+      const defaultInteraction = {
+        disabled: false,
+        visualState: null as CardVisualState,
+        onClick: () => setSelectedPlayerId(playerId)
+      };
+
+      if (!substitutionSourcePlayerId || mode !== "PAT") {
+        return defaultInteraction;
+      }
+
+      if (playerId === substitutionSourcePlayerId) {
+        return {
+          disabled: false,
+          visualState: "source" as CardVisualState,
+          onClick: () => setSubstitutionSourcePlayerId(null)
+        };
+      }
+
+      if (substitutionTargetIds.has(playerId)) {
+        return {
+          disabled: false,
+          visualState: "target" as CardVisualState,
+          onClick: () => applySubstitution(playerId)
+        };
+      }
+
+      return {
+        disabled: true,
+        visualState: null as CardVisualState,
+        onClick: undefined
+      };
+    },
+    [applySubstitution, mode, substitutionSourcePlayerId, substitutionTargetIds]
+  );
+
   const renderPitchCard = (
     player: Player | null,
     isCaptain: boolean,
     isViceCaptain: boolean,
     emptyLabel: string,
-    onEmptyClick?: () => void
+    onEmptyClick?: () => void,
+    options?: {
+      onPlayerClick?: () => void;
+      isDisabled?: boolean;
+      visualState?: CardVisualState;
+      disableEmpty?: boolean;
+    }
   ) => {
     if (!player) {
-      if (onEmptyClick) {
+      if (onEmptyClick && !options?.disableEmpty) {
         return (
           <button
             type="button"
@@ -967,7 +1487,7 @@ export const TeamBuilderPage = () => {
       }
 
       return (
-        <div className="fpl-player-card empty-slot">
+        <div className={`fpl-player-card empty-slot ${options?.disableEmpty ? "empty-slot-disabled" : ""}`}>
           <span>{emptyLabel}</span>
         </div>
       );
@@ -983,8 +1503,11 @@ export const TeamBuilderPage = () => {
     return (
       <button
         type="button"
-        className="fpl-player-card player-card-button"
-        onClick={() => setSelectedPlayerId(player.id)}
+        className={`fpl-player-card player-card-button ${options?.visualState === "source" ? "player-card-source" : ""} ${
+          options?.visualState === "target" ? "player-card-target" : ""
+        } ${options?.isDisabled ? "player-card-disabled" : ""}`}
+        onClick={options?.onPlayerClick}
+        disabled={options?.isDisabled}
       >
         <div className="player-price-chip">£{player.price.toFixed(1)}m</div>
         <div className="shirt-holder">
@@ -1025,7 +1548,7 @@ export const TeamBuilderPage = () => {
                 const playerId = row.ids[index];
                 const player = playerId ? playersById.get(playerId) ?? null : null;
                 const onEmptyClick =
-                  allowSlotPicking && !player
+                  allowSlotPicking && !player && !substitutionSourcePlayerId
                     ? () => {
                         setSelectedPlayerId(null);
                         openPlayerPicker({
@@ -1038,10 +1561,16 @@ export const TeamBuilderPage = () => {
                 const isCaptain = showLeadershipBadges && Boolean(lineup && player && lineup.captainId === player.id);
                 const isViceCaptain =
                   showLeadershipBadges && Boolean(lineup && player && lineup.viceCaptainId === player.id);
+                const interaction = player ? resolveCardInteraction(player.id) : null;
 
                 return (
                   <div key={`${row.label}-${index}`}>
-                    {renderPitchCard(player, isCaptain, isViceCaptain, row.label, onEmptyClick)}
+                    {renderPitchCard(player, isCaptain, isViceCaptain, row.label, onEmptyClick, {
+                      onPlayerClick: interaction?.onClick,
+                      isDisabled: interaction?.disabled,
+                      visualState: interaction?.visualState ?? null,
+                      disableEmpty: Boolean(substitutionSourcePlayerId)
+                    })}
                   </div>
                 );
               })}
@@ -1106,6 +1635,91 @@ export const TeamBuilderPage = () => {
         captainId: previous.captainId === selectedPlayer.id ? "" : previous.captainId
       };
     });
+  };
+
+  const startSubstitutionFromSelectedPlayer = () => {
+    if (!selectedPlayer || !lineup || mode !== "PAT") {
+      return;
+    }
+
+    if (!selectedPlayerIsStarter) {
+      void appAlert.warning("Substitution", "Only players on the field can be substituted.");
+      return;
+    }
+
+    if (selectedPlayerSubstitutionTargets.size === 0) {
+      void appAlert.warning("Substitution", "No valid bench player can replace this starter.");
+      return;
+    }
+
+    setSubstitutionSourcePlayerId(selectedPlayer.id);
+    setSelectedPlayerId(null);
+    setIsFullProfileVisible(false);
+    void appAlert.info("Substitution Mode", "Tap a highlighted bench player to swap.");
+    recenterToPitch();
+  };
+
+  const cancelSubstitutionMode = () => {
+    setSubstitutionSourcePlayerId(null);
+  };
+
+  const substitutionSourceName = substitutionSourcePlayerId
+    ? playersById.get(substitutionSourcePlayerId)?.name ?? "selected player"
+    : null;
+
+  const hasPendingChanges = useMemo(() => {
+    return JSON.stringify(toComparableLineup(lineup)) !== JSON.stringify(toComparableLineup(lastSavedLineup));
+  }, [lastSavedLineup, lineup]);
+
+  const onCancelBulkChanges = () => {
+    if (!lastSavedLineup) {
+      return;
+    }
+
+    setLineup(lastSavedLineup);
+    setSelectedPlayerId(null);
+    setSubstitutionSourcePlayerId(null);
+    setIsFullProfileVisible(false);
+    writeLineupDraft(lastSavedLineup, userScope);
+    void appAlert.info("Draft Reset", "Reverted to the last saved lineup.");
+  };
+
+  const onSaveBulkChanges = async () => {
+    if (!lineup || !selectedLeagueId) {
+      return;
+    }
+
+    if (!hasPendingChanges) {
+      void appAlert.info("No Changes", "There are no pending lineup changes to save.");
+      return;
+    }
+
+    if (players.length === 0) {
+      void appAlert.warning("Save Failed", "Players data is not loaded yet.");
+      return;
+    }
+
+    setIsSavingLineup(true);
+    try {
+      const saved = await saveLineup.execute(lineup, players);
+      const normalizedSaved = normalizeLineup(selectedLeagueId, saved);
+      setLineup(normalizedSaved);
+      setLastSavedLineup(normalizedSaved);
+      setSelectedPlayerId(null);
+      setSubstitutionSourcePlayerId(null);
+      setIsFullProfileVisible(false);
+      writeLineupDraft(normalizedSaved, userScope);
+      void appAlert.success("Lineup Saved", "Your Pick Team changes were saved.");
+    } catch (error) {
+      if (isUnauthorizedError(error)) {
+        await forceLogout("Your session has expired. Please sign in again.");
+        return;
+      }
+
+      void appAlert.error("Save Failed", error instanceof Error ? error.message : "Unable to save lineup.");
+    } finally {
+      setIsSavingLineup(false);
+    }
   };
 
   return (
@@ -1255,6 +1869,37 @@ export const TeamBuilderPage = () => {
       </Card>
 
       <Card ref={pitchBoardRef} className="fpl-board card">
+        {mode === "PAT" ? (
+          <div className="pick-team-bulk-actions">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={onCancelBulkChanges}
+              disabled={!lastSavedLineup || !hasPendingChanges || isSavingLineup}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void onSaveBulkChanges()}
+              disabled={!lastSavedLineup || !hasPendingChanges || isSavingLineup || isLeagueDataLoading}
+            >
+              {isSavingLineup ? "Saving..." : "Save"}
+            </Button>
+          </div>
+        ) : null}
+
+        {substitutionSourcePlayerId && mode === "PAT" ? (
+          <div className="substitution-banner">
+            <p>
+              Swapping <strong>{substitutionSourceName}</strong>. Select a highlighted bench player to continue.
+            </p>
+            <Button type="button" variant="secondary" size="sm" onClick={cancelSubstitutionMode}>
+              Cancel
+            </Button>
+          </div>
+        ) : null}
+
         {mode === "PAT" ? renderPitch(patRows, true, true) : renderPitch(trfRows, false, false)}
 
         {mode === "PAT" ? (
@@ -1264,13 +1909,18 @@ export const TeamBuilderPage = () => {
               {Array.from({ length: SUBSTITUTE_SIZE }).map((_, index) => {
                 const playerId = lineup?.substituteIds[index];
                 const player = playerId ? playersById.get(playerId) : null;
+                const benchPosition = BENCH_SLOT_POSITIONS[index] ?? "BENCH";
+                const interaction = player ? resolveCardInteraction(player.id) : null;
 
                 if (!player) {
                   return (
                     <button
                       key={`bench-${index}`}
                       type="button"
-                      className="bench-card empty-slot player-card-button pick-slot-button"
+                      className={`bench-card empty-slot player-card-button pick-slot-button ${
+                        substitutionSourcePlayerId ? "empty-slot-disabled" : ""
+                      }`}
+                      disabled={Boolean(substitutionSourcePlayerId)}
                       onClick={() => {
                         setSelectedPlayerId(null);
                         openPlayerPicker({
@@ -1279,7 +1929,7 @@ export const TeamBuilderPage = () => {
                         });
                       }}
                     >
-                      Pick Bench
+                      {`Pick ${benchPosition}`}
                     </button>
                   );
                 }
@@ -1288,8 +1938,13 @@ export const TeamBuilderPage = () => {
                   <button
                     key={player.id}
                     type="button"
-                    className="bench-card player-card-button"
-                    onClick={() => setSelectedPlayerId(player.id)}
+                    className={`bench-card player-card-button ${
+                      interaction?.visualState === "source" ? "player-card-source" : ""
+                    } ${interaction?.visualState === "target" ? "player-card-target" : ""} ${
+                      interaction?.disabled ? "player-card-disabled" : ""
+                    }`}
+                    onClick={interaction?.onClick}
+                    disabled={interaction?.disabled}
                   >
                     <div className="player-price-chip">£{player.price.toFixed(1)}m</div>
                     <div className="shirt-holder">
@@ -1297,7 +1952,7 @@ export const TeamBuilderPage = () => {
                     </div>
                     <div className="player-info-chip">
                       <div className="player-name-chip">{shortName(player.name)}</div>
-                      <div className="player-fixture-chip">Bench</div>
+                      <div className="player-fixture-chip">{`Bench ${player.position}`}</div>
                     </div>
                   </button>
                 );
@@ -1402,48 +2057,54 @@ export const TeamBuilderPage = () => {
               </article>
             </div>
 
-            <div className="player-modal-fixtures">
-              <h4>Player Profile (Backend)</h4>
-              <div className="player-modal-profile-grid">
-                {selectedPlayerProfileItems.map((item) => (
-                  <article key={`profile-${item.label}`} className="modal-stat-card">
-                    <p>{item.label}</p>
-                    <strong>{item.value}</strong>
-                  </article>
-                ))}
-              </div>
-            </div>
-
-            {selectedPlayerSeasonStats.length > 0 ? (
-              <div className="player-modal-fixtures">
-                <h4>Season Stats (Backend)</h4>
-                <div className="player-modal-profile-grid">
-                  {selectedPlayerSeasonStats.map((item) => (
-                    <article key={`season-${item.label}`} className="modal-stat-card">
-                      <p>{item.label}</p>
-                      <strong>{item.value}</strong>
-                    </article>
-                  ))}
+            {isFullProfileVisible ? (
+              <>
+                <div className="player-modal-fixtures">
+                  <h4>Player Profile (Backend)</h4>
+                  <div className="player-modal-profile-grid">
+                    {selectedPlayerProfileItems.map((item) => (
+                      <article key={`profile-${item.label}`} className="modal-stat-card">
+                        <p>{item.label}</p>
+                        <strong>{item.value}</strong>
+                      </article>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ) : null}
 
-            {selectedPlayerDetails?.history && selectedPlayerDetails.history.length > 0 ? (
-              <div className="player-modal-fixtures">
-                <h4>Recent Matches (Backend)</h4>
-                <div className="fixture-strip">
-                  {selectedPlayerDetails.history.slice(0, 5).map((item) => (
-                    <article key={`history-${item.fixtureId}-${item.gameweek}`} className="fixture-pill">
-                      <p>GW {item.gameweek}</p>
-                      <strong>
-                        {item.opponent} ({item.homeAway === "home" ? "H" : "A"})
-                      </strong>
-                      <span>{item.points} pts</span>
-                    </article>
-                  ))}
-                </div>
-              </div>
-            ) : null}
+                {selectedPlayerSeasonStats.length > 0 ? (
+                  <div className="player-modal-fixtures">
+                    <h4>Season Stats (Backend)</h4>
+                    <div className="player-modal-profile-grid">
+                      {selectedPlayerSeasonStats.map((item) => (
+                        <article key={`season-${item.label}`} className="modal-stat-card">
+                          <p>{item.label}</p>
+                          <strong>{item.value}</strong>
+                        </article>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {selectedPlayerDetails?.history && selectedPlayerDetails.history.length > 0 ? (
+                  <div className="player-modal-fixtures">
+                    <h4>Recent Matches (Backend)</h4>
+                    <div className="fixture-strip">
+                      {selectedPlayerDetails.history.slice(0, 5).map((item) => (
+                        <article key={`history-${item.fixtureId}-${item.gameweek}`} className="fixture-pill">
+                          <p>GW {item.gameweek}</p>
+                          <strong>
+                            {item.opponent} ({item.homeAway === "home" ? "H" : "A"})
+                          </strong>
+                          <span>{item.points} pts</span>
+                        </article>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <p className="muted">Tap Full Profile to view extended backend profile and season history.</p>
+            )}
 
             <div className="player-modal-fixtures">
               <h4>Incoming Fixtures</h4>
@@ -1488,6 +2149,23 @@ export const TeamBuilderPage = () => {
             {selectedPlayerIsBench ? (
               <p className="muted">Captain and vice captain can only be assigned to starting players.</p>
             ) : null}
+
+            <div className="player-modal-actions">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setIsFullProfileVisible((previous) => !previous)}
+              >
+                {isFullProfileVisible ? "Hide Full Profile" : "Full Profile"}
+              </Button>
+              <Button
+                type="button"
+                onClick={startSubstitutionFromSelectedPlayer}
+                disabled={!selectedPlayerCanSubstitute}
+              >
+                {selectedPlayerIsSubstitutionSource ? "Substitution Active" : "Substitutes"}
+              </Button>
+            </div>
           </Card>
         </div>
       ) : null}
