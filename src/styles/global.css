@@ -1684,6 +1684,12 @@ button:disabled {
   color: var(--muted);
 }
 
+.lazy-image-anchor {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .media-url {
   display: block;
   max-width: 100%;

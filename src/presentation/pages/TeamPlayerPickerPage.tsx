@@ -4,6 +4,7 @@ import type { Player } from "../../domain/fantasy/entities/Player";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import { cacheKeys, cacheTtlMs, getOrLoadCached } from "../../app/cache/requestCache";
 import { LoadingState } from "../components/LoadingState";
+import { LazyImage } from "../components/LazyImage";
 import { useSession } from "../hooks/useSession";
 import { appAlert } from "../lib/appAlert";
 import {
@@ -412,11 +413,15 @@ export const TeamPlayerPickerPage = () => {
                         <td className="entity-media-cell">
                           <div className="media-line">
                             {normalizeUrl(player.imageUrl) ? (
-                              <img
+                              <LazyImage
                                 src={normalizeUrl(player.imageUrl)}
                                 alt={playerName}
                                 className="media-thumb"
-                                loading="lazy"
+                                fallback={
+                                  <span className="media-thumb media-thumb-fallback" aria-hidden="true">
+                                    P
+                                  </span>
+                                }
                               />
                             ) : (
                               <span className="media-thumb media-thumb-fallback" aria-hidden="true">
@@ -431,11 +436,15 @@ export const TeamPlayerPickerPage = () => {
                         <td className="entity-media-cell">
                           <div className="media-line">
                             {normalizeUrl(player.teamLogoUrl) ? (
-                              <img
+                              <LazyImage
                                 src={normalizeUrl(player.teamLogoUrl)}
                                 alt={playerClub}
                                 className="media-thumb media-thumb-small"
-                                loading="lazy"
+                                fallback={
+                                  <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
+                                    T
+                                  </span>
+                                }
                               />
                             ) : (
                               <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
