@@ -456,6 +456,7 @@ export const TeamBuilderPage = () => {
   const [isSelectedPlayerDetailsLoading, setIsSelectedPlayerDetailsLoading] = useState(false);
   const [isFullProfileVisible, setIsFullProfileVisible] = useState(false);
   const [substitutionSourcePlayerId, setSubstitutionSourcePlayerId] = useState<string | null>(null);
+  const [hasSubstitutionDraftChanges, setHasSubstitutionDraftChanges] = useState(false);
   const [lastSavedLineup, setLastSavedLineup] = useState<TeamLineup | null>(null);
   const [isSavingLineup, setIsSavingLineup] = useState(false);
 
@@ -553,6 +554,7 @@ export const TeamBuilderPage = () => {
     setLastSavedLineup(null);
     setIsSavingLineup(false);
     setSubstitutionSourcePlayerId(null);
+    setHasSubstitutionDraftChanges(false);
 
     const optimisticPlayers = peekCached<Player[]>(cacheKeys.players(selectedLeagueId), true) ?? [];
     const optimisticFixtures = peekCached<Fixture[]>(cacheKeys.fixtures(selectedLeagueId), true) ?? [];
@@ -708,6 +710,7 @@ export const TeamBuilderPage = () => {
         writeLineupDraft(normalized, userScope);
         setSelectedPlayerId(null);
         setSubstitutionSourcePlayerId(null);
+        setHasSubstitutionDraftChanges(false);
         if (shouldRecenterPitch) {
           recenterToPitch();
         }
@@ -1156,6 +1159,7 @@ export const TeamBuilderPage = () => {
       });
 
       setLineup(swapped);
+      setHasSubstitutionDraftChanges(true);
       setSubstitutionSourcePlayerId(null);
       setSelectedPlayerId(null);
       const sourceName = playersById.get(substitutionSourcePlayerId)?.name ?? "Player";
@@ -1671,6 +1675,14 @@ export const TeamBuilderPage = () => {
     return JSON.stringify(toComparableLineup(lineup)) !== JSON.stringify(toComparableLineup(lastSavedLineup));
   }, [lastSavedLineup, lineup]);
 
+  useEffect(() => {
+    if (!hasPendingChanges) {
+      setHasSubstitutionDraftChanges(false);
+    }
+  }, [hasPendingChanges]);
+
+  const shouldShowBulkActions = mode === "PAT" && (Boolean(substitutionSourcePlayerId) || hasSubstitutionDraftChanges);
+
   const onCancelBulkChanges = () => {
     if (!lastSavedLineup) {
       return;
@@ -1679,6 +1691,7 @@ export const TeamBuilderPage = () => {
     setLineup(lastSavedLineup);
     setSelectedPlayerId(null);
     setSubstitutionSourcePlayerId(null);
+    setHasSubstitutionDraftChanges(false);
     setIsFullProfileVisible(false);
     writeLineupDraft(lastSavedLineup, userScope);
     void appAlert.info("Draft Reset", "Reverted to the last saved lineup.");
@@ -1707,6 +1720,7 @@ export const TeamBuilderPage = () => {
       setLastSavedLineup(normalizedSaved);
       setSelectedPlayerId(null);
       setSubstitutionSourcePlayerId(null);
+      setHasSubstitutionDraftChanges(false);
       setIsFullProfileVisible(false);
       writeLineupDraft(normalizedSaved, userScope);
       void appAlert.success("Lineup Saved", "Your Pick Team changes were saved.");
@@ -1869,7 +1883,7 @@ export const TeamBuilderPage = () => {
       </Card>
 
       <Card ref={pitchBoardRef} className="fpl-board card">
-        {mode === "PAT" ? (
+        {shouldShowBulkActions ? (
           <div className="pick-team-bulk-actions">
             <Button
               type="button"
