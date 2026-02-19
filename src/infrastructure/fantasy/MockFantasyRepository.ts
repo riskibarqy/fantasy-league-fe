@@ -93,14 +93,14 @@ export class MockFantasyRepository implements FantasyRepository {
     };
   }
 
-  async getLineup(leagueId: string): Promise<TeamLineup | null> {
+  async getLineup(leagueId: string, _accessToken?: string): Promise<TeamLineup | null> {
     await delay(200);
 
     const lineups = readStoredLineups();
     return lineups[leagueId] ?? (defaultLineup.leagueId === leagueId ? defaultLineup : null);
   }
 
-  async saveLineup(lineup: TeamLineup): Promise<TeamLineup> {
+  async saveLineup(lineup: TeamLineup, _accessToken?: string): Promise<TeamLineup> {
     await delay(300);
 
     const lineups = readStoredLineups();

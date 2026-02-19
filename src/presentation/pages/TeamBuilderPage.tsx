@@ -638,6 +638,7 @@ export const TeamBuilderPage = () => {
     const loadLeagueData = async () => {
       const shouldShowBlockingLoader = optimisticPlayers.length === 0 && !optimisticLineup;
       setIsLeagueDataLoading(shouldShowBlockingLoader);
+      const accessToken = session?.accessToken?.trim() ?? "";
 
       try {
         let playersResultRaw: Player[] = [];
@@ -677,7 +678,7 @@ export const TeamBuilderPage = () => {
         }
 
         const [lineupResultRaw, fixturesResultRaw] = await Promise.allSettled([
-          getLineup.execute(selectedLeagueId),
+          getLineup.execute(selectedLeagueId, accessToken),
           getOrLoadCached({
             key: cacheKeys.fixtures(selectedLeagueId),
             ttlMs: cacheTtlMs.fixtures,
@@ -687,6 +688,11 @@ export const TeamBuilderPage = () => {
         ]);
 
         if (!mounted) {
+          return;
+        }
+
+        if (lineupResultRaw.status === "rejected" && isUnauthorizedError(lineupResultRaw.reason)) {
+          await forceLogout("Your session has expired. Please sign in again.");
           return;
         }
 
@@ -706,8 +712,6 @@ export const TeamBuilderPage = () => {
         let resolvedLineup = lineupResult;
 
         if (!resolvedLineup && playersResult.length > 0) {
-          const accessToken = session?.accessToken?.trim() ?? "";
-
           if (!accessToken) {
             await forceLogout("Your session is invalid. Please sign in again.");
             return;
@@ -1783,7 +1787,7 @@ export const TeamBuilderPage = () => {
 
       let saved: TeamLineup;
       try {
-        saved = await saveLineup.execute(lineup, players);
+        saved = await saveLineup.execute(lineup, players, session?.accessToken ?? "");
       } catch (error) {
         const message = error instanceof Error ? error.message.toLowerCase() : "";
         const shouldRetryWithSquadSync =
@@ -1799,7 +1803,7 @@ export const TeamBuilderPage = () => {
           return;
         }
 
-        saved = await saveLineup.execute(lineup, players);
+        saved = await saveLineup.execute(lineup, players, session?.accessToken ?? "");
       }
       const normalizedSaved = normalizeLineup(selectedLeagueId, saved);
       setLineup(normalizedSaved);

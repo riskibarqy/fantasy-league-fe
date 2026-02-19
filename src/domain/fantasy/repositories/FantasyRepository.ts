@@ -24,8 +24,8 @@ export interface FantasyRepository {
   getFixtures(leagueId: string): Promise<Fixture[]>;
   getPlayers(leagueId: string): Promise<Player[]>;
   getPlayerDetails(leagueId: string, playerId: string): Promise<PlayerDetails>;
-  getLineup(leagueId: string): Promise<TeamLineup | null>;
-  saveLineup(lineup: TeamLineup): Promise<TeamLineup>;
+  getLineup(leagueId: string, accessToken?: string): Promise<TeamLineup | null>;
+  saveLineup(lineup: TeamLineup, accessToken?: string): Promise<TeamLineup>;
   getMySquad(leagueId: string, accessToken: string): Promise<Squad | null>;
   pickSquad(input: PickSquadInput, accessToken: string): Promise<Squad>;
   saveOnboardingFavoriteClub(

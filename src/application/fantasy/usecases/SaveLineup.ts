@@ -6,7 +6,7 @@ import { validateLineup } from "../../../domain/fantasy/services/lineupRules";
 export class SaveLineup {
   constructor(private readonly fantasyRepository: FantasyRepository) {}
 
-  async execute(lineup: TeamLineup, players: Player[]) {
+  async execute(lineup: TeamLineup, players: Player[], accessToken?: string) {
     const playersById = new Map(players.map((player) => [player.id, player]));
     const validation = validateLineup(lineup, playersById);
 
@@ -14,9 +14,12 @@ export class SaveLineup {
       throw new Error(validation.reason ?? "Lineup is invalid.");
     }
 
-    return this.fantasyRepository.saveLineup({
-      ...lineup,
-      updatedAt: new Date().toISOString()
-    });
+    return this.fantasyRepository.saveLineup(
+      {
+        ...lineup,
+        updatedAt: new Date().toISOString()
+      },
+      accessToken
+    );
   }
 }
