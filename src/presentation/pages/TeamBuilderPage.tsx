@@ -435,7 +435,7 @@ async function withRetry<T>(run: () => Promise<T>, retries: number): Promise<T> 
 
 export const TeamBuilderPage = () => {
   const navigate = useNavigate();
-  const { getPlayers, getPlayerDetails, getLineup, getDashboard, getFixtures, getMySquad, logout, saveLineup } = useContainer();
+  const { getPlayers, getPlayerDetails, getLineup, getDashboard, getFixtures, getMySquad, pickSquad, logout, saveLineup } = useContainer();
   const { leagues, selectedLeagueId, setSelectedLeagueId } = useLeagueSelection();
   const { session, setSession } = useSession();
   const userScope = session?.user.id ?? "";
@@ -490,6 +490,68 @@ export const TeamBuilderPage = () => {
       }
     },
     [logout, navigate, session?.accessToken, setSession]
+  );
+
+  const syncSquadFromLineup = useCallback(
+    async (draftLineup: TeamLineup, forceUpsert = false): Promise<boolean> => {
+      const accessToken = session?.accessToken?.trim() ?? "";
+      if (!accessToken) {
+        await forceLogout("Your session is invalid. Please sign in again.");
+        return false;
+      }
+
+      const draftPlayerIds = [
+        draftLineup.goalkeeperId,
+        ...draftLineup.defenderIds,
+        ...draftLineup.midfielderIds,
+        ...draftLineup.forwardIds,
+        ...draftLineup.substituteIds
+      ].filter(Boolean);
+      const uniqueDraftPlayerIds = [...new Set(draftPlayerIds)];
+
+      if (uniqueDraftPlayerIds.length !== STARTER_SIZE + SUBSTITUTE_SIZE) {
+        throw new Error("Lineup must contain exactly 15 unique players before save.");
+      }
+
+      let squad = null;
+      try {
+        squad = await getMySquad.execute(draftLineup.leagueId, accessToken);
+      } catch (error) {
+        if (isUnauthorizedError(error)) {
+          await forceLogout("Your session has expired. Please sign in again.");
+          return false;
+        }
+
+        throw error;
+      }
+
+      const shouldUpsertFromDraft = (() => {
+        if (forceUpsert) {
+          return true;
+        }
+
+        if (!squad || squad.picks.length !== STARTER_SIZE + SUBSTITUTE_SIZE) {
+          return true;
+        }
+
+        const squadSet = new Set(squad.picks.map((pick) => pick.playerId));
+        return !uniqueDraftPlayerIds.every((playerId) => squadSet.has(playerId));
+      })();
+
+      if (!shouldUpsertFromDraft) {
+        return true;
+      }
+
+      await pickSquad.execute(
+        {
+          leagueId: draftLineup.leagueId,
+          playerIds: uniqueDraftPlayerIds
+        },
+        accessToken
+      );
+      return true;
+    },
+    [forceLogout, getMySquad, pickSquad, session?.accessToken]
   );
 
   useEffect(() => {
@@ -1714,7 +1776,31 @@ export const TeamBuilderPage = () => {
 
     setIsSavingLineup(true);
     try {
-      const saved = await saveLineup.execute(lineup, players);
+      const squadReady = await syncSquadFromLineup(lineup);
+      if (!squadReady) {
+        return;
+      }
+
+      let saved: TeamLineup;
+      try {
+        saved = await saveLineup.execute(lineup, players);
+      } catch (error) {
+        const message = error instanceof Error ? error.message.toLowerCase() : "";
+        const shouldRetryWithSquadSync =
+          message.includes("must pick fantasy squad before saving lineup") ||
+          message.includes("not part of user fantasy squad");
+
+        if (!shouldRetryWithSquadSync) {
+          throw error;
+        }
+
+        const retryReady = await syncSquadFromLineup(lineup, true);
+        if (!retryReady) {
+          return;
+        }
+
+        saved = await saveLineup.execute(lineup, players);
+      }
       const normalizedSaved = normalizeLineup(selectedLeagueId, saved);
       setLineup(normalizedSaved);
       setLastSavedLineup(normalizedSaved);
