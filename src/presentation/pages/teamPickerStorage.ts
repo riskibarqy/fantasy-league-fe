@@ -59,6 +59,20 @@ const resolveScopeKey = (scope?: string): string => {
   return trimmed || ANON_SCOPE;
 };
 
+const canReadWithScope = (storedScope: string, requestedScope?: string): boolean => {
+  const resolved = resolveScopeKey(requestedScope);
+  if (storedScope === resolved) {
+    return true;
+  }
+
+  // Session scope can change during first load after login; allow anon fallback once.
+  if (resolved !== ANON_SCOPE && storedScope === ANON_SCOPE) {
+    return true;
+  }
+
+  return false;
+};
+
 const toDraftKey = (leagueId: string, scope?: string): string => {
   return `${resolveScopeKey(scope)}::${leagueId.trim()}`;
 };
@@ -72,7 +86,7 @@ export const savePickerContext = (context: PickerContext, scope?: string): void 
 
 export const readPickerContext = (scope?: string): PickerContext | null => {
   const parsed = readJSON<ScopedPickerContext>(PICKER_CONTEXT_KEY);
-  if (!parsed || parsed.scopeKey !== resolveScopeKey(scope)) {
+  if (!parsed || !canReadWithScope(parsed.scopeKey, scope)) {
     return null;
   }
 
@@ -91,7 +105,7 @@ export const clearPickerContext = (scope?: string): void => {
   }
 
   const parsed = readJSON<ScopedPickerContext>(PICKER_CONTEXT_KEY);
-  if (!parsed || parsed.scopeKey !== resolveScopeKey(scope)) {
+  if (!parsed || !canReadWithScope(parsed.scopeKey, scope)) {
     return;
   }
 
@@ -108,7 +122,7 @@ export const savePickerResult = (result: PickerResult, scope?: string): void => 
 export const consumePickerResult = (scope?: string): PickerResult | null => {
   const result = readJSON<ScopedPickerResult>(PICKER_RESULT_KEY);
   localStorage.removeItem(PICKER_RESULT_KEY);
-  if (!result || result.scopeKey !== resolveScopeKey(scope)) {
+  if (!result || !canReadWithScope(result.scopeKey, scope)) {
     return null;
   }
 

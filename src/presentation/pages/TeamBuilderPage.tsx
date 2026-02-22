@@ -612,6 +612,11 @@ export const TeamBuilderPage = () => {
       return;
     }
 
+    const accessToken = session?.accessToken?.trim() ?? "";
+    if (!accessToken) {
+      return;
+    }
+
     let mounted = true;
     setLastSavedLineup(null);
     setIsSavingLineup(false);
@@ -638,7 +643,6 @@ export const TeamBuilderPage = () => {
     const loadLeagueData = async () => {
       const shouldShowBlockingLoader = optimisticPlayers.length === 0 && !optimisticLineup;
       setIsLeagueDataLoading(shouldShowBlockingLoader);
-      const accessToken = session?.accessToken?.trim() ?? "";
 
       try {
         let playersResultRaw: Player[] = [];
