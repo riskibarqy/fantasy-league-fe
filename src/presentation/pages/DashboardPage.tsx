@@ -60,10 +60,16 @@ export const DashboardPage = () => {
 
     const load = async () => {
       try {
+        const accessToken = session?.accessToken?.trim() ?? "";
+        const userId = session?.user.id?.trim() ?? "";
+        if (!accessToken || !userId) {
+          throw new Error("Please sign in to view your dashboard.");
+        }
+
         const dashboardResult = await getOrLoadCached({
-          key: cacheKeys.dashboard(),
+          key: cacheKeys.dashboard(userId),
           ttlMs: cacheTtlMs.dashboard,
-          loader: () => getDashboard.execute()
+          loader: () => getDashboard.execute(accessToken)
         });
         const leagueIdForFixtures = selectedLeagueId || dashboardResult.selectedLeagueId;
         const fixtureResult = leagueIdForFixtures
@@ -74,9 +80,6 @@ export const DashboardPage = () => {
               allowStaleOnError: true
             })
           : [];
-
-        const accessToken = session?.accessToken?.trim() ?? "";
-        const userId = session?.user.id?.trim() ?? "";
         const customLeagueResult =
           accessToken && userId
             ? await getOrLoadCached({

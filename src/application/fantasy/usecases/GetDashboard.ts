@@ -3,7 +3,12 @@ import type { FantasyRepository } from "../../../domain/fantasy/repositories/Fan
 export class GetDashboard {
   constructor(private readonly fantasyRepository: FantasyRepository) {}
 
-  async execute() {
-    return this.fantasyRepository.getDashboard();
+  async execute(accessToken: string) {
+    const token = accessToken.trim();
+    if (!token) {
+      throw new Error("Access token is required to load dashboard.");
+    }
+
+    return this.fantasyRepository.getDashboard(token);
   }
 }

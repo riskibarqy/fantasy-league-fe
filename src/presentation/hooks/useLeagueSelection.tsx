@@ -10,6 +10,7 @@ import {
 import { cacheKeys, cacheTtlMs, getOrLoadCached } from "../../app/cache/requestCache";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import type { League } from "../../domain/fantasy/entities/League";
+import { useSession } from "./useSession";
 
 const STORAGE_KEY = "fantasy-selected-league-id";
 
@@ -29,6 +30,7 @@ const readStoredLeagueId = (): string => {
 
 export const LeagueSelectionProvider = ({ children }: PropsWithChildren) => {
   const { getDashboard, getLeagues } = useContainer();
+  const { session } = useSession();
 
   const [leagues, setLeagues] = useState<League[]>([]);
   const [selectedLeagueId, setSelectedLeagueIdState] = useState<string>("");
@@ -46,13 +48,19 @@ export const LeagueSelectionProvider = ({ children }: PropsWithChildren) => {
       try {
         setIsLoading(true);
 
+        const accessToken = session?.accessToken?.trim() ?? "";
+        const userId = session?.user.id?.trim() ?? "";
+        const dashboardPromise = accessToken && userId
+          ? getOrLoadCached({
+              key: cacheKeys.dashboard(userId),
+              ttlMs: cacheTtlMs.dashboard,
+              loader: () => getDashboard.execute(accessToken),
+              allowStaleOnError: true
+            })
+          : Promise.resolve(null);
+
         const [dashboardResult, leaguesResult] = await Promise.allSettled([
-          getOrLoadCached({
-            key: cacheKeys.dashboard(),
-            ttlMs: cacheTtlMs.dashboard,
-            loader: () => getDashboard.execute(),
-            allowStaleOnError: true
-          }),
+          dashboardPromise,
           getOrLoadCached({
             key: cacheKeys.leagues(),
             ttlMs: cacheTtlMs.leagues,
@@ -75,7 +83,7 @@ export const LeagueSelectionProvider = ({ children }: PropsWithChildren) => {
           loadedLeagues.some((league) => league.id === leagueId);
 
         const dashboardLeagueId =
-          dashboardResult.status === "fulfilled" ? dashboardResult.value.selectedLeagueId.trim() : "";
+          dashboardResult.status === "fulfilled" ? dashboardResult.value?.selectedLeagueId?.trim() ?? "" : "";
         const storedLeagueId = readStoredLeagueId();
 
         const fallbackLeagueId =
@@ -108,7 +116,7 @@ export const LeagueSelectionProvider = ({ children }: PropsWithChildren) => {
     return () => {
       mounted = false;
     };
-  }, [getDashboard, getLeagues]);
+  }, [getDashboard, getLeagues, session?.accessToken, session?.user.id]);
 
   useEffect(() => {
     const leagueId = selectedLeagueId.trim();

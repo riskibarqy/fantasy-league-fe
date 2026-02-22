@@ -572,13 +572,19 @@ export const TeamBuilderPage = () => {
     let mounted = true;
 
     const loadHeader = async () => {
+      const accessToken = session?.accessToken?.trim() ?? "";
+      const userId = session?.user.id?.trim() ?? "";
+      if (!accessToken || !userId) {
+        return;
+      }
+
       try {
         const dashboard = await withRetry(
           () =>
             getOrLoadCached({
-              key: cacheKeys.dashboard(),
+              key: cacheKeys.dashboard(userId),
               ttlMs: cacheTtlMs.dashboard,
-              loader: () => getDashboard.execute(),
+              loader: () => getDashboard.execute(accessToken),
               allowStaleOnError: true
             }),
           1
@@ -605,7 +611,7 @@ export const TeamBuilderPage = () => {
     return () => {
       mounted = false;
     };
-  }, [getDashboard]);
+  }, [getDashboard, session?.accessToken, session?.user.id]);
 
   useEffect(() => {
     if (!selectedLeagueId) {

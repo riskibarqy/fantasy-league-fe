@@ -8,4 +8,9 @@ export type Fixture = {
   awayTeamLogoUrl?: string;
   kickoffAt: string;
   venue: string;
+  homeScore?: number;
+  awayScore?: number;
+  status?: string;
+  winnerTeamId?: string;
+  finishedAt?: string;
 };

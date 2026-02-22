@@ -185,7 +185,7 @@ export const cacheTtlMs = {
 } as const;
 
 export const cacheKeys = {
-  dashboard: (): string => "dashboard",
+  dashboard: (userId: string): string => `dashboard:${userId.trim() || "anonymous"}`,
   leagues: (): string => "leagues",
   teams: (leagueId: string): string => `teams:${leagueId}`,
   fixtures: (leagueId: string): string => `fixtures:${leagueId}`,

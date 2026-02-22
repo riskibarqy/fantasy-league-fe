@@ -20,46 +20,11 @@ import type {
 } from "../../domain/fantasy/entities/CustomLeague";
 import { HttpClient, HttpError } from "../http/httpClient";
 
-type SquadPickDTO = {
-  player_id: string;
-  team_id: string;
-  position: Player["position"];
-  price: number;
-};
-
-type SquadDTO = {
-  id: string;
-  user_id: string;
-  league_id: string;
-  name: string;
-  budget_cap: number;
-  total_cost: number;
-  picks: SquadPickDTO[];
-  created_at_utc: string;
-  updated_at_utc: string;
-};
-
-type OnboardingProfileDTO = {
-  user_id: string;
-  favorite_league_id?: string;
-  favorite_team_id?: string;
-  country_code?: string;
-  ip_address?: string;
-  onboarding_completed: boolean;
-  updated_at_utc?: string;
-};
-
-type OnboardingCompleteResponseDTO = {
-  profile: OnboardingProfileDTO;
-  squad: SquadDTO;
-  lineup: unknown;
-};
-
 export class HttpFantasyRepository implements FantasyRepository {
   constructor(private readonly httpClient: HttpClient) {}
 
-  async getDashboard(): Promise<Dashboard> {
-    const payload = await this.httpClient.get<unknown>("/v1/dashboard");
+  async getDashboard(accessToken: string): Promise<Dashboard> {
+    const payload = await this.httpClient.get<unknown>("/v1/dashboard", this.authHeader(accessToken));
     return mapDashboard(payload);
   }
 
@@ -101,16 +66,18 @@ export class HttpFantasyRepository implements FantasyRepository {
   }
 
   async saveLineup(lineup: TeamLineup, accessToken?: string): Promise<TeamLineup> {
-    return this.httpClient.put<TeamLineup, TeamLineup>(
+    const payload = await this.httpClient.put<TeamLineup, unknown>(
       `/v1/leagues/${lineup.leagueId}/lineup`,
       lineup,
       this.authHeaderIfPresent(accessToken)
     );
+
+    return mapLineup(payload, lineup.leagueId) ?? lineup;
   }
 
   async getMySquad(leagueId: string, accessToken: string): Promise<Squad | null> {
     try {
-      const data = await this.httpClient.get<SquadDTO>(
+      const data = await this.httpClient.get<unknown>(
         `/v1/fantasy/squads/me?league_id=${encodeURIComponent(leagueId)}`,
         this.authHeader(accessToken)
       );
@@ -128,7 +95,7 @@ export class HttpFantasyRepository implements FantasyRepository {
   async pickSquad(input: PickSquadInput, accessToken: string): Promise<Squad> {
     const data = await this.httpClient.post<
       { league_id: string; squad_name?: string; player_ids: string[] },
-      SquadDTO
+      unknown
     >(
       "/v1/fantasy/squads/picks",
       {
@@ -148,7 +115,7 @@ export class HttpFantasyRepository implements FantasyRepository {
   ): Promise<OnboardingProfile> {
     const data = await this.httpClient.put<
       { league_id: string; team_id: string },
-      OnboardingProfileDTO
+      unknown
     >(
       "/v1/onboarding/favorite-club",
       {
@@ -178,7 +145,7 @@ export class HttpFantasyRepository implements FantasyRepository {
         captain_id: string;
         vice_captain_id: string;
       },
-      OnboardingCompleteResponseDTO
+      unknown
     >(
       "/v1/onboarding/pick-squad",
       {
@@ -196,20 +163,29 @@ export class HttpFantasyRepository implements FantasyRepository {
       this.authHeader(accessToken)
     );
 
+    const response = asRecord(data) ?? {};
+
     return {
-      profile: mapOnboardingProfileDTO(data.profile),
-      squad: mapSquadDTO(data.squad),
-      lineup: mapLineup(data.lineup, input.leagueId) ?? input.lineup
+      profile: mapOnboardingProfileDTO(response.profile),
+      squad: mapSquadDTO(response.squad),
+      lineup: mapLineup(response.lineup, input.leagueId) ?? input.lineup
     };
   }
 
   async getMyCustomLeagues(accessToken: string): Promise<CustomLeague[]> {
-    const data = await this.httpClient.get<unknown>(
-      "/v1/custom-leagues/me",
-      this.authHeader(accessToken)
-    );
+    const headers = this.authHeader(accessToken);
+    try {
+      const data = await this.httpClient.get<unknown>("/v1/custom-leagues/me", headers);
+      return mapCustomLeagues(data);
+    } catch (error) {
+      // Backward compatibility for deployments that expose only /v1/custom-leagues.
+      if (!(error instanceof HttpError) || (error.statusCode !== 404 && error.statusCode !== 405)) {
+        throw error;
+      }
+    }
 
-    return mapCustomLeagues(data);
+    const fallbackData = await this.httpClient.get<unknown>("/v1/custom-leagues", headers);
+    return mapCustomLeagues(fallbackData);
   }
 
   async createCustomLeague(input: CreateCustomLeagueInput, accessToken: string): Promise<CustomLeague> {
@@ -292,38 +268,46 @@ export class HttpFantasyRepository implements FantasyRepository {
   }
 }
 
-const mapSquadDTO = (data: SquadDTO): Squad => {
+const mapSquadDTO = (payload: unknown): Squad => {
+  const data = asRecord(payload) ?? {};
+
   const normalizeBudgetValue = (value: number): number => {
     return Number((value / 10).toFixed(1));
   };
 
+  const picks = readArray(data, "picks").map((item) => {
+    const pickRecord = asRecord(item) ?? {};
+    return {
+      playerId: readString(pickRecord, "player_id", "playerId"),
+      teamId: readString(pickRecord, "team_id", "teamId"),
+      position: normalizePosition(readString(pickRecord, "position")),
+      price: normalizeBudgetValue(readNumber(pickRecord, "price"))
+    };
+  });
+
   return {
-    id: data.id,
-    userId: data.user_id,
-    leagueId: data.league_id,
-    name: data.name,
-    budgetCap: normalizeBudgetValue(data.budget_cap),
-    totalCost: normalizeBudgetValue(data.total_cost),
-    picks: data.picks.map((pick) => ({
-      playerId: pick.player_id,
-      teamId: pick.team_id,
-      position: pick.position,
-      price: normalizeBudgetValue(pick.price)
-    })),
-    createdAtUtc: data.created_at_utc,
-    updatedAtUtc: data.updated_at_utc
+    id: readString(data, "id", "public_id"),
+    userId: readString(data, "user_id", "userId"),
+    leagueId: readString(data, "league_id", "leagueId"),
+    name: readString(data, "name"),
+    budgetCap: normalizeBudgetValue(readNumber(data, "budget_cap", "budgetCap")),
+    totalCost: normalizeBudgetValue(readNumber(data, "total_cost", "totalCost")),
+    picks: picks.filter((pick) => pick.playerId && pick.teamId),
+    createdAtUtc: readString(data, "created_at_utc", "createdAtUtc"),
+    updatedAtUtc: readString(data, "updated_at_utc", "updatedAtUtc")
   };
 };
 
-const mapOnboardingProfileDTO = (data: OnboardingProfileDTO): OnboardingProfile => {
+const mapOnboardingProfileDTO = (payload: unknown): OnboardingProfile => {
+  const data = asRecord(payload) ?? {};
   return {
-    userId: data.user_id,
-    favoriteLeagueId: data.favorite_league_id || undefined,
-    favoriteTeamId: data.favorite_team_id || undefined,
-    countryCode: data.country_code || undefined,
-    ipAddress: data.ip_address || undefined,
-    onboardingCompleted: data.onboarding_completed,
-    updatedAtUtc: data.updated_at_utc || undefined
+    userId: readString(data, "user_id", "userId"),
+    favoriteLeagueId: readString(data, "favorite_league_id", "favoriteLeagueId") || undefined,
+    favoriteTeamId: readString(data, "favorite_team_id", "favoriteTeamId") || undefined,
+    countryCode: readString(data, "country_code", "countryCode") || undefined,
+    ipAddress: readString(data, "ip_address", "ipAddress") || undefined,
+    onboardingCompleted: readBoolean(data, "onboarding_completed", "onboardingCompleted"),
+    updatedAtUtc: readString(data, "updated_at_utc", "updatedAtUtc") || undefined
   };
 };
 
@@ -382,7 +366,7 @@ const mapCustomLeague = (payload: unknown): CustomLeague => {
 };
 
 const mapCustomLeagues = (payload: unknown): CustomLeague[] => {
-  return toArray(payload)
+  return toArrayFromPayload(payload, ["items", "leagues", "customLeagues", "results"])
     .map((item) => {
       try {
         return mapCustomLeague(item);
@@ -427,7 +411,7 @@ const mapCustomLeagueStanding = (payload: unknown): CustomLeagueStanding | null 
 };
 
 const mapCustomLeagueStandings = (payload: unknown): CustomLeagueStanding[] => {
-  return toArray(payload)
+  return toArrayFromPayload(payload, ["items", "standings", "results"])
     .map((item) => mapCustomLeagueStanding(item))
     .filter((item): item is CustomLeagueStanding => Boolean(item));
 };
@@ -532,8 +516,43 @@ const normalizePrice = (raw: number): number => {
   return Number(raw.toFixed(1));
 };
 
-const toArray = (value: unknown): unknown[] => {
-  return Array.isArray(value) ? value : [];
+const readArray = (record: Record<string, unknown>, ...keys: string[]): unknown[] => {
+  for (const key of keys) {
+    const value = record[key];
+    if (Array.isArray(value)) {
+      return value;
+    }
+  }
+
+  return [];
+};
+
+const toArrayFromPayload = (payload: unknown, keys: string[] = []): unknown[] => {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  const record = asRecord(payload);
+  if (!record) {
+    return [];
+  }
+
+  for (const key of keys) {
+    const value = record[key];
+    if (Array.isArray(value)) {
+      return value;
+    }
+  }
+
+  const fallbackKeys = ["items", "results", "list", "rows", "data"];
+  for (const key of fallbackKeys) {
+    const value = record[key];
+    if (Array.isArray(value)) {
+      return value;
+    }
+  }
+
+  return [];
 };
 
 const mapDashboard = (payload: unknown): Dashboard => {
@@ -550,7 +569,7 @@ const mapDashboard = (payload: unknown): Dashboard => {
 };
 
 const mapLeagues = (payload: unknown): League[] => {
-  return toArray(payload)
+  return toArrayFromPayload(payload, ["leagues", "items"])
     .map((item) => {
       const record = asRecord(item);
       if (!record) {
@@ -573,7 +592,7 @@ const mapLeagues = (payload: unknown): League[] => {
 };
 
 const mapTeams = (payload: unknown, fallbackLeagueId: string): Club[] => {
-  return toArray(payload)
+  return toArrayFromPayload(payload, ["teams", "items"])
     .map((item) => {
       const record = asRecord(item);
       if (!record) {
@@ -598,7 +617,7 @@ const mapTeams = (payload: unknown, fallbackLeagueId: string): Club[] => {
 };
 
 const mapFixtures = (payload: unknown): Fixture[] => {
-  return toArray(payload)
+  return toArrayFromPayload(payload, ["fixtures", "items"])
     .map((item) => {
       const record = asRecord(item);
       if (!record) {
@@ -630,13 +649,38 @@ const mapFixtures = (payload: unknown): Fixture[] => {
         fixture.awayTeamLogoUrl = awayTeamLogoUrl;
       }
 
+      const homeScore = readOptionalNumber(record, "homeScore", "home_score");
+      if (homeScore !== undefined) {
+        fixture.homeScore = homeScore;
+      }
+
+      const awayScore = readOptionalNumber(record, "awayScore", "away_score");
+      if (awayScore !== undefined) {
+        fixture.awayScore = awayScore;
+      }
+
+      const status = readString(record, "status");
+      if (status) {
+        fixture.status = status;
+      }
+
+      const winnerTeamId = readString(record, "winnerTeamId", "winner_team_id", "winner_team_public_id");
+      if (winnerTeamId) {
+        fixture.winnerTeamId = winnerTeamId;
+      }
+
+      const finishedAt = readString(record, "finishedAt", "finished_at");
+      if (finishedAt) {
+        fixture.finishedAt = finishedAt;
+      }
+
       return fixture;
     })
     .filter((item): item is Fixture => Boolean(item));
 };
 
 const mapPlayers = (payload: unknown, fallbackLeagueId: string): Player[] => {
-  return toArray(payload)
+  return toArrayFromPayload(payload, ["players", "items"])
     .map((item) => {
       const record = asRecord(item);
       if (!record) {
@@ -858,7 +902,7 @@ const mapPlayerStatistics = (record: Record<string, unknown> | null): PlayerStat
 };
 
 const mapPlayerHistory = (payload: unknown): PlayerMatchHistory[] => {
-  return toArray(payload)
+  return toArrayFromPayload(payload, ["history", "items"])
     .map((item) => {
       const record = asRecord(item);
       if (!record) {

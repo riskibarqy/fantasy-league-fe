@@ -18,7 +18,7 @@ import type {
 } from "../entities/CustomLeague";
 
 export interface FantasyRepository {
-  getDashboard(): Promise<Dashboard>;
+  getDashboard(accessToken: string): Promise<Dashboard>;
   getLeagues(): Promise<League[]>;
   getTeams(leagueId: string): Promise<Club[]>;
   getFixtures(leagueId: string): Promise<Fixture[]>;

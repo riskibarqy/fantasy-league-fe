@@ -33,7 +33,7 @@ const CUSTOM_LEAGUE_STANDING_STORAGE_KEY = "fantasy-mock-custom-league-standings
 const ONBOARDING_STORAGE_KEY = "fantasy-mock-onboarding-profiles";
 
 export class MockFantasyRepository implements FantasyRepository {
-  async getDashboard(): Promise<Dashboard> {
+  async getDashboard(_accessToken: string): Promise<Dashboard> {
     await delay(200);
     return mockDashboard;
   }
