@@ -1,6 +1,7 @@
 import type { FantasyRepository } from "../../domain/fantasy/repositories/FantasyRepository";
 import type { Dashboard, TeamLineup } from "../../domain/fantasy/entities/Team";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
+import type { FixtureDetails } from "../../domain/fantasy/entities/FixtureDetails";
 import type { League } from "../../domain/fantasy/entities/League";
 import type { Player } from "../../domain/fantasy/entities/Player";
 import type { PlayerDetails } from "../../domain/fantasy/entities/PlayerDetails";
@@ -51,6 +52,80 @@ export class MockFantasyRepository implements FantasyRepository {
   async getFixtures(leagueId: string): Promise<Fixture[]> {
     await delay(280);
     return mockFixtures.filter((fixture) => fixture.leagueId === leagueId);
+  }
+
+  async getFixtureDetails(leagueId: string, fixtureId: string): Promise<FixtureDetails> {
+    await delay(180);
+
+    const fixture = mockFixtures.find((item) => item.leagueId === leagueId && item.id === fixtureId);
+    if (!fixture) {
+      throw new Error("Fixture not found.");
+    }
+
+    const picks = mockPlayers.filter((player) => player.leagueId === leagueId).slice(0, 8);
+
+    return {
+      fixture,
+      teamStats: [
+        {
+          teamId: "home-team",
+          teamName: fixture.homeTeam,
+          possessionPct: 54,
+          shots: 13,
+          shotsOnTarget: 5,
+          corners: 6,
+          fouls: 11,
+          offsides: 2
+        },
+        {
+          teamId: "away-team",
+          teamName: fixture.awayTeam,
+          possessionPct: 46,
+          shots: 9,
+          shotsOnTarget: 3,
+          corners: 4,
+          fouls: 13,
+          offsides: 1
+        }
+      ],
+      playerStats: picks.map((player, index) => ({
+        playerId: player.id,
+        playerName: player.name,
+        teamId: index % 2 === 0 ? "home-team" : "away-team",
+        teamName: index % 2 === 0 ? fixture.homeTeam : fixture.awayTeam,
+        minutesPlayed: 90 - (index % 3) * 10,
+        goals: index === 0 ? 1 : 0,
+        assists: index === 1 ? 1 : 0,
+        cleanSheet: index % 2 === 0,
+        yellowCards: index === 4 ? 1 : 0,
+        redCards: 0,
+        saves: player.position === "GK" ? 4 : 0,
+        fantasyPoints: 8 - index
+      })),
+      events: [
+        {
+          eventId: 1,
+          fixtureId: fixture.id,
+          teamId: "home-team",
+          eventType: "goal",
+          detail: "Open play",
+          minute: 24,
+          extraMinute: 0,
+          playerId: picks[0]?.id,
+          assistPlayerId: picks[1]?.id
+        },
+        {
+          eventId: 2,
+          fixtureId: fixture.id,
+          teamId: "away-team",
+          eventType: "yellow_card",
+          detail: "Bad foul",
+          minute: 67,
+          extraMinute: 0,
+          playerId: picks[4]?.id
+        }
+      ]
+    };
   }
 
   async getPlayers(leagueId: string): Promise<Player[]> {

@@ -178,6 +178,7 @@ export const cacheTtlMs = {
   leagues: 5 * 60_000,
   teams: 5 * 60_000,
   fixtures: 2 * 60_000,
+  fixtureDetails: 2 * 60_000,
   players: 3 * 60_000,
   playerDetails: 3 * 60_000,
   customLeagues: 60_000,
@@ -189,6 +190,8 @@ export const cacheKeys = {
   leagues: (): string => "leagues",
   teams: (leagueId: string): string => `teams:${leagueId}`,
   fixtures: (leagueId: string): string => `fixtures:${leagueId}`,
+  fixtureDetails: (leagueId: string, fixtureId: string): string =>
+    `fixture-details:${leagueId}:${fixtureId}`,
   players: (leagueId: string): string => `players:${leagueId}`,
   playerDetails: (leagueId: string, playerId: string): string => `player-details:${leagueId}:${playerId}`,
   customLeagues: (userId: string): string => `custom-leagues:${userId}`,

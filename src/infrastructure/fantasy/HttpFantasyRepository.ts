@@ -1,6 +1,12 @@
 import type { FantasyRepository } from "../../domain/fantasy/repositories/FantasyRepository";
 import type { Dashboard, TeamLineup } from "../../domain/fantasy/entities/Team";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
+import type {
+  FixtureDetails,
+  FixtureEvent,
+  FixturePlayerStats,
+  FixtureTeamStats
+} from "../../domain/fantasy/entities/FixtureDetails";
 import type { League } from "../../domain/fantasy/entities/League";
 import type { Player } from "../../domain/fantasy/entities/Player";
 import type { PlayerDetails, PlayerExtraInfo, PlayerMatchHistory, PlayerProfile, PlayerStatistics } from "../../domain/fantasy/entities/PlayerDetails";
@@ -43,6 +49,13 @@ export class HttpFantasyRepository implements FantasyRepository {
   async getFixtures(leagueId: string): Promise<Fixture[]> {
     const payload = await this.httpClient.get<unknown>(`/v1/leagues/${leagueId}/fixtures`);
     return mapFixtures(payload);
+  }
+
+  async getFixtureDetails(leagueId: string, fixtureId: string): Promise<FixtureDetails> {
+    const payload = await this.httpClient.get<unknown>(
+      `/v1/leagues/${encodeURIComponent(leagueId)}/fixtures/${encodeURIComponent(fixtureId)}`
+    );
+    return mapFixtureDetails(payload, leagueId, fixtureId);
   }
 
   async getPlayers(leagueId: string): Promise<Player[]> {
@@ -527,6 +540,19 @@ const readArray = (record: Record<string, unknown>, ...keys: string[]): unknown[
   return [];
 };
 
+const toArrayFromValue = (value: unknown): unknown[] => {
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  const record = asRecord(value);
+  if (!record) {
+    return [];
+  }
+
+  return toArrayFromPayload(record);
+};
+
 const toArrayFromPayload = (payload: unknown, keys: string[] = []): unknown[] => {
   if (Array.isArray(payload)) {
     return payload;
@@ -624,59 +650,177 @@ const mapFixtures = (payload: unknown): Fixture[] => {
         return null;
       }
 
-      const id = readString(record, "id", "public_id");
-      if (!id) {
-        return null;
-      }
-
-      const fixture: Fixture = {
-        id,
-        leagueId: readString(record, "leagueId", "league_id", "league_public_id"),
-        gameweek: readNumber(record, "gameweek"),
-        homeTeam: readString(record, "homeTeam", "home_team"),
-        awayTeam: readString(record, "awayTeam", "away_team"),
-        kickoffAt: readString(record, "kickoffAt", "kickoff_at"),
-        venue: readString(record, "venue")
-      };
-
-      const homeTeamLogoUrl = readString(record, "homeTeamLogoUrl", "home_team_logo_url");
-      if (homeTeamLogoUrl) {
-        fixture.homeTeamLogoUrl = homeTeamLogoUrl;
-      }
-
-      const awayTeamLogoUrl = readString(record, "awayTeamLogoUrl", "away_team_logo_url");
-      if (awayTeamLogoUrl) {
-        fixture.awayTeamLogoUrl = awayTeamLogoUrl;
-      }
-
-      const homeScore = readOptionalNumber(record, "homeScore", "home_score");
-      if (homeScore !== undefined) {
-        fixture.homeScore = homeScore;
-      }
-
-      const awayScore = readOptionalNumber(record, "awayScore", "away_score");
-      if (awayScore !== undefined) {
-        fixture.awayScore = awayScore;
-      }
-
-      const status = readString(record, "status");
-      if (status) {
-        fixture.status = status;
-      }
-
-      const winnerTeamId = readString(record, "winnerTeamId", "winner_team_id", "winner_team_public_id");
-      if (winnerTeamId) {
-        fixture.winnerTeamId = winnerTeamId;
-      }
-
-      const finishedAt = readString(record, "finishedAt", "finished_at");
-      if (finishedAt) {
-        fixture.finishedAt = finishedAt;
-      }
-
-      return fixture;
+      return mapFixtureFromRecord(record);
     })
     .filter((item): item is Fixture => Boolean(item));
+};
+
+const mapFixtureFromRecord = (
+  record: Record<string, unknown>,
+  fallbackLeagueId = "",
+  fallbackFixtureId = ""
+): Fixture | null => {
+  const id = readString(record, "id", "public_id") || fallbackFixtureId;
+  if (!id) {
+    return null;
+  }
+
+  const fixture: Fixture = {
+    id,
+    leagueId: readString(record, "leagueId", "league_id", "league_public_id") || fallbackLeagueId,
+    gameweek: readNumber(record, "gameweek"),
+    homeTeam: readString(record, "homeTeam", "home_team"),
+    awayTeam: readString(record, "awayTeam", "away_team"),
+    kickoffAt: readString(record, "kickoffAt", "kickoff_at"),
+    venue: readString(record, "venue")
+  };
+
+  const homeTeamLogoUrl = readString(record, "homeTeamLogoUrl", "home_team_logo_url");
+  if (homeTeamLogoUrl) {
+    fixture.homeTeamLogoUrl = homeTeamLogoUrl;
+  }
+
+  const awayTeamLogoUrl = readString(record, "awayTeamLogoUrl", "away_team_logo_url");
+  if (awayTeamLogoUrl) {
+    fixture.awayTeamLogoUrl = awayTeamLogoUrl;
+  }
+
+  const homeScore = readOptionalNumber(record, "homeScore", "home_score");
+  if (homeScore !== undefined) {
+    fixture.homeScore = homeScore;
+  }
+
+  const awayScore = readOptionalNumber(record, "awayScore", "away_score");
+  if (awayScore !== undefined) {
+    fixture.awayScore = awayScore;
+  }
+
+  const status = readString(record, "status");
+  if (status) {
+    fixture.status = status;
+  }
+
+  const winnerTeamId = readString(record, "winnerTeamId", "winner_team_id", "winner_team_public_id");
+  if (winnerTeamId) {
+    fixture.winnerTeamId = winnerTeamId;
+  }
+
+  const finishedAt = readString(record, "finishedAt", "finished_at");
+  if (finishedAt) {
+    fixture.finishedAt = finishedAt;
+  }
+
+  return fixture;
+};
+
+const mapFixtureDetails = (
+  payload: unknown,
+  fallbackLeagueId: string,
+  fallbackFixtureId: string
+): FixtureDetails => {
+  const root = asRecord(payload);
+  if (!root) {
+    throw new Error("Invalid fixture details payload.");
+  }
+
+  const fixtureRecord = asRecord(root.fixture) ?? root;
+  const fixture =
+    (fixtureRecord ? mapFixtureFromRecord(fixtureRecord, fallbackLeagueId, fallbackFixtureId) : null) ??
+    ({
+      id: fallbackFixtureId,
+      leagueId: fallbackLeagueId,
+      gameweek: 0,
+      homeTeam: "Home",
+      awayTeam: "Away",
+      kickoffAt: "",
+      venue: "-"
+    } satisfies Fixture);
+
+  const teamStats = toArrayFromValue(root.teamStats ?? root.team_stats)
+    .map((item) => mapFixtureTeamStats(item))
+    .filter((item): item is FixtureTeamStats => Boolean(item));
+  const playerStats = toArrayFromValue(root.playerStats ?? root.player_stats)
+    .map((item) => mapFixturePlayerStats(item))
+    .filter((item): item is FixturePlayerStats => Boolean(item));
+  const events = toArrayFromValue(root.events)
+    .map((item) => mapFixtureEvent(item, fixture.id))
+    .filter((item): item is FixtureEvent => Boolean(item));
+
+  return {
+    fixture,
+    teamStats,
+    playerStats,
+    events
+  };
+};
+
+const mapFixtureTeamStats = (payload: unknown): FixtureTeamStats | null => {
+  const record = asRecord(payload);
+  if (!record) {
+    return null;
+  }
+
+  const teamId = readString(record, "teamId", "team_id");
+  if (!teamId) {
+    return null;
+  }
+
+  return {
+    teamId,
+    teamName: readString(record, "teamName", "team_name") || undefined,
+    possessionPct: readNumber(record, "possessionPct", "possession_pct"),
+    shots: readNumber(record, "shots"),
+    shotsOnTarget: readNumber(record, "shotsOnTarget", "shots_on_target"),
+    corners: readNumber(record, "corners"),
+    fouls: readNumber(record, "fouls"),
+    offsides: readNumber(record, "offsides")
+  };
+};
+
+const mapFixturePlayerStats = (payload: unknown): FixturePlayerStats | null => {
+  const record = asRecord(payload);
+  if (!record) {
+    return null;
+  }
+
+  const playerId = readString(record, "playerId", "player_id");
+  if (!playerId) {
+    return null;
+  }
+
+  return {
+    playerId,
+    playerName: readString(record, "playerName", "player_name") || undefined,
+    teamId: readString(record, "teamId", "team_id"),
+    teamName: readString(record, "teamName", "team_name") || undefined,
+    minutesPlayed: readNumber(record, "minutesPlayed", "minutes_played"),
+    goals: readNumber(record, "goals"),
+    assists: readNumber(record, "assists"),
+    cleanSheet: readBoolean(record, "cleanSheet", "clean_sheet"),
+    yellowCards: readNumber(record, "yellowCards", "yellow_cards"),
+    redCards: readNumber(record, "redCards", "red_cards"),
+    saves: readNumber(record, "saves"),
+    fantasyPoints: readNumber(record, "fantasyPoints", "fantasy_points")
+  };
+};
+
+const mapFixtureEvent = (payload: unknown, fixtureIDFallback: string): FixtureEvent | null => {
+  const record = asRecord(payload);
+  if (!record) {
+    return null;
+  }
+
+  return {
+    eventId: readNumber(record, "eventId", "event_id"),
+    fixtureId: readString(record, "fixtureId", "fixture_id") || fixtureIDFallback,
+    teamId: readString(record, "teamId", "team_id") || undefined,
+    playerId: readString(record, "playerId", "player_id") || undefined,
+    assistPlayerId: readString(record, "assistPlayerId", "assist_player_id") || undefined,
+    eventType: readString(record, "eventType", "event_type"),
+    detail: readString(record, "detail") || undefined,
+    minute: readNumber(record, "minute"),
+    extraMinute: readNumber(record, "extraMinute", "extra_minute")
+  };
 };
 
 const mapPlayers = (payload: unknown, fallbackLeagueId: string): Player[] => {

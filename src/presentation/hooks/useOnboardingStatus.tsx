@@ -18,6 +18,10 @@ const writeCompletedMarker = (userId: string): void => {
   localStorage.setItem(onboardingStorageKey(userId), "true");
 };
 
+const clearCompletedMarker = (userId: string): void => {
+  localStorage.removeItem(onboardingStorageKey(userId));
+};
+
 export const markOnboardingCompleted = (userId: string): void => {
   const id = userId.trim();
   if (!id) {
@@ -60,12 +64,6 @@ export const useOnboardingStatus = () => {
       return;
     }
 
-    if (readCompletedMarker(userId)) {
-      setStatus("completed");
-      setErrorMessage(null);
-      return;
-    }
-
     if (isLeaguesLoading) {
       return;
     }
@@ -95,7 +93,9 @@ export const useOnboardingStatus = () => {
         (result) => result.status === "fulfilled" && Boolean(result.value)
       );
       if (hasSquad) {
-        markOnboardingCompleted(userId);
+        if (!readCompletedMarker(userId)) {
+          markOnboardingCompleted(userId);
+        }
         setStatus("completed");
         setErrorMessage(null);
         return;
@@ -108,6 +108,7 @@ export const useOnboardingStatus = () => {
         return;
       }
 
+      clearCompletedMarker(userId);
       setStatus("required");
       setErrorMessage(null);
     };

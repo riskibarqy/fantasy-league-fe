@@ -8,10 +8,14 @@ export const FixtureCard = ({ fixture }: { fixture: Fixture }) => {
     hour: "2-digit",
     minute: "2-digit"
   });
+  const hasScore = typeof fixture.homeScore === "number" && typeof fixture.awayScore === "number";
+  const scoreline = hasScore ? `${fixture.homeScore}-${fixture.awayScore}` : "vs";
+  const status = fixture.status?.trim() || "SCHEDULED";
 
   return (
     <article className="card fixture-card">
       <p className="muted">GW {fixture.gameweek}</p>
+      <div className="fixture-scoreline">{scoreline}</div>
       <div className="fixture-team-lines">
         <div className="media-line">
           {fixture.homeTeamLogoUrl ? (
@@ -39,6 +43,7 @@ export const FixtureCard = ({ fixture }: { fixture: Fixture }) => {
         </div>
       </div>
       <p>{fixture.venue}</p>
+      <p className="small-label">{status}</p>
       <p className="small-label">{kickOff} WIB</p>
     </article>
   );

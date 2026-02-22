@@ -18,6 +18,9 @@ const CustomLeaguesPage = lazy(() =>
 const FixturesPage = lazy(() =>
   import("../presentation/pages/FixturesPage").then((module) => ({ default: module.FixturesPage }))
 );
+const FixtureDetailsPage = lazy(() =>
+  import("../presentation/pages/FixtureDetailsPage").then((module) => ({ default: module.FixtureDetailsPage }))
+);
 const LeaguesPage = lazy(() =>
   import("../presentation/pages/LeaguesPage").then((module) => ({ default: module.LeaguesPage }))
 );
@@ -127,6 +130,7 @@ export const AppRouter = () => {
               <Route path="/custom-leagues/:groupId" element={<CustomLeagueStandingsPage />} />
               <Route path="/news" element={<NewsPage />} />
               <Route path="/fixtures" element={<FixturesPage />} />
+              <Route path="/fixtures/:fixtureId" element={<FixtureDetailsPage />} />
               <Route path="/leagues" element={<LeaguesPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>

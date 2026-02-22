@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import { cacheKeys, cacheTtlMs, getOrLoadCached } from "../../app/cache/requestCache";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
@@ -267,7 +268,13 @@ export const FixturesPage = () => {
         <div className="fixtures-list">
           {!isFixturesLoading && fixtures.length === 0 ? <p className="muted">No fixtures found.</p> : null}
           {(activeGameweekGroup?.items ?? []).map((fixture) => (
-            <FixtureCard key={fixture.id} fixture={fixture} />
+            <Link
+              key={fixture.id}
+              to={`/fixtures/${encodeURIComponent(fixture.id)}?leagueId=${encodeURIComponent(selectedLeagueId)}`}
+              className="fixture-card-link"
+            >
+              <FixtureCard fixture={fixture} />
+            </Link>
           ))}
         </div>
       </Card>

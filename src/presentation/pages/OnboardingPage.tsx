@@ -15,6 +15,7 @@ import { LoadingState } from "../components/LoadingState";
 import { useLeagueSelection } from "../hooks/useLeagueSelection";
 import { markOnboardingCompleted } from "../hooks/useOnboardingStatus";
 import { useSession } from "../hooks/useSession";
+import { HttpError } from "../../infrastructure/http/httpClient";
 import { appAlert } from "../lib/appAlert";
 import {
   consumePickerResult,
@@ -45,6 +46,9 @@ const FORMATION_MAX_SLOTS = {
   FWD: FORMATION_LIMITS.FWD.max
 } as const;
 const OUTFIELD_STARTER_SIZE = STARTER_SIZE - 1;
+const API_READY_MAX_ATTEMPTS = 6;
+const API_READY_BASE_DELAY_MS = 600;
+const API_READY_MAX_DELAY_MS = 4_000;
 
 const shortName = (name: string): string => {
   const words = name.trim().split(" ");
@@ -96,10 +100,10 @@ const sanitizeStarterIds = (ids: string[], max: number): string[] => {
 };
 
 const normalizeBenchIds = (ids: string[]): string[] => {
-  return [...ids.filter(Boolean).slice(0, SUBSTITUTE_SIZE), ...Array.from({ length: SUBSTITUTE_SIZE }, () => "")].slice(
-    0,
-    SUBSTITUTE_SIZE
-  );
+  return Array.from({ length: SUBSTITUTE_SIZE }, (_, index) => {
+    const value = ids[index];
+    return typeof value === "string" ? value.trim() : "";
+  });
 };
 
 const upsertStarterId = (ids: string[], index: number, playerId: string, max: number): string[] => {
@@ -368,6 +372,58 @@ const scrollElementToViewportCenter = (element: HTMLElement) => {
   });
 };
 
+const delay = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+
+const isTransientOnboardingApiError = (error: unknown): boolean => {
+  if (error instanceof HttpError) {
+    return [408, 425, 429, 500, 502, 503, 504].includes(error.statusCode);
+  }
+
+  if (error instanceof Error) {
+    const message = error.message.toLowerCase();
+    return (
+      message.includes("failed to fetch") ||
+      message.includes("networkerror") ||
+      message.includes("network request failed") ||
+      message.includes("timeout") ||
+      message.includes("not ready")
+    );
+  }
+
+  return false;
+};
+
+const retryWhenOnboardingApiNotReady = async <T,>(
+  operation: (attempt: number) => Promise<T>,
+  onRetry?: (attempt: number, maxAttempts: number, delayMs: number) => void
+): Promise<T> => {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= API_READY_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      return await operation(attempt);
+    } catch (error) {
+      lastError = error;
+      const shouldRetry = attempt < API_READY_MAX_ATTEMPTS && isTransientOnboardingApiError(error);
+      if (!shouldRetry) {
+        throw error;
+      }
+
+      const delayMs = Math.min(
+        API_READY_BASE_DELAY_MS * 2 ** (attempt - 1),
+        API_READY_MAX_DELAY_MS
+      );
+      onRetry?.(attempt, API_READY_MAX_ATTEMPTS, delayMs);
+      await delay(delayMs);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Onboarding API is not ready yet.");
+};
+
 export const OnboardingPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -437,20 +493,47 @@ export const OnboardingPage = () => {
 
     const load = async () => {
       try {
-        const [teamsResult, playersResult] = await Promise.all([
-          getOrLoadCached({
-            key: cacheKeys.teams(leagueId),
-            ttlMs: cacheTtlMs.teams,
-            loader: () => getTeams.execute(leagueId),
-            allowStaleOnError: true
-          }),
-          getOrLoadCached({
-            key: cacheKeys.players(leagueId),
-            ttlMs: cacheTtlMs.players,
-            loader: () => getPlayers.execute(leagueId),
-            allowStaleOnError: true
-          })
-        ]);
+        const [teamsResult, playersResult] = await retryWhenOnboardingApiNotReady(
+          async (attempt) => {
+            const [loadedTeams, loadedPlayers] = await Promise.all([
+              getOrLoadCached({
+                key: cacheKeys.teams(leagueId),
+                ttlMs: cacheTtlMs.teams,
+                loader: () => getTeams.execute(leagueId),
+                allowStaleOnError: false,
+                forceRefresh: attempt > 1
+              }),
+              getOrLoadCached({
+                key: cacheKeys.players(leagueId),
+                ttlMs: cacheTtlMs.players,
+                loader: () => getPlayers.execute(leagueId),
+                allowStaleOnError: false,
+                forceRefresh: attempt > 1
+              })
+            ]);
+
+            if (loadedTeams.length === 0 || loadedPlayers.length === 0) {
+              throw new Error("Onboarding API not ready yet.");
+            }
+
+            return [loadedTeams, loadedPlayers] as const;
+          },
+          (attempt, maxAttempts, delayMs) => {
+            if (!mounted) {
+              return;
+            }
+
+            if (attempt > 1) {
+              return;
+            }
+
+            setInfoMessage(
+              `Preparing onboarding data (${attempt}/${maxAttempts}). Retrying in ${Math.ceil(
+                delayMs / 1000
+              )}s...`
+            );
+          }
+        );
 
         if (!mounted) {
           return;
@@ -458,6 +541,7 @@ export const OnboardingPage = () => {
 
         setTeams(teamsResult);
         setPlayers(playersResult);
+        setInfoMessage(null);
 
         setSelectedTeamId((previous) =>
           teamsResult.some((team) => team.id === previous) ? previous : teamsResult[0]?.id ?? ""
@@ -531,6 +615,17 @@ export const OnboardingPage = () => {
       return;
     }
 
+    if (result.target.zone === "BENCH") {
+      const requiredBenchPosition = BENCH_SLOT_POSITIONS[result.target.index];
+      if (requiredBenchPosition && pickedPlayer.position !== requiredBenchPosition) {
+        setErrorMessage(`Bench slot ${result.target.index + 1} requires ${requiredBenchPosition}.`);
+        return;
+      }
+    } else if (pickedPlayer.position !== result.target.zone) {
+      setErrorMessage(`Invalid slot pick: this slot requires ${result.target.zone}.`);
+      return;
+    }
+
     const nextDraft = setSlotPlayerId(lineupDraft, result.target.zone, result.target.index, result.playerId);
     const nextIds = toSelectedPlayerIds(nextDraft);
     const uniqueIds = new Set(nextIds);
@@ -566,6 +661,40 @@ export const OnboardingPage = () => {
     setInfoMessage(`${pickedPlayer.name} selected.`);
     recenterToPitch();
   }, [leagueId, lineupDraft, playersById, userScope]);
+
+  useEffect(() => {
+    if (!lineupDraft || playersById.size === 0) {
+      return;
+    }
+
+    const nextBenchIds = [...lineupDraft.substituteIds];
+    let changed = false;
+
+    for (let index = 0; index < SUBSTITUTE_SIZE; index += 1) {
+      const playerId = nextBenchIds[index];
+      if (!playerId) {
+        continue;
+      }
+
+      const requiredPosition = BENCH_SLOT_POSITIONS[index];
+      const player = playersById.get(playerId);
+      if (!player || (requiredPosition && player.position !== requiredPosition)) {
+        nextBenchIds[index] = "";
+        changed = true;
+      }
+    }
+
+    if (!changed) {
+      return;
+    }
+
+    setLineupDraft({
+      ...lineupDraft,
+      substituteIds: normalizeBenchIds(nextBenchIds),
+      updatedAt: new Date().toISOString()
+    });
+    setInfoMessage("Bench slots were adjusted to GK/DEF/MID/FWD.");
+  }, [lineupDraft, playersById]);
 
   const selectedPlayerIds = useMemo(() => toSelectedPlayerIds(lineupDraft), [lineupDraft]);
 
@@ -775,31 +904,59 @@ export const OnboardingPage = () => {
         starterIds.find((id) => id !== captainId) ??
         "";
 
-      await saveOnboardingFavoriteClub.execute(
-        {
-          leagueId,
-          teamId: selectedTeamId
-        },
-        accessToken
+      await retryWhenOnboardingApiNotReady(
+        () =>
+          saveOnboardingFavoriteClub.execute(
+            {
+              leagueId,
+              teamId: selectedTeamId
+            },
+            accessToken
+          ),
+        (attempt, maxAttempts, delayMs) => {
+          if (attempt > 1) {
+            return;
+          }
+
+          setInfoMessage(
+            `Saving favorite club (${attempt}/${maxAttempts}). Retrying in ${Math.ceil(
+              delayMs / 1000
+            )}s...`
+          );
+        }
       );
 
-      await completeOnboarding.execute(
-        {
-          leagueId,
-          squadName: squadName.trim(),
-          playerIds: selectedPlayerIds,
-          lineup: {
-            ...lineupDraft,
-            defenderIds: lineupDraft.defenderIds.filter(Boolean),
-            midfielderIds: lineupDraft.midfielderIds.filter(Boolean),
-            forwardIds: lineupDraft.forwardIds.filter(Boolean),
-            substituteIds: lineupDraft.substituteIds.filter(Boolean),
-            captainId,
-            viceCaptainId,
-            updatedAt: new Date().toISOString()
+      await retryWhenOnboardingApiNotReady(
+        () =>
+          completeOnboarding.execute(
+            {
+              leagueId,
+              squadName: squadName.trim(),
+              playerIds: selectedPlayerIds,
+              lineup: {
+                ...lineupDraft,
+                defenderIds: lineupDraft.defenderIds.filter(Boolean),
+                midfielderIds: lineupDraft.midfielderIds.filter(Boolean),
+                forwardIds: lineupDraft.forwardIds.filter(Boolean),
+                substituteIds: lineupDraft.substituteIds.slice(0, SUBSTITUTE_SIZE),
+                captainId,
+                viceCaptainId,
+                updatedAt: new Date().toISOString()
+              }
+            },
+            accessToken
+          ),
+        (attempt, maxAttempts, delayMs) => {
+          if (attempt > 1) {
+            return;
           }
-        },
-        accessToken
+
+          setInfoMessage(
+            `Finalizing onboarding (${attempt}/${maxAttempts}). Retrying in ${Math.ceil(
+              delayMs / 1000
+            )}s...`
+          );
+        }
       );
 
       setSelectedLeagueId(leagueId);

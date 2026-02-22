@@ -434,6 +434,22 @@ button:disabled {
   box-shadow: none;
 }
 
+.fixture-card-link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.fixture-scoreline {
+  justify-self: end;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in oklab, var(--surface-soft) 65%, var(--surface));
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+
 .fixture-team-lines {
   display: grid;
   gap: 0.22rem;
@@ -487,6 +503,135 @@ button:disabled {
   border-color: transparent;
   background: linear-gradient(120deg, var(--brand-cyan) 0%, var(--brand-pink) 100%);
   color: #fff;
+}
+
+.fixture-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.fixture-detail-scoreboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--surface-soft) 70%, var(--surface));
+}
+
+.fixture-score-team {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.fixture-score-team:last-child {
+  justify-content: flex-end;
+}
+
+.fixture-score-number {
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.fixture-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.8rem;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.fixture-detail-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.fixture-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.fixture-detail-card {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.fixture-detail-table-wrap {
+  overflow-x: auto;
+}
+
+.fixture-detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.fixture-detail-table th,
+.fixture-detail-table td {
+  padding: 0.38rem 0.44rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.fixture-detail-table th {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.fixture-top-player-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.fixture-top-player-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.45rem 0.55rem;
+  background: var(--surface-soft);
+}
+
+.fixture-player-points {
+  font-weight: 700;
+}
+
+.fixture-events-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.fixture-events-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.6rem;
+  align-items: start;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.45rem 0.55rem;
+}
+
+.fixture-event-minute {
+  font-weight: 700;
+  color: var(--accent);
 }
 
 .page-section {
@@ -2046,6 +2191,20 @@ button:disabled {
 
   .fixtures-gw-strip {
     grid-column: 1 / -1;
+  }
+
+  .fixture-detail-scoreboard {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+
+  .fixture-score-team,
+  .fixture-score-team:last-child {
+    justify-content: center;
+  }
+
+  .fixture-detail-grid {
+    grid-template-columns: 1fr;
   }
 
   .bench-grid {
