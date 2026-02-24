@@ -1590,11 +1590,22 @@ button:disabled {
 }
 
 .shirt {
+  position: relative;
+  display: grid;
+  place-items: center;
   width: 100%;
   height: 100%;
   clip-path: polygon(12% 12%, 30% 0%, 42% 12%, 58% 12%, 70% 0%, 88% 12%, 95% 36%, 82% 50%, 82% 100%, 18% 100%, 18% 50%, 5% 36%);
   border-radius: 8px;
   box-shadow: inset 0 -8px 12px rgba(0, 0, 0, 0.18);
+}
+
+.shirt-number {
+  font-size: 0.85rem;
+  font-weight: 900;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
 }
 
 .armband {

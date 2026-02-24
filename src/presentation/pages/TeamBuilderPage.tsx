@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeftRight, Clock3, Pickaxe, Sparkles, Trophy } from "lucide-react";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import { cacheKeys, cacheTtlMs, getOrLoadCached, peekCached } from "../../app/cache/requestCache";
+import type { Club } from "../../domain/fantasy/entities/Club";
 import type { Player } from "../../domain/fantasy/entities/Player";
 import type { PlayerDetails } from "../../domain/fantasy/entities/PlayerDetails";
 import type { TeamLineup } from "../../domain/fantasy/entities/Team";
@@ -66,6 +67,7 @@ const SUBSTITUTION_MIN_STARTERS = {
   MID: 3,
   FWD: 1
 } as const;
+const DEFAULT_TEAM_COLOR_PAIR: [string, string] = ["#3A4250", "#A3ACBA"];
 
 const sanitizeStarterIds = (ids: string[], max: number): string[] => {
   return ids.filter(Boolean).slice(0, max);
@@ -314,29 +316,43 @@ const hashString = (value: string): number => {
   return Math.abs(hash);
 };
 
-const shirtBackgroundForClub = (club: string): string => {
-  const palette: Array<[string, string, string]> = [
-    ["#233d9d", "#5d8dff", "#f1f4ff"],
-    ["#a6162f", "#e44c62", "#ffd7de"],
-    ["#111e2d", "#f0f0f0", "#ffe16b"],
-    ["#1a8b72", "#64cfb8", "#d8fff5"],
-    ["#5c2d87", "#8f5bc0", "#f2e7ff"],
-    ["#b11e1a", "#ff645e", "#ffe6e5"]
-  ];
+const normalizeTeamKey = (value: string): string => value.trim().toLowerCase();
 
-  const seed = hashString(club);
-  const [primary, secondary, accent] = palette[seed % palette.length];
-  const pattern = seed % 3;
+const buildTeamColorIndex = (teams: Club[]): Map<string, [string, string]> => {
+  const index = new Map<string, [string, string]>();
 
-  if (pattern === 0) {
-    return `linear-gradient(180deg, ${primary} 0%, ${secondary} 100%)`;
+  for (const team of teams) {
+    if (!team.teamColor || team.teamColor.length < 2) {
+      continue;
+    }
+
+    const pair: [string, string] = [team.teamColor[0], team.teamColor[1]];
+    const keys = [team.id, team.name, team.short].map(normalizeTeamKey).filter(Boolean);
+    for (const key of keys) {
+      index.set(key, pair);
+    }
   }
 
-  if (pattern === 1) {
-    return `repeating-linear-gradient(90deg, ${primary} 0 14px, ${secondary} 14px 28px)`;
+  return index;
+};
+
+const resolveJerseyColorPair = (
+  player: Player,
+  teamColorIndex: Map<string, [string, string]>
+): [string, string] => {
+  if (player.teamColor && player.teamColor.length >= 2) {
+    return [player.teamColor[0], player.teamColor[1]];
   }
 
-  return `linear-gradient(135deg, ${primary} 0 42%, ${secondary} 42% 84%, ${accent} 84% 100%)`;
+  return teamColorIndex.get(normalizeTeamKey(player.club)) ?? DEFAULT_TEAM_COLOR_PAIR;
+};
+
+const jerseyBackgroundFromColors = ([primary, secondary]: [string, string]): string => {
+  return `linear-gradient(140deg, ${primary} 0 46%, ${secondary} 46% 100%)`;
+};
+
+const jerseyNumberFromPlayer = (playerId: string): string => {
+  return String((hashString(playerId) % 99) + 1);
 };
 
 const formatDeadline = (date: string | null): string => {
@@ -436,7 +452,8 @@ async function withRetry<T>(run: () => Promise<T>, retries: number): Promise<T> 
 
 export const TeamBuilderPage = () => {
   const navigate = useNavigate();
-  const { getPlayers, getPlayerDetails, getLineup, getDashboard, getFixtures, getMySquad, pickSquad, logout, saveLineup } = useContainer();
+  const { getPlayers, getTeams, getPlayerDetails, getLineup, getDashboard, getFixtures, getMySquad, pickSquad, logout, saveLineup } =
+    useContainer();
   const { leagues, selectedLeagueId, setSelectedLeagueId } = useLeagueSelection();
   const { session, setSession } = useSession();
   const userScope = session?.user.id ?? "";
@@ -445,6 +462,7 @@ export const TeamBuilderPage = () => {
 
   const [mode, setMode] = useState<TeamMode>("PAT");
   const [players, setPlayers] = useState<Player[]>([]);
+  const [teams, setTeams] = useState<Club[]>([]);
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [lineup, setLineup] = useState<TeamLineup | null>(null);
   const [gameweek, setGameweek] = useState<number | null>(null);
@@ -568,6 +586,7 @@ export const TeamBuilderPage = () => {
   }, [infoMessage]);
 
   const playersById = useMemo(() => new Map(players.map((player) => [player.id, player])), [players]);
+  const teamColorIndex = useMemo(() => buildTeamColorIndex(teams), [teams]);
 
   useEffect(() => {
     let mounted = true;
@@ -631,12 +650,17 @@ export const TeamBuilderPage = () => {
     setHasSubstitutionDraftChanges(false);
 
     const optimisticPlayers = peekCached<Player[]>(cacheKeys.players(selectedLeagueId), true) ?? [];
+    const optimisticTeams = peekCached<Club[]>(cacheKeys.teams(selectedLeagueId), true) ?? [];
     const optimisticFixtures = peekCached<Fixture[]>(cacheKeys.fixtures(selectedLeagueId), true) ?? [];
     const optimisticDraft = readLineupDraft(selectedLeagueId, userScope);
     const optimisticLineup = optimisticDraft ? normalizeLineup(selectedLeagueId, optimisticDraft) : null;
 
     if (optimisticPlayers.length > 0) {
       setPlayers(optimisticPlayers);
+    }
+
+    if (optimisticTeams.length > 0) {
+      setTeams(optimisticTeams);
     }
 
     if (optimisticFixtures.length > 0) {
@@ -688,12 +712,18 @@ export const TeamBuilderPage = () => {
           throw playersError instanceof Error ? playersError : new Error("Failed to load players.");
         }
 
-        const [lineupResultRaw, fixturesResultRaw] = await Promise.allSettled([
+        const [lineupResultRaw, fixturesResultRaw, teamsResultRaw] = await Promise.allSettled([
           getLineup.execute(selectedLeagueId, accessToken),
           getOrLoadCached({
             key: cacheKeys.fixtures(selectedLeagueId),
             ttlMs: cacheTtlMs.fixtures,
             loader: () => getFixtures.execute(selectedLeagueId),
+            allowStaleOnError: true
+          }),
+          getOrLoadCached({
+            key: cacheKeys.teams(selectedLeagueId),
+            ttlMs: cacheTtlMs.teams,
+            loader: () => getTeams.execute(selectedLeagueId),
             allowStaleOnError: true
           })
         ]);
@@ -716,8 +746,11 @@ export const TeamBuilderPage = () => {
           lineupResultRaw.status === "fulfilled" ? lineupResultRaw.value : null;
         const fixturesResult =
           fixturesResultRaw.status === "fulfilled" ? fixturesResultRaw.value : [];
+        const teamsResult =
+          teamsResultRaw.status === "fulfilled" ? teamsResultRaw.value : optimisticTeams;
 
         setPlayers(playersResult);
+        setTeams(teamsResult);
         setFixtures(fixturesResult);
 
         let resolvedLineup = lineupResult;
@@ -850,7 +883,18 @@ export const TeamBuilderPage = () => {
     return () => {
       mounted = false;
     };
-  }, [forceLogout, getFixtures, getLineup, getMySquad, getPlayers, recenterToPitch, selectedLeagueId, session?.accessToken, userScope]);
+  }, [
+    forceLogout,
+    getFixtures,
+    getLineup,
+    getMySquad,
+    getPlayers,
+    getTeams,
+    recenterToPitch,
+    selectedLeagueId,
+    session?.accessToken,
+    userScope
+  ]);
 
   useEffect(() => {
     if (!lineup) {
@@ -1604,6 +1648,8 @@ export const TeamBuilderPage = () => {
         ? `${fixture.awayTeam} (H)`
         : `${fixture.homeTeam} (A)`
       : `GW ${gameweek ?? "-"}`;
+    const jerseyBackground = jerseyBackgroundFromColors(resolveJerseyColorPair(player, teamColorIndex));
+    const jerseyNumber = jerseyNumberFromPlayer(player.id);
 
     return (
       <button
@@ -1616,7 +1662,9 @@ export const TeamBuilderPage = () => {
       >
         <div className="player-price-chip">£{player.price.toFixed(1)}m</div>
         <div className="shirt-holder">
-          <div className="shirt" style={{ background: shirtBackgroundForClub(player.club) }} />
+          <div className="shirt" style={{ background: jerseyBackground }}>
+            <span className="shirt-number">{jerseyNumber}</span>
+          </div>
           {isCaptain ? <span className="armband captain">C</span> : null}
           {isViceCaptain ? <span className="armband vice">V</span> : null}
         </div>

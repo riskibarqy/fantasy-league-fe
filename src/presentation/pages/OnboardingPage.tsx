@@ -43,6 +43,7 @@ const ONBOARDING_BENCH_SLOT_POSITIONS = BENCH_SLOT_POSITIONS;
 const API_READY_MAX_ATTEMPTS = 6;
 const API_READY_BASE_DELAY_MS = 600;
 const API_READY_MAX_DELAY_MS = 4_000;
+const DEFAULT_TEAM_COLOR_PAIR: [string, string] = ["#3A4250", "#A3ACBA"];
 
 const shortName = (name: string): string => {
   const words = name.trim().split(" ");
@@ -64,29 +65,43 @@ const hashString = (value: string): number => {
   return Math.abs(hash);
 };
 
-const shirtBackgroundForClub = (club: string): string => {
-  const palette: Array<[string, string, string]> = [
-    ["#233d9d", "#5d8dff", "#f1f4ff"],
-    ["#a6162f", "#e44c62", "#ffd7de"],
-    ["#111e2d", "#f0f0f0", "#ffe16b"],
-    ["#1a8b72", "#64cfb8", "#d8fff5"],
-    ["#5c2d87", "#8f5bc0", "#f2e7ff"],
-    ["#b11e1a", "#ff645e", "#ffe6e5"]
-  ];
+const normalizeTeamKey = (value: string): string => value.trim().toLowerCase();
 
-  const seed = hashString(club);
-  const [primary, secondary, accent] = palette[seed % palette.length];
-  const pattern = seed % 3;
+const buildTeamColorIndex = (teams: Club[]): Map<string, [string, string]> => {
+  const index = new Map<string, [string, string]>();
 
-  if (pattern === 0) {
-    return `linear-gradient(180deg, ${primary} 0%, ${secondary} 100%)`;
+  for (const team of teams) {
+    if (!team.teamColor || team.teamColor.length < 2) {
+      continue;
+    }
+
+    const pair: [string, string] = [team.teamColor[0], team.teamColor[1]];
+    const keys = [team.id, team.name, team.short].map(normalizeTeamKey).filter(Boolean);
+    for (const key of keys) {
+      index.set(key, pair);
+    }
   }
 
-  if (pattern === 1) {
-    return `repeating-linear-gradient(90deg, ${primary} 0 14px, ${secondary} 14px 28px)`;
+  return index;
+};
+
+const resolveJerseyColorPair = (
+  player: Player,
+  teamColorIndex: Map<string, [string, string]>
+): [string, string] => {
+  if (player.teamColor && player.teamColor.length >= 2) {
+    return [player.teamColor[0], player.teamColor[1]];
   }
 
-  return `linear-gradient(135deg, ${primary} 0 42%, ${secondary} 42% 84%, ${accent} 84% 100%)`;
+  return teamColorIndex.get(normalizeTeamKey(player.club)) ?? DEFAULT_TEAM_COLOR_PAIR;
+};
+
+const jerseyBackgroundFromColors = ([primary, secondary]: [string, string]): string => {
+  return `linear-gradient(140deg, ${primary} 0 46%, ${secondary} 46% 100%)`;
+};
+
+const jerseyNumberFromPlayer = (playerId: string): string => {
+  return String((hashString(playerId) % 99) + 1);
 };
 
 const normalizeFixedSlotIds = (ids: string[] = [], size: number): string[] => {
@@ -517,6 +532,7 @@ export const OnboardingPage = () => {
   }, [lineupDraft, userScope]);
 
   const playersById = useMemo(() => new Map(players.map((player) => [player.id, player])), [players]);
+  const teamColorIndex = useMemo(() => buildTeamColorIndex(teams), [teams]);
   const requiredBenchSlots = ONBOARDING_BENCH_SLOT_POSITIONS;
 
   useEffect(() => {
@@ -884,6 +900,8 @@ export const OnboardingPage = () => {
         </button>
       );
     }
+    const jerseyBackground = jerseyBackgroundFromColors(resolveJerseyColorPair(player, teamColorIndex));
+    const jerseyNumber = jerseyNumberFromPlayer(player.id);
 
     return (
       <div
@@ -911,7 +929,9 @@ export const OnboardingPage = () => {
         </button>
         <div className="player-price-chip">£{player.price.toFixed(1)}m</div>
         <div className="shirt-holder">
-          <div className="shirt" style={{ background: shirtBackgroundForClub(player.club) }} />
+          <div className="shirt" style={{ background: jerseyBackground }}>
+            <span className="shirt-number">{jerseyNumber}</span>
+          </div>
         </div>
         <div className="player-info-chip">
           <div className="player-name-chip">{shortName(player.name)}</div>

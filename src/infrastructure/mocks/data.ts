@@ -36,42 +36,48 @@ export const mockTeams: Club[] = [
     leagueId: "idn-liga-1",
     name: "Persib Bandung",
     short: "PSB",
-    logoUrl: "https://upload.wikimedia.org/wikipedia/en/0/07/Persib_Bandung_logo.svg"
+    logoUrl: "https://upload.wikimedia.org/wikipedia/en/0/07/Persib_Bandung_logo.svg",
+    teamColor: ["#1D4ED8", "#60A5FA"]
   },
   {
     id: "idn-persija",
     leagueId: "idn-liga-1",
     name: "Persija Jakarta",
     short: "PSJ",
-    logoUrl: "https://upload.wikimedia.org/wikipedia/en/4/4c/Persija_Jakarta_logo.svg"
+    logoUrl: "https://upload.wikimedia.org/wikipedia/en/4/4c/Persija_Jakarta_logo.svg",
+    teamColor: ["#B91C1C", "#F87171"]
   },
   {
     id: "idn-persebaya",
     leagueId: "idn-liga-1",
     name: "Persebaya Surabaya",
     short: "BAYA",
-    logoUrl: "https://upload.wikimedia.org/wikipedia/en/0/05/Persebaya_logo.svg"
+    logoUrl: "https://upload.wikimedia.org/wikipedia/en/0/05/Persebaya_logo.svg",
+    teamColor: ["#047857", "#34D399"]
   },
   {
     id: "idn-borneo",
     leagueId: "idn-liga-1",
     name: "Borneo FC",
     short: "BOR",
-    logoUrl: "https://upload.wikimedia.org/wikipedia/en/2/25/Borneo_FC_logo.png"
+    logoUrl: "https://upload.wikimedia.org/wikipedia/en/2/25/Borneo_FC_logo.png",
+    teamColor: ["#9A3412", "#FB923C"]
   },
   {
     id: "eng-arsenal",
     leagueId: "eng-premier-league",
     name: "Arsenal",
     short: "ARS",
-    logoUrl: "https://upload.wikimedia.org/wikipedia/en/5/53/Arsenal_FC.svg"
+    logoUrl: "https://upload.wikimedia.org/wikipedia/en/5/53/Arsenal_FC.svg",
+    teamColor: ["#B91C1C", "#F59E0B"]
   },
   {
     id: "eng-liverpool",
     leagueId: "eng-premier-league",
     name: "Liverpool",
     short: "LIV",
-    logoUrl: "https://upload.wikimedia.org/wikipedia/en/0/0c/Liverpool_FC.svg"
+    logoUrl: "https://upload.wikimedia.org/wikipedia/en/0/0c/Liverpool_FC.svg",
+    teamColor: ["#B91C1C", "#E5E7EB"]
   }
 ];
 

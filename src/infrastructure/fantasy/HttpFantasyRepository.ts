@@ -495,6 +495,83 @@ const readBoolean = (record: Record<string, unknown>, ...keys: string[]): boolea
   return false;
 };
 
+const HEX_COLOR_PATTERN = /^#(?:[0-9a-fA-F]{3}){1,2}$/;
+
+const normalizeColorHex = (value: unknown): string => {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const trimmed = value.trim();
+  return HEX_COLOR_PATTERN.test(trimmed) ? trimmed : "";
+};
+
+const readTeamColorPair = (record: Record<string, unknown>): [string, string] | undefined => {
+  const arrayCandidate = (
+    readArray(
+      record,
+      "teamColor",
+      "team_color",
+      "teamColors",
+      "team_colors",
+      "clubColor",
+      "club_color",
+      "clubColors",
+      "club_colors",
+      "colors",
+      "colour"
+    ) || []
+  )
+    .map((item) => normalizeColorHex(item))
+    .filter(Boolean);
+
+  if (arrayCandidate.length >= 2) {
+    return [arrayCandidate[0], arrayCandidate[1]];
+  }
+
+  const objectCandidate = asRecord(
+    record.teamColor ??
+      record.team_color ??
+      record.teamColors ??
+      record.team_colors ??
+      record.clubColor ??
+      record.club_color ??
+      record.clubColors ??
+      record.club_colors
+  );
+  if (objectCandidate) {
+    const primary = normalizeColorHex(
+      objectCandidate.primary ??
+        objectCandidate.primaryColor ??
+        objectCandidate.primary_color
+    );
+    const secondary = normalizeColorHex(
+      objectCandidate.secondary ??
+        objectCandidate.secondaryColor ??
+        objectCandidate.secondary_color
+    );
+    if (primary && secondary) {
+      return [primary, secondary];
+    }
+  }
+
+  const primary = normalizeColorHex(
+    record.primaryColor ?? record.primary_color ?? record.teamPrimaryColor ?? record.team_primary_color
+  );
+  const secondary = normalizeColorHex(
+    record.secondaryColor ??
+      record.secondary_color ??
+      record.teamSecondaryColor ??
+      record.team_secondary_color
+  );
+
+  if (primary && secondary) {
+    return [primary, secondary];
+  }
+
+  return undefined;
+};
+
 const normalizePosition = (value: string): Player["position"] => {
   const normalized = value.trim().toUpperCase();
   switch (normalized) {
@@ -630,14 +707,21 @@ const mapTeams = (payload: unknown, fallbackLeagueId: string): Club[] => {
         return null;
       }
 
-      return {
+      const teamColor = readTeamColorPair(record);
+      const team: Club = {
         id,
         leagueId:
           readString(record, "leagueId", "league_id", "league_public_id") || fallbackLeagueId,
         name: readString(record, "name"),
         short: readString(record, "short", "short_name", "abbreviation"),
         logoUrl: readString(record, "logoUrl", "logo_url")
-      } satisfies Club;
+      };
+
+      if (teamColor) {
+        team.teamColor = teamColor;
+      }
+
+      return team;
     })
     .filter((item): item is Club => Boolean(item));
 };
@@ -887,6 +971,11 @@ const mapPlayerFromRecord = (
   );
   if (teamLogoUrl) {
     player.teamLogoUrl = teamLogoUrl;
+  }
+
+  const teamColor = readTeamColorPair(record);
+  if (teamColor) {
+    player.teamColor = teamColor;
   }
 
   return player;

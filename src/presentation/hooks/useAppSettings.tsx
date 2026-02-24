@@ -9,9 +9,11 @@ import {
 } from "react";
 
 type ThemePreference = "system" | "light" | "dark";
+export type AppLanguage = "en" | "id";
 
 type AppSettings = {
   theme: ThemePreference;
+  language: AppLanguage;
   notificationsEnabled: boolean;
   deadlineReminderEnabled: boolean;
 };
@@ -19,6 +21,7 @@ type AppSettings = {
 type AppSettingsContextValue = {
   settings: AppSettings;
   setTheme: (theme: ThemePreference) => void;
+  setLanguage: (language: AppLanguage) => void;
   setNotificationsEnabled: (enabled: boolean) => void;
   setDeadlineReminderEnabled: (enabled: boolean) => void;
 };
@@ -27,6 +30,7 @@ const STORAGE_KEY = "fantasy-app-settings";
 
 const DEFAULT_SETTINGS: AppSettings = {
   theme: "system",
+  language: "en",
   notificationsEnabled: false,
   deadlineReminderEnabled: true
 };
@@ -46,6 +50,10 @@ const readStoredSettings = (): AppSettings => {
         parsed.theme === "light" || parsed.theme === "dark" || parsed.theme === "system"
           ? parsed.theme
           : DEFAULT_SETTINGS.theme,
+      language:
+        parsed.language === "en" || parsed.language === "id"
+          ? parsed.language
+          : DEFAULT_SETTINGS.language,
       notificationsEnabled:
         typeof parsed.notificationsEnabled === "boolean"
           ? parsed.notificationsEnabled
@@ -101,6 +109,10 @@ export const AppSettingsProvider = ({ children }: PropsWithChildren) => {
     setSettings((previous) => ({ ...previous, theme }));
   }, []);
 
+  const setLanguage = useCallback((language: AppLanguage) => {
+    setSettings((previous) => ({ ...previous, language }));
+  }, []);
+
   const setNotificationsEnabled = useCallback((enabled: boolean) => {
     setSettings((previous) => ({ ...previous, notificationsEnabled: enabled }));
   }, []);
@@ -113,10 +125,11 @@ export const AppSettingsProvider = ({ children }: PropsWithChildren) => {
     () => ({
       settings,
       setTheme,
+      setLanguage,
       setNotificationsEnabled,
       setDeadlineReminderEnabled
     }),
-    [setDeadlineReminderEnabled, setNotificationsEnabled, setTheme, settings]
+    [setDeadlineReminderEnabled, setLanguage, setNotificationsEnabled, setTheme, settings]
   );
 
   return <AppSettingsContext.Provider value={value}>{children}</AppSettingsContext.Provider>;

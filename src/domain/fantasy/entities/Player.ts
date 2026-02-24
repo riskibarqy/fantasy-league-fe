@@ -7,6 +7,7 @@ export type Player = {
   club: string;
   imageUrl?: string;
   teamLogoUrl?: string;
+  teamColor?: [string, string];
   position: Position;
   price: number;
   form: number;

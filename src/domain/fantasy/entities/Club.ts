@@ -4,4 +4,5 @@ export type Club = {
   name: string;
   short: string;
   logoUrl: string;
+  teamColor?: [string, string];
 };

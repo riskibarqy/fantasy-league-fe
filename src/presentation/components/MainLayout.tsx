@@ -1,9 +1,11 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { CalendarDays, Home, Settings2, Shield, Trophy, Waves } from "lucide-react";
 import { useSession } from "../hooks/useSession";
+import { useI18n } from "../hooks/useI18n";
 
 export const MainLayout = () => {
   const { session } = useSession();
+  const { t } = useI18n();
 
   return (
     <div className="app-shell">
@@ -14,7 +16,7 @@ export const MainLayout = () => {
           </span>
           <div>
             <p className="small-label">Fantasy Nusantara</p>
-            <h1>{session?.user.displayName ?? "Fantasy Manager"}</h1>
+            <h1>{session?.user.displayName ?? t("settings.account.fallbackName")}</h1>
           </div>
         </div>
       </header>
@@ -26,23 +28,23 @@ export const MainLayout = () => {
       <nav className="bottom-nav">
         <NavLink to="/" end>
           <Home className="nav-icon" aria-hidden="true" />
-          <span className="nav-label">Home</span>
+          <span className="nav-label">{t("nav.home")}</span>
         </NavLink>
         <NavLink to="/team">
           <Shield className="nav-icon" aria-hidden="true" />
-          <span className="nav-label">Team</span>
+          <span className="nav-label">{t("nav.team")}</span>
         </NavLink>
         <NavLink to="/fixtures">
           <CalendarDays className="nav-icon" aria-hidden="true" />
-          <span className="nav-label">Fixtures</span>
+          <span className="nav-label">{t("nav.fixtures")}</span>
         </NavLink>
         <NavLink to="/leagues">
           <Trophy className="nav-icon" aria-hidden="true" />
-          <span className="nav-label">Leagues</span>
+          <span className="nav-label">{t("nav.leagues")}</span>
         </NavLink>
         <NavLink to="/settings">
           <Settings2 className="nav-icon" aria-hidden="true" />
-          <span className="nav-label">Settings</span>
+          <span className="nav-label">{t("nav.settings")}</span>
         </NavLink>
       </nav>
     </div>

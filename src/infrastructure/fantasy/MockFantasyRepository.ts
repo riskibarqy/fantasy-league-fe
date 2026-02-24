@@ -130,7 +130,31 @@ export class MockFantasyRepository implements FantasyRepository {
 
   async getPlayers(leagueId: string): Promise<Player[]> {
     await delay(240);
-    return mockPlayers.filter((player) => player.leagueId === leagueId);
+    const teams = mockTeams.filter((team) => team.leagueId === leagueId);
+    const colorByClub = new Map<string, [string, string]>(
+      teams
+        .filter((team): team is Club & { teamColor: [string, string] } => Boolean(team.teamColor))
+        .flatMap((team) => {
+          const pairs: Array<[string, [string, string]]> = [];
+          if (team.name) {
+            pairs.push([team.name.toLowerCase(), team.teamColor]);
+          }
+          if (team.id) {
+            pairs.push([team.id.toLowerCase(), team.teamColor]);
+          }
+          if (team.short) {
+            pairs.push([team.short.toLowerCase(), team.teamColor]);
+          }
+          return pairs;
+        })
+    );
+
+    return mockPlayers
+      .filter((player) => player.leagueId === leagueId)
+      .map((player) => {
+        const teamColor = colorByClub.get(player.club.toLowerCase());
+        return teamColor ? { ...player, teamColor } : player;
+      });
   }
 
   async getPlayerDetails(leagueId: string, playerId: string): Promise<PlayerDetails> {
@@ -141,9 +165,18 @@ export class MockFantasyRepository implements FantasyRepository {
       throw new Error("Player not found.");
     }
 
+    const teamColor = mockTeams.find(
+      (team) =>
+        team.leagueId === leagueId &&
+        (team.name.toLowerCase() === player.club.toLowerCase() ||
+          team.id.toLowerCase() === player.club.toLowerCase() ||
+          team.short.toLowerCase() === player.club.toLowerCase())
+    )?.teamColor;
+
     return {
       player: {
         ...player,
+        ...(teamColor ? { teamColor } : {}),
         fullName: player.name,
         nationality: "Indonesia",
         countryOfBirth: "Indonesia",
