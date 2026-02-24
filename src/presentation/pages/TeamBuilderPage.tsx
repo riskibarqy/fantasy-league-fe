@@ -1624,8 +1624,8 @@ export const TeamBuilderPage = () => {
   ) => {
     if (!player) {
       if (onEmptyClick && !options?.disableEmpty) {
-        return (
-          <button
+	                return (
+	                  <button
             type="button"
             className="fpl-player-card empty-slot player-card-button pick-slot-button"
             onClick={onEmptyClick}
@@ -2143,13 +2143,20 @@ export const TeamBuilderPage = () => {
                     }`}
                     onClick={interaction?.onClick}
                     disabled={interaction?.disabled}
-                  >
-                    <div className="player-price-chip">£{player.price.toFixed(1)}m</div>
-                    <div className="shirt-holder">
-                      <div className="shirt" style={{ background: shirtBackgroundForClub(player.club) }} />
-                    </div>
-                    <div className="player-info-chip">
-                      <div className="player-name-chip">{shortName(player.name)}</div>
+	                  >
+	                    <div className="player-price-chip">£{player.price.toFixed(1)}m</div>
+	                    <div className="shirt-holder">
+	                      <div
+	                        className="shirt"
+	                        style={{
+	                          background: jerseyBackgroundFromColors(resolveJerseyColorPair(player, teamColorIndex))
+	                        }}
+	                      >
+	                        <span className="shirt-number">{jerseyNumberFromPlayer(player.id)}</span>
+	                      </div>
+	                    </div>
+	                    <div className="player-info-chip">
+	                      <div className="player-name-chip">{shortName(player.name)}</div>
                       <div className="player-fixture-chip">{`Bench ${player.position}`}</div>
                     </div>
                   </button>
@@ -2185,13 +2192,20 @@ export const TeamBuilderPage = () => {
                 ) : (
                   <>
                     <span className="player-portrait-head" />
-                    <span
-                      className="player-portrait-body"
-                      style={{
-                        background: shirtBackgroundForClub(selectedPlayerDetails?.player.club ?? selectedPlayer.club)
-                      }}
-                    />
-                  </>
+	                    <span
+	                      className="player-portrait-body"
+	                      style={{
+	                        background: jerseyBackgroundFromColors(
+	                          selectedPlayerDetails?.player.teamColor && selectedPlayerDetails.player.teamColor.length >= 2
+	                            ? [
+	                                selectedPlayerDetails.player.teamColor[0],
+	                                selectedPlayerDetails.player.teamColor[1]
+	                              ]
+	                            : resolveJerseyColorPair(selectedPlayer, teamColorIndex)
+	                        )
+	                      }}
+	                    />
+	                  </>
                 )}
               </div>
 
