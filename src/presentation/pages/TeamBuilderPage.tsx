@@ -1052,8 +1052,10 @@ export const TeamBuilderPage = () => {
         return false;
       }
 
-      // Substitution can only happen from field (starter) to bench.
-      if (sourceTarget.zone === "BENCH" || targetTarget.zone !== "BENCH") {
+      // Substitution must be between exactly one starter and one bench player.
+      const sourceIsStarter = sourceTarget.zone !== "BENCH";
+      const targetIsStarter = targetTarget.zone !== "BENCH";
+      if (sourceIsStarter === targetIsStarter) {
         return false;
       }
 
@@ -1065,20 +1067,24 @@ export const TeamBuilderPage = () => {
         return false;
       }
 
-      // GK can only be substituted by GK.
-      if (sourceTarget.zone === "GK") {
-        return targetPlayer.position === "GK";
+      const starterTarget = sourceIsStarter ? sourceTarget : targetTarget;
+      const incomingPlayer = sourceIsStarter ? targetPlayer : sourcePlayer;
+
+      // GK starter can only be swapped with a GK bench player.
+      if (starterTarget.zone === "GK") {
+        return incomingPlayer.position === "GK";
       }
 
-      if (targetPlayer.position === "GK") {
+      // Outfield starter cannot be swapped with GK bench player.
+      if (incomingPlayer.position === "GK") {
         return false;
       }
 
       const nextCounts = { ...starterPositionCounts };
-      const sourcePosition = sourceTarget.zone as OutfieldPosition;
-      const targetPosition = targetPlayer.position as OutfieldPosition;
-      nextCounts[sourcePosition] -= 1;
-      nextCounts[targetPosition] += 1;
+      const starterPosition = starterTarget.zone as OutfieldPosition;
+      const incomingPosition = incomingPlayer.position as OutfieldPosition;
+      nextCounts[starterPosition] -= 1;
+      nextCounts[incomingPosition] += 1;
 
       return (
         nextCounts.DEF >= SUBSTITUTION_MIN_STARTERS.DEF &&
@@ -1100,11 +1106,16 @@ export const TeamBuilderPage = () => {
       }
 
       const sourceTarget = getTargetForPlayerId(lineup, sourcePlayerId);
-      if (!sourceTarget || sourceTarget.zone === "BENCH") {
+      if (!sourceTarget) {
         return enabledTargets;
       }
 
-      for (const targetPlayerId of lineup.substituteIds.filter(Boolean)) {
+      const candidateTargetPlayerIds =
+        sourceTarget.zone === "BENCH"
+          ? getStarterIds(lineup)
+          : lineup.substituteIds.filter(Boolean);
+
+      for (const targetPlayerId of candidateTargetPlayerIds) {
         const targetTarget = getTargetForPlayerId(lineup, targetPlayerId);
         if (!targetTarget) {
           continue;
@@ -1159,48 +1170,55 @@ export const TeamBuilderPage = () => {
       }
 
       if (!isSubstitutionAllowedForTargets(substitutionSourceTarget, target)) {
-        void appAlert.warning("Invalid Substitution", "This player cannot replace the selected starter.");
+        void appAlert.warning("Invalid Substitution", "These players cannot be swapped.");
         return;
       }
 
-      const sourcePlayerId = getPlayerIdAtTarget(lineup, substitutionSourceTarget);
-      const targetBenchPlayerId = getPlayerIdAtTarget(lineup, target);
-      const incomingPlayer = playersById.get(targetBenchPlayerId);
-      if (!sourcePlayerId || !targetBenchPlayerId || !incomingPlayer) {
+      const sourceIsStarter = substitutionSourceTarget.zone !== "BENCH";
+      const starterTarget = sourceIsStarter ? substitutionSourceTarget : target;
+      const benchTarget = sourceIsStarter ? target : substitutionSourceTarget;
+      if (starterTarget.zone === "BENCH" || benchTarget.zone !== "BENCH") {
         return;
       }
 
-      const nextBenchIds = upsertBenchId(lineup.substituteIds, target.index, sourcePlayerId);
+      const starterPlayerId = getPlayerIdAtTarget(lineup, starterTarget);
+      const benchPlayerId = getPlayerIdAtTarget(lineup, benchTarget);
+      const incomingPlayer = playersById.get(benchPlayerId);
+      if (!starterPlayerId || !benchPlayerId || !incomingPlayer) {
+        return;
+      }
+
+      const nextBenchIds = upsertBenchId(lineup.substituteIds, benchTarget.index, starterPlayerId);
       let nextLineup: TeamLineup = {
         ...lineup,
         substituteIds: nextBenchIds
       };
 
-      if (substitutionSourceTarget.zone === "GK") {
+      if (starterTarget.zone === "GK") {
         nextLineup = {
           ...nextLineup,
-          goalkeeperId: targetBenchPlayerId
+          goalkeeperId: benchPlayerId
         };
-      } else if (incomingPlayer.position === substitutionSourceTarget.zone) {
-        if (substitutionSourceTarget.zone === "DEF") {
+      } else if (incomingPlayer.position === starterTarget.zone) {
+        if (starterTarget.zone === "DEF") {
           nextLineup = {
             ...nextLineup,
-            defenderIds: replaceAtIndex(lineup.defenderIds, substitutionSourceTarget.index, targetBenchPlayerId)
+            defenderIds: replaceAtIndex(lineup.defenderIds, starterTarget.index, benchPlayerId)
           };
-        } else if (substitutionSourceTarget.zone === "MID") {
+        } else if (starterTarget.zone === "MID") {
           nextLineup = {
             ...nextLineup,
-            midfielderIds: replaceAtIndex(lineup.midfielderIds, substitutionSourceTarget.index, targetBenchPlayerId)
+            midfielderIds: replaceAtIndex(lineup.midfielderIds, starterTarget.index, benchPlayerId)
           };
         } else {
           nextLineup = {
             ...nextLineup,
-            forwardIds: replaceAtIndex(lineup.forwardIds, substitutionSourceTarget.index, targetBenchPlayerId)
+            forwardIds: replaceAtIndex(lineup.forwardIds, starterTarget.index, benchPlayerId)
           };
         }
       } else {
-        const sourceZone = substitutionSourceTarget.zone;
-        const sourceIndex = substitutionSourceTarget.index;
+        const sourceZone = starterTarget.zone;
+        const sourceIndex = starterTarget.index;
 
         if (sourceZone === "DEF") {
           nextLineup = {
@@ -1222,17 +1240,17 @@ export const TeamBuilderPage = () => {
         if (incomingPlayer.position === "DEF") {
           nextLineup = {
             ...nextLineup,
-            defenderIds: [...nextLineup.defenderIds, targetBenchPlayerId]
+            defenderIds: [...nextLineup.defenderIds, benchPlayerId]
           };
         } else if (incomingPlayer.position === "MID") {
           nextLineup = {
             ...nextLineup,
-            midfielderIds: [...nextLineup.midfielderIds, targetBenchPlayerId]
+            midfielderIds: [...nextLineup.midfielderIds, benchPlayerId]
           };
         } else if (incomingPlayer.position === "FWD") {
           nextLineup = {
             ...nextLineup,
-            forwardIds: [...nextLineup.forwardIds, targetBenchPlayerId]
+            forwardIds: [...nextLineup.forwardIds, benchPlayerId]
           };
         }
       }
@@ -1264,7 +1282,6 @@ export const TeamBuilderPage = () => {
   const selectedPlayerCanSubstitute = Boolean(
     mode === "PAT" &&
       selectedPlayer &&
-      selectedPlayerIsStarter &&
       lineup &&
       selectedPlayerSubstitutionTargets.size > 0 &&
       substitutionSourcePlayerId !== selectedPlayer.id
@@ -1730,20 +1747,30 @@ export const TeamBuilderPage = () => {
       return;
     }
 
-    if (!selectedPlayerIsStarter) {
-      void appAlert.warning("Substitution", "Only players on the field can be substituted.");
+    if (!selectedPlayerIsStarter && !selectedPlayerIsBench) {
+      void appAlert.warning("Substitution", "Selected player is not part of this lineup.");
       return;
     }
 
     if (selectedPlayerSubstitutionTargets.size === 0) {
-      void appAlert.warning("Substitution", "No valid bench player can replace this starter.");
+      void appAlert.warning(
+        "Substitution",
+        selectedPlayerIsBench
+          ? "No valid starter can be swapped with this bench player."
+          : "No valid bench player can replace this starter."
+      );
       return;
     }
 
     setSubstitutionSourcePlayerId(selectedPlayer.id);
     setSelectedPlayerId(null);
     setIsFullProfileVisible(false);
-    void appAlert.info("Substitution Mode", "Tap a highlighted bench player to swap.");
+    void appAlert.info(
+      "Substitution Mode",
+      selectedPlayerIsBench
+        ? "Tap a highlighted starter on the field to swap."
+        : "Tap a highlighted bench player to swap."
+    );
     recenterToPitch();
   };
 
@@ -1754,6 +1781,7 @@ export const TeamBuilderPage = () => {
   const substitutionSourceName = substitutionSourcePlayerId
     ? playersById.get(substitutionSourcePlayerId)?.name ?? "selected player"
     : null;
+  const substitutionTargetLabel = substitutionSourceTarget?.zone === "BENCH" ? "starter on the field" : "bench player";
 
   const hasPendingChanges = useMemo(() => {
     return JSON.stringify(toComparableLineup(lineup)) !== JSON.stringify(toComparableLineup(lastSavedLineup));
@@ -2014,7 +2042,7 @@ export const TeamBuilderPage = () => {
         {substitutionSourcePlayerId && mode === "PAT" ? (
           <div className="substitution-banner">
             <p>
-              Swapping <strong>{substitutionSourceName}</strong>. Select a highlighted bench player to continue.
+              Swapping <strong>{substitutionSourceName}</strong>. Select a highlighted {substitutionTargetLabel} to continue.
             </p>
             <Button type="button" variant="secondary" size="sm" onClick={cancelSubstitutionMode}>
               Cancel
