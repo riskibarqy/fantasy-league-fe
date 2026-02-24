@@ -11,7 +11,8 @@ import {
   BENCH_SLOT_POSITIONS,
   FORMATION_LIMITS,
   STARTER_SIZE,
-  SUBSTITUTE_SIZE
+  SUBSTITUTE_SIZE,
+  getBenchSlotPositions
 } from "../../domain/fantasy/services/lineupRules";
 import { buildLineupFromPlayers } from "../../domain/fantasy/services/squadBuilder";
 import { LoadingState } from "../components/LoadingState";
@@ -896,6 +897,13 @@ export const TeamBuilderPage = () => {
       .map((id) => playersById.get(id))
       .filter((player): player is Player => Boolean(player));
   }, [playersById, squadIds]);
+  const requiredBenchSlots = useMemo(() => {
+    if (!lineup) {
+      return BENCH_SLOT_POSITIONS;
+    }
+
+    return getBenchSlotPositions(lineup);
+  }, [lineup]);
 
   const squadCost = useMemo(() => {
     return squadPlayers.reduce((sum, player) => sum + player.price, 0);
@@ -2023,7 +2031,7 @@ export const TeamBuilderPage = () => {
               {Array.from({ length: SUBSTITUTE_SIZE }).map((_, index) => {
                 const playerId = lineup?.substituteIds[index];
                 const player = playerId ? playersById.get(playerId) : null;
-                const benchPosition = BENCH_SLOT_POSITIONS[index] ?? "BENCH";
+                const benchPosition = requiredBenchSlots[index] ?? "BENCH";
                 const interaction = player ? resolveCardInteraction(player.id) : null;
 
                 if (!player) {

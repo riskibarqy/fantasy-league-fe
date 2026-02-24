@@ -1,7 +1,7 @@
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import type { Player } from "../../domain/fantasy/entities/Player";
-import { BENCH_SLOT_POSITIONS } from "../../domain/fantasy/services/lineupRules";
+import { BENCH_SLOT_POSITIONS, getBenchSlotPositions } from "../../domain/fantasy/services/lineupRules";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import { cacheKeys, cacheTtlMs, getOrLoadCached } from "../../app/cache/requestCache";
 import { LoadingState } from "../components/LoadingState";
@@ -30,9 +30,12 @@ const isSlotZone = (value: string | null): value is SlotZone => {
   return value === "GK" || value === "DEF" || value === "MID" || value === "FWD" || value === "BENCH";
 };
 
-const toTargetTitle = (target: SlotPickerTarget): string => {
+const toTargetTitle = (
+  target: SlotPickerTarget,
+  benchSlotPositions: Player["position"][]
+): string => {
   if (target.zone === "BENCH") {
-    const requiredPosition = BENCH_SLOT_POSITIONS[target.index];
+    const requiredPosition = benchSlotPositions[target.index];
     return `Pick Bench ${requiredPosition ?? "Player"} (${target.index + 1})`;
   }
 
@@ -142,13 +145,21 @@ export const TeamPlayerPickerPage = () => {
     };
   }, [searchParams, userScope]);
 
+  const benchSlotPositions = useMemo(() => {
+    if (!context) {
+      return BENCH_SLOT_POSITIONS;
+    }
+
+    return getBenchSlotPositions(context.lineup);
+  }, [context]);
+
   useEffect(() => {
     if (!context) {
       return;
     }
 
     if (context.target.zone === "BENCH") {
-      const benchPosition = BENCH_SLOT_POSITIONS[context.target.index];
+      const benchPosition = benchSlotPositions[context.target.index];
       if (benchPosition) {
         setPosition(benchPosition);
       }
@@ -156,7 +167,7 @@ export const TeamPlayerPickerPage = () => {
     }
 
     setPosition("ALL");
-  }, [context]);
+  }, [benchSlotPositions, context]);
 
   useEffect(() => {
     if (!context) {
@@ -233,7 +244,7 @@ export const TeamPlayerPickerPage = () => {
     }
 
     const benchRequiredPosition =
-      context.target.zone === "BENCH" ? BENCH_SLOT_POSITIONS[context.target.index] : null;
+      context.target.zone === "BENCH" ? benchSlotPositions[context.target.index] : null;
     const targetPosition = context.target.zone === "BENCH" ? benchRequiredPosition : context.target.zone;
     if (!targetPosition) {
       return [];
@@ -265,7 +276,7 @@ export const TeamPlayerPickerPage = () => {
 
       return byPosition && byClub && bySearch;
     });
-  }, [club, context, deferredSearch, players, position]);
+  }, [benchSlotPositions, club, context, deferredSearch, players, position]);
 
   const sortedPlayers = useMemo(() => {
     const sorted = [...availablePlayers];
@@ -337,11 +348,11 @@ export const TeamPlayerPickerPage = () => {
   return (
     <div className="page-grid team-picker-page">
       <section className="section-title">
-        <h2>{toTargetTitle(context.target)}</h2>
+        <h2>{toTargetTitle(context.target, benchSlotPositions)}</h2>
         <p className="muted">Tap/click a table row to pick player for this slot.</p>
         {context.target.zone === "BENCH" ? (
           <p className="small-label">
-            Required Position: {BENCH_SLOT_POSITIONS[context.target.index] ?? "-"}
+            Required Position: {benchSlotPositions[context.target.index] ?? "-"}
           </p>
         ) : null}
       </section>

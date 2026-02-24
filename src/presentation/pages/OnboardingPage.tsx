@@ -7,7 +7,7 @@ import type { Player } from "../../domain/fantasy/entities/Player";
 import type { TeamLineup } from "../../domain/fantasy/entities/Team";
 import {
   BENCH_SLOT_POSITIONS,
-  FORMATION_LIMITS,
+  SQUAD_POSITION_LIMITS,
   STARTER_SIZE,
   SUBSTITUTE_SIZE
 } from "../../domain/fantasy/services/lineupRules";
@@ -34,18 +34,12 @@ type PitchRow = {
 
 const BUDGET_CAP = 150;
 const MAX_PER_TEAM = 3;
-const FORMATION_MIN_SLOTS = {
-  DEF: FORMATION_LIMITS.DEF.min,
-  MID: FORMATION_LIMITS.MID.min,
-  FWD: FORMATION_LIMITS.FWD.min,
-  BENCH: SUBSTITUTE_SIZE
+const ONBOARDING_STARTER_SLOTS = {
+  DEF: 4,
+  MID: 4,
+  FWD: 2
 } as const;
-const FORMATION_MAX_SLOTS = {
-  DEF: FORMATION_LIMITS.DEF.max,
-  MID: FORMATION_LIMITS.MID.max,
-  FWD: FORMATION_LIMITS.FWD.max
-} as const;
-const OUTFIELD_STARTER_SIZE = STARTER_SIZE - 1;
+const ONBOARDING_BENCH_SLOT_POSITIONS = BENCH_SLOT_POSITIONS;
 const API_READY_MAX_ATTEMPTS = 6;
 const API_READY_BASE_DELAY_MS = 600;
 const API_READY_MAX_DELAY_MS = 4_000;
@@ -95,72 +89,34 @@ const shirtBackgroundForClub = (club: string): string => {
   return `linear-gradient(135deg, ${primary} 0 42%, ${secondary} 42% 84%, ${accent} 84% 100%)`;
 };
 
-const sanitizeStarterIds = (ids: string[], max: number): string[] => {
-  return ids.filter(Boolean).slice(0, max);
-};
-
-const normalizeBenchIds = (ids: string[]): string[] => {
-  return Array.from({ length: SUBSTITUTE_SIZE }, (_, index) => {
+const normalizeFixedSlotIds = (ids: string[] = [], size: number): string[] => {
+  return Array.from({ length: size }, (_, index) => {
     const value = ids[index];
     return typeof value === "string" ? value.trim() : "";
   });
 };
 
-const upsertStarterId = (ids: string[], index: number, playerId: string, max: number): string[] => {
-  const next = sanitizeStarterIds(ids, max);
-  if (index < next.length) {
-    next[index] = playerId;
-    return next;
-  }
-
-  if (next.length < max) {
-    next.push(playerId);
-  }
-
-  return next;
-};
-
-const removeStarterId = (ids: string[], index: number, min: number, max: number): string[] => {
-  const next = sanitizeStarterIds(ids, max);
-  if (index >= 0 && index < next.length) {
-    next.splice(index, 1);
-  }
-
-  while (next.length < min) {
-    next.push("");
-  }
-
-  return next;
-};
-
-const buildFlexibleRowIds = (
-  ids: string[],
-  min: number,
-  max: number,
-  outfieldCount: number
+const setFixedSlotPlayerId = (
+  ids: string[] = [],
+  index: number,
+  playerId: string,
+  size: number
 ): string[] => {
-  const filled = sanitizeStarterIds(ids, max);
-  const row = [...filled];
-
-  while (row.length < min) {
-    row.push("");
+  const next = normalizeFixedSlotIds(ids, size);
+  if (index >= 0 && index < size) {
+    next[index] = playerId;
   }
 
-  const canExpand = outfieldCount < OUTFIELD_STARTER_SIZE && filled.length < max;
-  if (canExpand && row.every(Boolean) && row.length < max) {
-    row.push("");
-  }
-
-  return row;
+  return next;
 };
 
 const createEmptyLineupDraft = (leagueId: string): TeamLineup => ({
   leagueId,
   goalkeeperId: "",
-  defenderIds: Array.from({ length: FORMATION_MIN_SLOTS.DEF }, () => ""),
-  midfielderIds: Array.from({ length: FORMATION_MIN_SLOTS.MID }, () => ""),
-  forwardIds: Array.from({ length: FORMATION_MIN_SLOTS.FWD }, () => ""),
-  substituteIds: Array.from({ length: FORMATION_MIN_SLOTS.BENCH }, () => ""),
+  defenderIds: Array.from({ length: ONBOARDING_STARTER_SLOTS.DEF }, () => ""),
+  midfielderIds: Array.from({ length: ONBOARDING_STARTER_SLOTS.MID }, () => ""),
+  forwardIds: Array.from({ length: ONBOARDING_STARTER_SLOTS.FWD }, () => ""),
+  substituteIds: Array.from({ length: SUBSTITUTE_SIZE }, () => ""),
   captainId: "",
   viceCaptainId: "",
   updatedAt: new Date().toISOString()
@@ -174,31 +130,10 @@ const normalizeLineupDraft = (leagueId: string, draft: TeamLineup | null): TeamL
   return {
     ...draft,
     leagueId,
-    defenderIds: buildFlexibleRowIds(
-      draft.defenderIds,
-      FORMATION_MIN_SLOTS.DEF,
-      FORMATION_MAX_SLOTS.DEF,
-      sanitizeStarterIds(draft.defenderIds, FORMATION_MAX_SLOTS.DEF).length +
-        sanitizeStarterIds(draft.midfielderIds, FORMATION_MAX_SLOTS.MID).length +
-        sanitizeStarterIds(draft.forwardIds, FORMATION_MAX_SLOTS.FWD).length
-    ),
-    midfielderIds: buildFlexibleRowIds(
-      draft.midfielderIds,
-      FORMATION_MIN_SLOTS.MID,
-      FORMATION_MAX_SLOTS.MID,
-      sanitizeStarterIds(draft.defenderIds, FORMATION_MAX_SLOTS.DEF).length +
-        sanitizeStarterIds(draft.midfielderIds, FORMATION_MAX_SLOTS.MID).length +
-        sanitizeStarterIds(draft.forwardIds, FORMATION_MAX_SLOTS.FWD).length
-    ),
-    forwardIds: buildFlexibleRowIds(
-      draft.forwardIds,
-      FORMATION_MIN_SLOTS.FWD,
-      FORMATION_MAX_SLOTS.FWD,
-      sanitizeStarterIds(draft.defenderIds, FORMATION_MAX_SLOTS.DEF).length +
-        sanitizeStarterIds(draft.midfielderIds, FORMATION_MAX_SLOTS.MID).length +
-        sanitizeStarterIds(draft.forwardIds, FORMATION_MAX_SLOTS.FWD).length
-    ),
-    substituteIds: normalizeBenchIds(draft.substituteIds)
+    defenderIds: normalizeFixedSlotIds(draft.defenderIds, ONBOARDING_STARTER_SLOTS.DEF),
+    midfielderIds: normalizeFixedSlotIds(draft.midfielderIds, ONBOARDING_STARTER_SLOTS.MID),
+    forwardIds: normalizeFixedSlotIds(draft.forwardIds, ONBOARDING_STARTER_SLOTS.FWD),
+    substituteIds: normalizeFixedSlotIds(draft.substituteIds, SUBSTITUTE_SIZE)
   };
 };
 
@@ -214,7 +149,7 @@ const setSlotPlayerId = (lineup: TeamLineup, zone: SlotZone, index: number, play
   if (zone === "DEF") {
     return {
       ...lineup,
-      defenderIds: upsertStarterId(lineup.defenderIds, index, playerId, FORMATION_MAX_SLOTS.DEF),
+      defenderIds: setFixedSlotPlayerId(lineup.defenderIds, index, playerId, ONBOARDING_STARTER_SLOTS.DEF),
       updatedAt: new Date().toISOString()
     };
   }
@@ -222,7 +157,7 @@ const setSlotPlayerId = (lineup: TeamLineup, zone: SlotZone, index: number, play
   if (zone === "MID") {
     return {
       ...lineup,
-      midfielderIds: upsertStarterId(lineup.midfielderIds, index, playerId, FORMATION_MAX_SLOTS.MID),
+      midfielderIds: setFixedSlotPlayerId(lineup.midfielderIds, index, playerId, ONBOARDING_STARTER_SLOTS.MID),
       updatedAt: new Date().toISOString()
     };
   }
@@ -230,20 +165,14 @@ const setSlotPlayerId = (lineup: TeamLineup, zone: SlotZone, index: number, play
   if (zone === "FWD") {
     return {
       ...lineup,
-      forwardIds: upsertStarterId(lineup.forwardIds, index, playerId, FORMATION_MAX_SLOTS.FWD),
+      forwardIds: setFixedSlotPlayerId(lineup.forwardIds, index, playerId, ONBOARDING_STARTER_SLOTS.FWD),
       updatedAt: new Date().toISOString()
     };
   }
 
-  const nextBench = [...lineup.substituteIds];
-  while (nextBench.length <= index) {
-    nextBench.push("");
-  }
-  nextBench[index] = playerId;
-
   return {
     ...lineup,
-    substituteIds: normalizeBenchIds(nextBench),
+    substituteIds: setFixedSlotPlayerId(lineup.substituteIds, index, playerId, SUBSTITUTE_SIZE),
     updatedAt: new Date().toISOString()
   };
 };
@@ -260,7 +189,7 @@ const clearSlotPlayerId = (lineup: TeamLineup, zone: SlotZone, index: number): T
   if (zone === "DEF") {
     return {
       ...lineup,
-      defenderIds: removeStarterId(lineup.defenderIds, index, FORMATION_MIN_SLOTS.DEF, FORMATION_MAX_SLOTS.DEF),
+      defenderIds: setFixedSlotPlayerId(lineup.defenderIds, index, "", ONBOARDING_STARTER_SLOTS.DEF),
       updatedAt: new Date().toISOString()
     };
   }
@@ -268,7 +197,7 @@ const clearSlotPlayerId = (lineup: TeamLineup, zone: SlotZone, index: number): T
   if (zone === "MID") {
     return {
       ...lineup,
-      midfielderIds: removeStarterId(lineup.midfielderIds, index, FORMATION_MIN_SLOTS.MID, FORMATION_MAX_SLOTS.MID),
+      midfielderIds: setFixedSlotPlayerId(lineup.midfielderIds, index, "", ONBOARDING_STARTER_SLOTS.MID),
       updatedAt: new Date().toISOString()
     };
   }
@@ -276,19 +205,14 @@ const clearSlotPlayerId = (lineup: TeamLineup, zone: SlotZone, index: number): T
   if (zone === "FWD") {
     return {
       ...lineup,
-      forwardIds: removeStarterId(lineup.forwardIds, index, FORMATION_MIN_SLOTS.FWD, FORMATION_MAX_SLOTS.FWD),
+      forwardIds: setFixedSlotPlayerId(lineup.forwardIds, index, "", ONBOARDING_STARTER_SLOTS.FWD),
       updatedAt: new Date().toISOString()
     };
   }
 
-  const nextBench = [...lineup.substituteIds];
-  if (index >= 0 && index < nextBench.length) {
-    nextBench[index] = "";
-  }
-
   return {
     ...lineup,
-    substituteIds: normalizeBenchIds(nextBench),
+    substituteIds: setFixedSlotPlayerId(lineup.substituteIds, index, "", SUBSTITUTE_SIZE),
     updatedAt: new Date().toISOString()
   };
 };
@@ -336,21 +260,16 @@ const isLineupDraftComplete = (lineup: TeamLineup | null): boolean => {
     return false;
   }
 
-  const defenderCount = lineup.defenderIds.filter(Boolean).length;
-  const midfielderCount = lineup.midfielderIds.filter(Boolean).length;
-  const forwardCount = lineup.forwardIds.filter(Boolean).length;
-  const outfieldCount = defenderCount + midfielderCount + forwardCount;
-
   return Boolean(
     lineup.goalkeeperId &&
-      lineup.substituteIds.every(Boolean) &&
-      defenderCount >= FORMATION_MIN_SLOTS.DEF &&
-      defenderCount <= FORMATION_MAX_SLOTS.DEF &&
-      midfielderCount >= FORMATION_MIN_SLOTS.MID &&
-      midfielderCount <= FORMATION_MAX_SLOTS.MID &&
-      forwardCount >= FORMATION_MIN_SLOTS.FWD &&
-      forwardCount <= FORMATION_MAX_SLOTS.FWD &&
-      outfieldCount === OUTFIELD_STARTER_SIZE
+      lineup.defenderIds.length === ONBOARDING_STARTER_SLOTS.DEF &&
+      lineup.midfielderIds.length === ONBOARDING_STARTER_SLOTS.MID &&
+      lineup.forwardIds.length === ONBOARDING_STARTER_SLOTS.FWD &&
+      lineup.substituteIds.length === SUBSTITUTE_SIZE &&
+      lineup.defenderIds.every(Boolean) &&
+      lineup.midfielderIds.every(Boolean) &&
+      lineup.forwardIds.every(Boolean) &&
+      lineup.substituteIds.every(Boolean)
   );
 };
 
@@ -598,6 +517,7 @@ export const OnboardingPage = () => {
   }, [lineupDraft, userScope]);
 
   const playersById = useMemo(() => new Map(players.map((player) => [player.id, player])), [players]);
+  const requiredBenchSlots = ONBOARDING_BENCH_SLOT_POSITIONS;
 
   useEffect(() => {
     if (!lineupDraft || !leagueId || playersById.size === 0) {
@@ -616,7 +536,7 @@ export const OnboardingPage = () => {
     }
 
     if (result.target.zone === "BENCH") {
-      const requiredBenchPosition = BENCH_SLOT_POSITIONS[result.target.index];
+      const requiredBenchPosition = requiredBenchSlots[result.target.index];
       if (requiredBenchPosition && pickedPlayer.position !== requiredBenchPosition) {
         setErrorMessage(`Bench slot ${result.target.index + 1} requires ${requiredBenchPosition}.`);
         return;
@@ -660,7 +580,7 @@ export const OnboardingPage = () => {
     setErrorMessage(null);
     setInfoMessage(`${pickedPlayer.name} selected.`);
     recenterToPitch();
-  }, [leagueId, lineupDraft, playersById, userScope]);
+  }, [leagueId, lineupDraft, playersById, requiredBenchSlots, userScope]);
 
   useEffect(() => {
     if (!lineupDraft || playersById.size === 0) {
@@ -676,7 +596,7 @@ export const OnboardingPage = () => {
         continue;
       }
 
-      const requiredPosition = BENCH_SLOT_POSITIONS[index];
+      const requiredPosition = requiredBenchSlots[index];
       const player = playersById.get(playerId);
       if (!player || (requiredPosition && player.position !== requiredPosition)) {
         nextBenchIds[index] = "";
@@ -690,11 +610,11 @@ export const OnboardingPage = () => {
 
     setLineupDraft({
       ...lineupDraft,
-      substituteIds: normalizeBenchIds(nextBenchIds),
+      substituteIds: normalizeFixedSlotIds(nextBenchIds, SUBSTITUTE_SIZE),
       updatedAt: new Date().toISOString()
     });
-    setInfoMessage("Bench slots were adjusted to GK/DEF/MID/FWD.");
-  }, [lineupDraft, playersById]);
+    setInfoMessage("Bench slots were adjusted to onboarding requirements.");
+  }, [lineupDraft, playersById, requiredBenchSlots]);
 
   const selectedPlayerIds = useMemo(() => toSelectedPlayerIds(lineupDraft), [lineupDraft]);
 
@@ -750,15 +670,12 @@ export const OnboardingPage = () => {
       isLineupDraftComplete(lineupDraft) &&
       selectedPlayerIds.length === 15 &&
       new Set(selectedPlayerIds).size === 15 &&
-      positionCounter.GK >= 1 &&
-      positionCounter.DEF >= FORMATION_MIN_SLOTS.DEF &&
-      positionCounter.DEF <= FORMATION_MAX_SLOTS.DEF &&
-      positionCounter.MID >= FORMATION_MIN_SLOTS.MID &&
-      positionCounter.MID <= FORMATION_MAX_SLOTS.MID &&
-      positionCounter.FWD >= FORMATION_MIN_SLOTS.FWD &&
-      positionCounter.FWD <= FORMATION_MAX_SLOTS.FWD &&
+      positionCounter.GK === SQUAD_POSITION_LIMITS.GK &&
+      positionCounter.DEF === SQUAD_POSITION_LIMITS.DEF &&
+      positionCounter.MID === SQUAD_POSITION_LIMITS.MID &&
+      positionCounter.FWD === SQUAD_POSITION_LIMITS.FWD &&
       (lineupDraft
-        ? BENCH_SLOT_POSITIONS.every((position, index) => {
+        ? requiredBenchSlots.every((position, index) => {
             const playerId = lineupDraft.substituteIds[index];
             const player = playerId ? playersById.get(playerId) : null;
             return player?.position === position;
@@ -769,57 +686,44 @@ export const OnboardingPage = () => {
   );
 
   const pitchRows = useMemo<PitchRow[]>(() => {
-    const outfieldCount = lineupDraft
-      ? lineupDraft.defenderIds.filter(Boolean).length +
-        lineupDraft.midfielderIds.filter(Boolean).length +
-        lineupDraft.forwardIds.filter(Boolean).length
-      : 0;
-
     if (!lineupDraft) {
       return [
-        { label: "GK", slots: 1, ids: [] },
+        { label: "GK", slots: 1, ids: [""] },
         {
           label: "DEF",
-          slots: FORMATION_MIN_SLOTS.DEF,
-          ids: Array.from({ length: FORMATION_MIN_SLOTS.DEF }, () => "")
+          slots: ONBOARDING_STARTER_SLOTS.DEF,
+          ids: Array.from({ length: ONBOARDING_STARTER_SLOTS.DEF }, () => "")
         },
         {
           label: "MID",
-          slots: FORMATION_MIN_SLOTS.MID,
-          ids: Array.from({ length: FORMATION_MIN_SLOTS.MID }, () => "")
+          slots: ONBOARDING_STARTER_SLOTS.MID,
+          ids: Array.from({ length: ONBOARDING_STARTER_SLOTS.MID }, () => "")
         },
         {
           label: "FWD",
-          slots: FORMATION_MIN_SLOTS.FWD,
-          ids: Array.from({ length: FORMATION_MIN_SLOTS.FWD }, () => "")
+          slots: ONBOARDING_STARTER_SLOTS.FWD,
+          ids: Array.from({ length: ONBOARDING_STARTER_SLOTS.FWD }, () => "")
         }
       ];
     }
 
-    const defenderIds = buildFlexibleRowIds(
-      lineupDraft.defenderIds,
-      FORMATION_MIN_SLOTS.DEF,
-      FORMATION_MAX_SLOTS.DEF,
-      outfieldCount
-    );
-    const midfielderIds = buildFlexibleRowIds(
-      lineupDraft.midfielderIds,
-      FORMATION_MIN_SLOTS.MID,
-      FORMATION_MAX_SLOTS.MID,
-      outfieldCount
-    );
-    const forwardIds = buildFlexibleRowIds(
-      lineupDraft.forwardIds,
-      FORMATION_MIN_SLOTS.FWD,
-      FORMATION_MAX_SLOTS.FWD,
-      outfieldCount
-    );
-
     return [
       { label: "GK", slots: 1, ids: [lineupDraft.goalkeeperId] },
-      { label: "DEF", slots: defenderIds.length, ids: defenderIds },
-      { label: "MID", slots: midfielderIds.length, ids: midfielderIds },
-      { label: "FWD", slots: forwardIds.length, ids: forwardIds }
+      {
+        label: "DEF",
+        slots: ONBOARDING_STARTER_SLOTS.DEF,
+        ids: normalizeFixedSlotIds(lineupDraft.defenderIds, ONBOARDING_STARTER_SLOTS.DEF)
+      },
+      {
+        label: "MID",
+        slots: ONBOARDING_STARTER_SLOTS.MID,
+        ids: normalizeFixedSlotIds(lineupDraft.midfielderIds, ONBOARDING_STARTER_SLOTS.MID)
+      },
+      {
+        label: "FWD",
+        slots: ONBOARDING_STARTER_SLOTS.FWD,
+        ids: normalizeFixedSlotIds(lineupDraft.forwardIds, ONBOARDING_STARTER_SLOTS.FWD)
+      }
     ];
   }, [lineupDraft]);
 
@@ -935,10 +839,10 @@ export const OnboardingPage = () => {
               playerIds: selectedPlayerIds,
               lineup: {
                 ...lineupDraft,
-                defenderIds: lineupDraft.defenderIds.filter(Boolean),
-                midfielderIds: lineupDraft.midfielderIds.filter(Boolean),
-                forwardIds: lineupDraft.forwardIds.filter(Boolean),
-                substituteIds: lineupDraft.substituteIds.slice(0, SUBSTITUTE_SIZE),
+                defenderIds: normalizeFixedSlotIds(lineupDraft.defenderIds, ONBOARDING_STARTER_SLOTS.DEF),
+                midfielderIds: normalizeFixedSlotIds(lineupDraft.midfielderIds, ONBOARDING_STARTER_SLOTS.MID),
+                forwardIds: normalizeFixedSlotIds(lineupDraft.forwardIds, ONBOARDING_STARTER_SLOTS.FWD),
+                substituteIds: normalizeFixedSlotIds(lineupDraft.substituteIds, SUBSTITUTE_SIZE),
                 captainId,
                 viceCaptainId,
                 updatedAt: new Date().toISOString()
@@ -1160,10 +1064,10 @@ export const OnboardingPage = () => {
               <div className="fpl-bench">
                 <p className="small-label">Substitutes</p>
                 <div className="bench-grid">
-                  {Array.from({ length: FORMATION_MIN_SLOTS.BENCH }).map((_, index) => {
+                  {Array.from({ length: SUBSTITUTE_SIZE }).map((_, index) => {
                     const playerId = getSlotPlayerId(lineupDraft ?? createEmptyLineupDraft(leagueId), "BENCH", index);
                     const player = playerId ? playersById.get(playerId) ?? null : null;
-                    const benchPosition = BENCH_SLOT_POSITIONS[index] ?? "BENCH";
+                    const benchPosition = requiredBenchSlots[index] ?? "BENCH";
                     return <div key={`bench-${index}`}>{renderPitchCard("BENCH", index, benchPosition, player)}</div>;
                   })}
                 </div>
