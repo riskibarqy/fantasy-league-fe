@@ -39,6 +39,11 @@ const formatDeadlineWindow = (kickoffAt: string): string => {
   return `${Math.max(1, minutes)}m left`;
 };
 
+const parseKickoffMs = (kickoffAt: string): number => {
+  const value = new Date(kickoffAt).getTime();
+  return Number.isFinite(value) ? value : Number.POSITIVE_INFINITY;
+};
+
 export const DashboardPage = () => {
   const { getDashboard, getFixtures, getMyCustomLeagues } = useContainer();
   const { leagues, selectedLeagueId, setSelectedLeagueId } = useLeagueSelection();
@@ -119,19 +124,49 @@ export const DashboardPage = () => {
   }, [dashboard?.selectedLeagueId, leagues, selectedLeagueId]);
 
   const sortedFixtures = useMemo(() => {
-    return [...fixtures].sort(
-      (left, right) => new Date(left.kickoffAt).getTime() - new Date(right.kickoffAt).getTime()
-    );
+    return [...fixtures].sort((left, right) => parseKickoffMs(left.kickoffAt) - parseKickoffMs(right.kickoffAt));
   }, [fixtures]);
 
-  const nextFixture = useMemo(() => {
+  const nextUpcomingFixture = useMemo(() => {
     const now = Date.now();
-    return sortedFixtures.find((fixture) => new Date(fixture.kickoffAt).getTime() >= now) ?? sortedFixtures[0] ?? null;
+    return sortedFixtures.find((fixture) => parseKickoffMs(fixture.kickoffAt) >= now) ?? null;
+  }, [sortedFixtures]);
+
+  const featuredGameweek = useMemo(() => {
+    if (sortedFixtures.length === 0) {
+      return null;
+    }
+
+    const now = Date.now();
+    let nearestFixture = sortedFixtures[0];
+    let nearestDiff = Math.abs(parseKickoffMs(nearestFixture.kickoffAt) - now);
+
+    for (const fixture of sortedFixtures.slice(1)) {
+      const diff = Math.abs(parseKickoffMs(fixture.kickoffAt) - now);
+      if (diff < nearestDiff) {
+        nearestDiff = diff;
+        nearestFixture = fixture;
+      }
+    }
+
+    return nearestFixture.gameweek;
   }, [sortedFixtures]);
 
   const featuredFixtures = useMemo(() => {
-    return sortedFixtures.slice(0, 4);
-  }, [sortedFixtures]);
+    if (featuredGameweek === null) {
+      return [];
+    }
+
+    return sortedFixtures
+      .filter((fixture) => fixture.gameweek === featuredGameweek)
+      .slice(0, 4);
+  }, [featuredGameweek, sortedFixtures]);
+
+  const headerFixture = nextUpcomingFixture ?? featuredFixtures[0] ?? null;
+  const fixtureSectionLabel = featuredGameweek !== null ? `GW ${featuredGameweek}` : "-";
+  const fixtureSectionTitle =
+    nextUpcomingFixture || featuredFixtures.length === 0 ? "Upcoming Fixtures" : "Recent Fixtures";
+
   const leaguesById = useMemo(() => new Map(leagues.map((league) => [league.id, league])), [leagues]);
 
   const newsItems = useMemo(() => getGlobalNewsItems(2), []);
@@ -179,7 +214,7 @@ export const DashboardPage = () => {
           </h2>
           <p className="muted">
             Gameweek {dashboard.gameweek}
-            {nextFixture ? ` • Deadline ${formatDeadlineWindow(nextFixture.kickoffAt)}` : ""}
+            {headerFixture ? ` • Deadline ${formatDeadlineWindow(headerFixture.kickoffAt)}` : ""}
           </p>
           {leagues.length > 0 ? (
             <label className="dashboard-league-select">
@@ -300,9 +335,9 @@ export const DashboardPage = () => {
           <div className="section-title">
             <h3 className="section-icon-title">
               <CalendarDays className="inline-icon" aria-hidden="true" />
-              Upcoming Fixtures
+              {fixtureSectionTitle}
             </h3>
-            <p className="muted">{selectedLeague?.countryCode ?? "-"} • {featuredFixtures.length} matches shown</p>
+            <p className="muted">{fixtureSectionLabel} • {featuredFixtures.length} matches shown</p>
           </div>
           <Button asChild size="sm" variant="secondary" className="home-news-more">
             <Link to="/fixtures">

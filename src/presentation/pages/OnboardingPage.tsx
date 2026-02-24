@@ -756,7 +756,7 @@ export const OnboardingPage = () => {
           index
         },
         lineup: lineupDraft,
-        returnPath: "/onboarding?step=squad"
+        returnPath: `/onboarding?force=1&step=squad&leagueId=${encodeURIComponent(leagueId)}`
       },
       userScope
     );

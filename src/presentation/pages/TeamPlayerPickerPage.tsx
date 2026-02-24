@@ -423,12 +423,10 @@ export const TeamPlayerPickerPage = () => {
                 <thead>
                   <tr>
                     <th>Name</th>
-                    <th>Club</th>
-                    <th>Pos</th>
-                    <th>Price</th>
                     <th>Form</th>
+                    <th>Current Price</th>
                     <th>Proj</th>
-                    <th>Inj</th>
+                    <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -470,38 +468,17 @@ export const TeamPlayerPickerPage = () => {
                               </span>
                             )}
                             <div className="media-copy">
-                              <strong>{playerName}</strong>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="entity-media-cell">
-                          <div className="media-line">
-                            {normalizeUrl(player.teamLogoUrl) ? (
-                              <LazyImage
-                                src={normalizeUrl(player.teamLogoUrl)}
-                                alt={playerClub}
-                                className="media-thumb media-thumb-small"
-                                fallback={
-                                  <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
-                                    T
-                                  </span>
-                                }
-                              />
-                            ) : (
-                              <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
-                                T
+                              <strong className="player-row-name">{playerName}</strong>
+                              <span className="player-row-subline">
+                                {playerClub} • {player.position}
                               </span>
-                            )}
-                            <div className="media-copy">
-                              <strong>{playerClub}</strong>
                             </div>
                           </div>
                         </td>
-                        <td>{player.position}</td>
-                        <td>£{player.price.toFixed(1)}</td>
                         <td>{player.form.toFixed(1)}</td>
+                        <td>£{player.price.toFixed(1)}m</td>
                         <td>{player.projectedPoints.toFixed(1)}</td>
-                        <td>{player.isInjured ? "Yes" : "No"}</td>
+                        <td>{player.isInjured ? "Injured" : "Available"}</td>
                       </tr>
                     );
                   })}
