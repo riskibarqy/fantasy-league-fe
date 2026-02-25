@@ -1,4 +1,5 @@
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
+import { LazyImage } from "./LazyImage";
 
 export const FixtureCard = ({ fixture }: { fixture: Fixture }) => {
   const kickOff = new Date(fixture.kickoffAt).toLocaleString("id-ID", {
@@ -19,7 +20,16 @@ export const FixtureCard = ({ fixture }: { fixture: Fixture }) => {
       <div className="fixture-team-lines">
         <div className="media-line">
           {fixture.homeTeamLogoUrl ? (
-            <img src={fixture.homeTeamLogoUrl} alt={fixture.homeTeam} className="media-thumb media-thumb-small" loading="lazy" />
+            <LazyImage
+              src={fixture.homeTeamLogoUrl}
+              alt={fixture.homeTeam}
+              className="media-thumb media-thumb-small"
+              fallback={
+                <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
+                  H
+                </span>
+              }
+            />
           ) : (
             <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
               H
@@ -31,7 +41,16 @@ export const FixtureCard = ({ fixture }: { fixture: Fixture }) => {
         </div>
         <div className="media-line">
           {fixture.awayTeamLogoUrl ? (
-            <img src={fixture.awayTeamLogoUrl} alt={fixture.awayTeam} className="media-thumb media-thumb-small" loading="lazy" />
+            <LazyImage
+              src={fixture.awayTeamLogoUrl}
+              alt={fixture.awayTeam}
+              className="media-thumb media-thumb-small"
+              fallback={
+                <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
+                  A
+                </span>
+              }
+            />
           ) : (
             <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
               A

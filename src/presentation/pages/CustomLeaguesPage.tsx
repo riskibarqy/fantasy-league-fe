@@ -8,6 +8,7 @@ import {
   invalidateCached
 } from "../../app/cache/requestCache";
 import type { CustomLeague } from "../../domain/fantasy/entities/CustomLeague";
+import { LazyImage } from "../components/LazyImage";
 import { LoadingState } from "../components/LoadingState";
 import { RankMovementBadge } from "../components/RankMovementBadge";
 import { useLeagueSelection } from "../hooks/useLeagueSelection";
@@ -304,11 +305,15 @@ export const CustomLeaguesPage = () => {
               </div>
               <div className="media-line">
                 {leaguesById.get(group.leagueId)?.logoUrl ? (
-                  <img
-                    src={leaguesById.get(group.leagueId)?.logoUrl}
+                  <LazyImage
+                    src={leaguesById.get(group.leagueId)?.logoUrl ?? ""}
                     alt={leaguesById.get(group.leagueId)?.name ?? group.leagueId}
                     className="media-thumb media-thumb-small"
-                    loading="lazy"
+                    fallback={
+                      <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
+                        L
+                      </span>
+                    }
                   />
                 ) : (
                   <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">

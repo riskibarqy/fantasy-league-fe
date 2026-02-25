@@ -6,6 +6,7 @@ import { cacheKeys, cacheTtlMs, getOrLoadCached } from "../../app/cache/requestC
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
 import type { LeagueStanding } from "../../domain/fantasy/entities/LeagueStanding";
 import { FixtureCard } from "../components/FixtureCard";
+import { LazyImage } from "../components/LazyImage";
 import { LoadingState } from "../components/LoadingState";
 import { useLeagueSelection } from "../hooks/useLeagueSelection";
 import { appAlert } from "../lib/appAlert";
@@ -393,7 +394,16 @@ export const FixturesPage = () => {
                         <td>
                           <div className="media-line">
                             {item.teamLogoUrl ? (
-                              <img src={item.teamLogoUrl} alt={item.teamName ?? item.teamId} className="media-thumb media-thumb-small" loading="lazy" />
+                              <LazyImage
+                                src={item.teamLogoUrl}
+                                alt={item.teamName ?? item.teamId}
+                                className="media-thumb media-thumb-small"
+                                fallback={
+                                  <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
+                                    T
+                                  </span>
+                                }
+                              />
                             ) : (
                               <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
                                 T

@@ -7,6 +7,7 @@ import type { Dashboard } from "../../domain/fantasy/entities/Team";
 import type { CustomLeague } from "../../domain/fantasy/entities/CustomLeague";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
 import { FixtureCard } from "../components/FixtureCard";
+import { LazyImage } from "../components/LazyImage";
 import { LoadingState } from "../components/LoadingState";
 import { formatRankMovement, RankMovementBadge } from "../components/RankMovementBadge";
 import { getGlobalNewsItems } from "./newsFeed";
@@ -258,11 +259,15 @@ export const DashboardPage = () => {
               <strong>{group.name}</strong>
               <div className="media-line">
                 {leaguesById.get(group.leagueId)?.logoUrl ? (
-                  <img
-                    src={leaguesById.get(group.leagueId)?.logoUrl}
+                  <LazyImage
+                    src={leaguesById.get(group.leagueId)?.logoUrl ?? ""}
                     alt={leaguesById.get(group.leagueId)?.name ?? group.leagueId}
                     className="media-thumb media-thumb-small"
-                    loading="lazy"
+                    fallback={
+                      <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
+                        L
+                      </span>
+                    }
                   />
                 ) : (
                   <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">

@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { LazyImage } from "../components/LazyImage";
 import { LoadingState } from "../components/LoadingState";
 import { useLeagueSelection } from "../hooks/useLeagueSelection";
 import { appAlert } from "../lib/appAlert";
@@ -37,7 +38,16 @@ export const LeaguesPage = () => {
         {!isLoading && leagues.length === 0 ? <p className="muted">No leagues available.</p> : null}
         {leagues.map((league) => (
           <article key={league.id} className="card league-card">
-            <img src={league.logoUrl} alt={league.name} loading="lazy" />
+            <LazyImage
+              src={league.logoUrl}
+              alt={league.name}
+              className="media-thumb"
+              fallback={
+                <span className="media-thumb media-thumb-fallback" aria-hidden="true">
+                  L
+                </span>
+              }
+            />
             <div>
               <h3>{league.name}</h3>
               <p className="muted">Country: {league.countryCode}</p>

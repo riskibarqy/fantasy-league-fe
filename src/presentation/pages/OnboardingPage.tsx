@@ -12,6 +12,7 @@ import {
   SUBSTITUTE_SIZE
 } from "../../domain/fantasy/services/lineupRules";
 import { LoadingState } from "../components/LoadingState";
+import { LazyImage } from "../components/LazyImage";
 import { useLeagueSelection } from "../hooks/useLeagueSelection";
 import { markOnboardingCompleted } from "../hooks/useOnboardingStatus";
 import { useSession } from "../hooks/useSession";
@@ -980,7 +981,16 @@ export const OnboardingPage = () => {
                     onClick={() => setSelectedTeamId(team.id)}
                   >
                     <div className="media-line">
-                      <img src={team.logoUrl} alt={team.name} className="media-thumb media-thumb-small" loading="lazy" />
+                      <LazyImage
+                        src={team.logoUrl}
+                        alt={team.name}
+                        className="media-thumb media-thumb-small"
+                        fallback={
+                          <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
+                            T
+                          </span>
+                        }
+                      />
                       <div className="media-copy">
                         <strong>{team.name}</strong>
                         <small className="muted">{team.short || team.id}</small>

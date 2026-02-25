@@ -4,6 +4,7 @@ import { ArrowLeft, Clock3, Flag, Goal, ShieldAlert, Target } from "lucide-react
 import { cacheKeys, cacheTtlMs, getOrLoadCached } from "../../app/cache/requestCache";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import type { FixtureDetails } from "../../domain/fantasy/entities/FixtureDetails";
+import { LazyImage } from "../components/LazyImage";
 import { LoadingState } from "../components/LoadingState";
 import { useLeagueSelection } from "../hooks/useLeagueSelection";
 import { appAlert } from "../lib/appAlert";
@@ -172,13 +173,21 @@ export const FixtureDetailsPage = () => {
             <div className="fixture-detail-scoreboard">
               <div className="fixture-score-team">
                 {details.fixture.homeTeamLogoUrl ? (
-                  <img
+                  <LazyImage
                     src={details.fixture.homeTeamLogoUrl}
                     alt={details.fixture.homeTeam}
                     className="media-thumb"
-                    loading="lazy"
+                    fallback={
+                      <span className="media-thumb media-thumb-fallback" aria-hidden="true">
+                        H
+                      </span>
+                    }
                   />
-                ) : null}
+                ) : (
+                  <span className="media-thumb media-thumb-fallback" aria-hidden="true">
+                    H
+                  </span>
+                )}
                 <strong>{details.fixture.homeTeam}</strong>
               </div>
               <div className="fixture-score-number">
@@ -188,13 +197,21 @@ export const FixtureDetailsPage = () => {
               </div>
               <div className="fixture-score-team">
                 {details.fixture.awayTeamLogoUrl ? (
-                  <img
+                  <LazyImage
                     src={details.fixture.awayTeamLogoUrl}
                     alt={details.fixture.awayTeam}
                     className="media-thumb"
-                    loading="lazy"
+                    fallback={
+                      <span className="media-thumb media-thumb-fallback" aria-hidden="true">
+                        A
+                      </span>
+                    }
                   />
-                ) : null}
+                ) : (
+                  <span className="media-thumb media-thumb-fallback" aria-hidden="true">
+                    A
+                  </span>
+                )}
                 <strong>{details.fixture.awayTeam}</strong>
               </div>
             </div>

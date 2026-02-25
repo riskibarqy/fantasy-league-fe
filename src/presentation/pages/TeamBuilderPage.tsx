@@ -17,6 +17,7 @@ import {
 } from "../../domain/fantasy/services/lineupRules";
 import { buildLineupFromPlayers } from "../../domain/fantasy/services/squadBuilder";
 import { LoadingState } from "../components/LoadingState";
+import { LazyImage } from "../components/LazyImage";
 import { useSession } from "../hooks/useSession";
 import { useLeagueSelection } from "../hooks/useLeagueSelection";
 import { appAlert } from "../lib/appAlert";
@@ -2166,11 +2167,28 @@ export const TeamBuilderPage = () => {
             <div className="player-modal-hero">
               <div className="player-portrait">
                 {normalizeUrl(selectedPlayerDetails?.player.imageUrl ?? selectedPlayer.imageUrl) ? (
-                  <img
-                    src={normalizeUrl(selectedPlayerDetails?.player.imageUrl ?? selectedPlayer.imageUrl)}
+                  <LazyImage
+                    src={normalizeUrl(selectedPlayerDetails?.player.imageUrl ?? selectedPlayer.imageUrl) ?? ""}
                     alt={selectedPlayerDetails?.player.name ?? selectedPlayer.name}
                     className="player-portrait-photo"
-                    loading="lazy"
+                    fallback={
+                      <>
+                        <span className="player-portrait-head" />
+                        <span
+                          className="player-portrait-body"
+                          style={{
+                            background: jerseyBackgroundFromColors(
+                              selectedPlayerDetails?.player.teamColor && selectedPlayerDetails.player.teamColor.length >= 2
+                                ? [
+                                    selectedPlayerDetails.player.teamColor[0],
+                                    selectedPlayerDetails.player.teamColor[1]
+                                  ]
+                                : resolveJerseyColorPair(selectedPlayer, teamColorIndex)
+                            )
+                          }}
+                        />
+                      </>
+                    }
                   />
                 ) : (
                   <>
@@ -2199,11 +2217,15 @@ export const TeamBuilderPage = () => {
                 <div className="player-hero-urls">
                   <div className="media-line">
                     {normalizeUrl(selectedPlayerDetails?.player.teamLogoUrl ?? selectedPlayer.teamLogoUrl) ? (
-                      <img
-                        src={normalizeUrl(selectedPlayerDetails?.player.teamLogoUrl ?? selectedPlayer.teamLogoUrl)}
+                      <LazyImage
+                        src={normalizeUrl(selectedPlayerDetails?.player.teamLogoUrl ?? selectedPlayer.teamLogoUrl) ?? ""}
                         alt={selectedPlayerDetails?.player.club ?? selectedPlayer.club}
                         className="media-thumb media-thumb-small"
-                        loading="lazy"
+                        fallback={
+                          <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
+                            T
+                          </span>
+                        }
                       />
                     ) : (
                       <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
@@ -2213,11 +2235,15 @@ export const TeamBuilderPage = () => {
                   </div>
                   <div className="media-line">
                     {normalizeUrl(selectedPlayerDetails?.player.imageUrl ?? selectedPlayer.imageUrl) ? (
-                      <img
-                        src={normalizeUrl(selectedPlayerDetails?.player.imageUrl ?? selectedPlayer.imageUrl)}
+                      <LazyImage
+                        src={normalizeUrl(selectedPlayerDetails?.player.imageUrl ?? selectedPlayer.imageUrl) ?? ""}
                         alt={selectedPlayerDetails?.player.name ?? selectedPlayer.name}
                         className="media-thumb media-thumb-small"
-                        loading="lazy"
+                        fallback={
+                          <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
+                            P
+                          </span>
+                        }
                       />
                     ) : (
                       <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
