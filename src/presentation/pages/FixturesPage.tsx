@@ -11,7 +11,6 @@ import { useLeagueSelection } from "../hooks/useLeagueSelection";
 import { appAlert } from "../lib/appAlert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Select } from "@/components/ui/select";
 
 type FixturesTab = "fixtures" | "standings";
 
@@ -24,13 +23,7 @@ const isLiveFixture = (fixture: Fixture): boolean => {
 
 export const FixturesPage = () => {
   const { getFixtures, getLeagueStandings } = useContainer();
-  const {
-    leagues,
-    selectedLeagueId,
-    setSelectedLeagueId,
-    isLoading: isLeaguesLoading,
-    errorMessage: leagueErrorMessage
-  } = useLeagueSelection();
+  const { leagues, selectedLeagueId } = useLeagueSelection();
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [standings, setStandings] = useState<LeagueStanding[]>([]);
   const [standingsMode, setStandingsMode] = useState<"live" | "final">("final");
@@ -40,12 +33,6 @@ export const FixturesPage = () => {
   const [activeTab, setActiveTab] = useState<FixturesTab>("fixtures");
   const [gameweekPageIndex, setGameweekPageIndex] = useState(0);
   const activeGameweekButtonRef = useRef<HTMLButtonElement | null>(null);
-
-  useEffect(() => {
-    if (leagueErrorMessage) {
-      void appAlert.error("League Load Failed", leagueErrorMessage);
-    }
-  }, [leagueErrorMessage]);
 
   useEffect(() => {
     if (errorMessage) {
@@ -273,24 +260,6 @@ export const FixturesPage = () => {
             </h2>
           </div>
         </div>
-
-        <div className="page-filter-grid">
-          <label>
-            League
-            <Select
-              value={selectedLeagueId}
-              onChange={(event) => setSelectedLeagueId(event.target.value)}
-              disabled={isLeaguesLoading}
-            >
-              {leagues.map((league) => (
-                <option key={league.id} value={league.id}>
-                  {league.name}
-                </option>
-              ))}
-            </Select>
-          </label>
-        </div>
-        {isLeaguesLoading ? <LoadingState label="Loading leagues" inline compact /> : null}
       </Card>
 
       <Card className="card page-section">

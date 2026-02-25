@@ -29,7 +29,7 @@ const sortCustomLeagues = (items: CustomLeague[]): CustomLeague[] => {
 export const CustomLeaguesPage = () => {
   const [searchParams] = useSearchParams();
   const { getMyCustomLeagues, createCustomLeague, joinCustomLeagueByInvite } = useContainer();
-  const { leagues, selectedLeagueId, setSelectedLeagueId } = useLeagueSelection();
+  const { leagues, selectedLeagueId } = useLeagueSelection();
   const { session } = useSession();
 
   const [groups, setGroups] = useState<CustomLeague[]>([]);
@@ -157,7 +157,7 @@ export const CustomLeaguesPage = () => {
     const leagueId = createLeagueId.trim();
     const name = createName.trim();
     if (!leagueId) {
-      setActionMessage("Select league first.");
+      setActionMessage("League is not ready yet. Please wait.");
       return;
     }
     if (!name) {
@@ -182,7 +182,6 @@ export const CustomLeaguesPage = () => {
       invalidateCached(cacheKeys.customLeagues(userId));
       await loadGroups(true);
       setCreateName("");
-      setSelectedLeagueId(leagueId);
       setActionMessage(`Custom league created. Invite code: ${created.inviteCode}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to create custom league.";
@@ -239,20 +238,8 @@ export const CustomLeaguesPage = () => {
           <article className="custom-league-action-card">
             <h3>Create Custom League</h3>
             <p className="muted">Create a private league and share invite code/link.</p>
+            <p className="small-label">League: {(leaguesById.get(createLeagueId)?.name ?? createLeagueId) || "-"}</p>
             <div className="page-filter-grid">
-              <label>
-                League
-                <select
-                  value={createLeagueId}
-                  onChange={(event) => setCreateLeagueId(event.target.value)}
-                >
-                  {leagues.map((league) => (
-                    <option key={league.id} value={league.id}>
-                      {league.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
               <label>
                 League Name
                 <input

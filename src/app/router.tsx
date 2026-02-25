@@ -21,9 +21,6 @@ const FixturesPage = lazy(() =>
 const FixtureDetailsPage = lazy(() =>
   import("../presentation/pages/FixtureDetailsPage").then((module) => ({ default: module.FixtureDetailsPage }))
 );
-const LeaguesPage = lazy(() =>
-  import("../presentation/pages/LeaguesPage").then((module) => ({ default: module.LeaguesPage }))
-);
 const LoginPage = lazy(() =>
   import("../presentation/pages/LoginPage").then((module) => ({ default: module.LoginPage }))
 );
@@ -131,7 +128,6 @@ export const AppRouter = () => {
               <Route path="/news" element={<NewsPage />} />
               <Route path="/fixtures" element={<FixturesPage />} />
               <Route path="/fixtures/:fixtureId" element={<FixtureDetailsPage />} />
-              <Route path="/leagues" element={<LeaguesPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
           </Route>

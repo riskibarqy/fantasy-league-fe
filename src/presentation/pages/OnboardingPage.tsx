@@ -958,24 +958,6 @@ export const OnboardingPage = () => {
 
             <div className="page-filter-grid">
               <label>
-                League
-                <select
-                  value={leagueId}
-                  onChange={(event) => {
-                    const nextLeagueId = event.target.value;
-                    setLeagueId(nextLeagueId);
-                    setSelectedLeagueId(nextLeagueId);
-                  }}
-                >
-                  {leagues.map((league) => (
-                    <option key={league.id} value={league.id}>
-                      {league.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
                 Search Club Name
                 <input
                   type="text"

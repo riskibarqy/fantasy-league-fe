@@ -15,7 +15,6 @@ import { useSession } from "../hooks/useSession";
 import { appAlert } from "../lib/appAlert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Select } from "@/components/ui/select";
 
 const formatDeadlineWindow = (kickoffAt: string): string => {
   const diffMs = new Date(kickoffAt).getTime() - Date.now();
@@ -46,7 +45,7 @@ const parseKickoffMs = (kickoffAt: string): number => {
 
 export const DashboardPage = () => {
   const { getDashboard, getFixtures, getMyCustomLeagues } = useContainer();
-  const { leagues, selectedLeagueId, setSelectedLeagueId } = useLeagueSelection();
+  const { leagues, selectedLeagueId } = useLeagueSelection();
   const { session } = useSession();
 
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
@@ -216,21 +215,6 @@ export const DashboardPage = () => {
             Gameweek {dashboard.gameweek}
             {headerFixture ? ` • Deadline ${formatDeadlineWindow(headerFixture.kickoffAt)}` : ""}
           </p>
-          {leagues.length > 0 ? (
-            <label className="dashboard-league-select">
-              League
-              <Select
-                value={selectedLeagueId || dashboard.selectedLeagueId}
-                onChange={(event) => setSelectedLeagueId(event.target.value)}
-              >
-                {leagues.map((league) => (
-                  <option key={league.id} value={league.id}>
-                    {league.name}
-                  </option>
-                ))}
-              </Select>
-            </label>
-          ) : null}
         </div>
 
         <div className="home-quick-grid">
@@ -247,13 +231,6 @@ export const DashboardPage = () => {
               Fixtures
             </strong>
             <small>See match schedule</small>
-          </Link>
-          <Link to="/leagues" className="home-quick-link">
-            <strong className="quick-link-title">
-              <Trophy className="inline-icon" aria-hidden="true" />
-              Leagues
-            </strong>
-            <small>Competition overview</small>
           </Link>
         </div>
       </Card>

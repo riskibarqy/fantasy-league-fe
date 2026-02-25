@@ -23,7 +23,6 @@ import { appAlert } from "../lib/appAlert";
 import { HttpError } from "../../infrastructure/http/httpClient";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Select } from "@/components/ui/select";
 import {
   consumePickerResult,
   readLineupDraft,
@@ -454,7 +453,7 @@ export const TeamBuilderPage = () => {
   const navigate = useNavigate();
   const { getPlayers, getTeams, getPlayerDetails, getLineup, getDashboard, getFixtures, getMySquad, pickSquad, logout, saveLineup } =
     useContainer();
-  const { leagues, selectedLeagueId, setSelectedLeagueId } = useLeagueSelection();
+  const { leagues, selectedLeagueId } = useLeagueSelection();
   const { session, setSession } = useSession();
   const userScope = session?.user.id ?? "";
   const logoutInProgressRef = useRef(false);
@@ -1950,22 +1949,6 @@ export const TeamBuilderPage = () => {
             <ArrowLeftRight className="mode-icon" aria-hidden="true" />
             Transfers
           </Button>
-        </div>
-
-        <div>
-          <label>
-            League
-            <Select
-              value={selectedLeagueId}
-              onChange={(event) => setSelectedLeagueId(event.target.value)}
-            >
-              {leagues.map((league) => (
-                <option key={league.id} value={league.id}>
-                  {league.name}
-                </option>
-              ))}
-            </Select>
-          </label>
         </div>
 
         <div className="team-meta-grid">

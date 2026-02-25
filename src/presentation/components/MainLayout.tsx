@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { CalendarDays, Home, Settings2, Shield, Trophy, Waves } from "lucide-react";
+import { CalendarDays, Home, Settings2, Shield, Waves } from "lucide-react";
 import { useSession } from "../hooks/useSession";
 import { useI18n } from "../hooks/useI18n";
 
@@ -37,10 +37,6 @@ export const MainLayout = () => {
         <NavLink to="/fixtures">
           <CalendarDays className="nav-icon" aria-hidden="true" />
           <span className="nav-label">{t("nav.fixtures")}</span>
-        </NavLink>
-        <NavLink to="/leagues">
-          <Trophy className="nav-icon" aria-hidden="true" />
-          <span className="nav-label">{t("nav.leagues")}</span>
         </NavLink>
         <NavLink to="/settings">
           <Settings2 className="nav-icon" aria-hidden="true" />
