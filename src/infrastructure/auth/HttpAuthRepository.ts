@@ -57,7 +57,7 @@ export class HttpAuthRepository implements AuthRepository {
   private getAppId(): string {
     const appId = this.appId.trim();
     if (!appId) {
-      throw new Error("Missing Anubis app id (VITE_ANUBIS_APP_ID).");
+      throw new Error("Missing Anubis app id (NEXT_PUBLIC_ANUBIS_APP_ID).");
     }
 
     return appId;

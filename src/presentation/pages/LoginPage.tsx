@@ -76,7 +76,10 @@ export const LoginPage = () => {
     if (appEnv.useMocks || !appEnv.googleClientId) {
       if (!appEnv.useMocks && !appEnv.googleClientId && !googleClientWarningShownRef.current) {
         googleClientWarningShownRef.current = true;
-        void appAlert.warning("Google Sign-in", "Set VITE_GOOGLE_CLIENT_ID to enable Google sign-in.");
+        void appAlert.warning(
+          "Google Sign-in",
+          "Set NEXT_PUBLIC_GOOGLE_CLIENT_ID to enable Google sign-in."
+        );
       }
       return;
     }

@@ -12,14 +12,14 @@ This frontend is mock-first while backend services are under development.
 Set in `.env`:
 
 ```bash
-VITE_USE_MOCKS=false
-VITE_ANUBIS_BASE_URL=http://localhost:8081
-VITE_ANUBIS_APP_ID=00000000-0000-0000-0000-000000000000
-VITE_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
-VITE_FANTASY_API_BASE_URL=http://localhost:8080
+NEXT_PUBLIC_USE_MOCKS=false
+NEXT_PUBLIC_ANUBIS_BASE_URL=http://localhost:8081
+NEXT_PUBLIC_ANUBIS_APP_ID=00000000-0000-0000-0000-000000000000
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+NEXT_PUBLIC_FANTASY_API_BASE_URL=http://localhost:8080
 ```
 
-For Vercel, set the same `VITE_*` variables in Project Settings -> Environment Variables.
+For Vercel, set the same `NEXT_PUBLIC_*` variables in Project Settings -> Environment Variables.
 
 ## Expected Auth Endpoints (Anubis)
 
@@ -70,6 +70,5 @@ Client mapping:
 
 ## Vercel Notes
 
-- This project is a static Vite build (no server runtime required).
+- This project runs on Next.js runtime.
 - Dockerfile is not required for Vercel.
-- SPA route fallback is handled via `/Users/riskiramdan/ts/fantasy-league-fe/vercel.json`.

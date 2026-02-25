@@ -12,13 +12,13 @@ prepare-env: ## Create .env from .env.example if missing
 install: ## Install dependencies
 	$(NPM) install
 
-dev: ## Run Vite dev server
+dev: ## Run Next.js dev server
 	$(NPM) run dev
 
 build: ## Build production bundle
 	$(NPM) run build
 
-preview: ## Preview production build
+preview: ## Run production server (after build)
 	$(NPM) run preview
 
 test: ## Run unit tests once
@@ -33,7 +33,7 @@ typecheck: ## Run TypeScript type checks
 check: typecheck test build ## Run full validation suite
 
 clean: ## Remove generated artifacts
-	rm -rf dist coverage *.tsbuildinfo
+	rm -rf dist .next out coverage *.tsbuildinfo
 
 cap-copy: ## Build app and copy web assets to native projects
 	$(NPM) run cap:copy

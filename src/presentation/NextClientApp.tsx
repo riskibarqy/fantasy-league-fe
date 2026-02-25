@@ -1,22 +1,45 @@
-import React from "react";
-import ReactDOM from "react-dom/client";
+"use client";
+
+import { useEffect, useState } from "react";
 import { BrowserRouter } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
-import { AppRouter } from "./app/router";
-import { DependenciesProvider } from "./app/dependencies/DependenciesProvider";
-import { SessionProvider } from "./presentation/hooks/useSession";
-import { AppSettingsProvider } from "./presentation/hooks/useAppSettings";
-import { LeagueSelectionProvider } from "./presentation/hooks/useLeagueSelection";
-import "./styles/global.css";
+import { AppRouter } from "../app/router";
+import { DependenciesProvider } from "../app/dependencies/DependenciesProvider";
+import { SessionProvider } from "./hooks/useSession";
+import { AppSettingsProvider } from "./hooks/useAppSettings";
+import { LeagueSelectionProvider } from "./hooks/useLeagueSelection";
 
-if (import.meta.env?.PROD && typeof window !== "undefined" && "serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    void navigator.serviceWorker.register("/sw.js");
-  });
-}
+export const NextClientApp = () => {
+  const [mounted, setMounted] = useState(false);
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "production" || typeof window === "undefined") {
+      return;
+    }
+
+    if (!("serviceWorker" in navigator)) {
+      return;
+    }
+
+    const registerSW = () => {
+      void navigator.serviceWorker.register("/sw.js");
+    };
+
+    window.addEventListener("load", registerSW);
+    return () => {
+      window.removeEventListener("load", registerSW);
+    };
+  }, []);
+
+  if (!mounted) {
+    return null;
+  }
+
+  return (
     <BrowserRouter>
       <DependenciesProvider>
         <SessionProvider>
@@ -56,5 +79,5 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         </SessionProvider>
       </DependenciesProvider>
     </BrowserRouter>
-  </React.StrictMode>
-);
+  );
+};

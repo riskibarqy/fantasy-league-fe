@@ -4,8 +4,9 @@ Frontend for fantasy football platform focused on Indonesian leagues first, but 
 
 ## Tech Stack
 
-- React 18 + TypeScript + Vite
-- Tailwind CSS v4 (Vite plugin) + shadcn/ui primitives
+- Next.js 15 (App Router) + React 18 + TypeScript
+- Tailwind CSS v4 + shadcn/ui primitives
+- Vite build pipeline for Capacitor web asset sync (`dist/`)
 - Capacitor (Android + iOS wrapper for mobile app install)
 - Clean Architecture + DDD boundaries
 - Vitest for unit tests
@@ -72,6 +73,8 @@ Typical workflow after frontend changes:
 make cap-sync
 ```
 
+`make cap-sync` uses the SPA build pipeline (`npm run build:spa`) so native wrappers always receive `dist/` assets.
+
 2. Open Android:
 ```bash
 make mobile-android
@@ -98,32 +101,31 @@ Prerequisites:
 
 Copy `.env.example` to `.env` and adjust:
 
-- `VITE_USE_MOCKS=true` to use mock repositories (default, backend not required)
-- `VITE_USE_MOCKS=false` to call real services
-- `VITE_ANUBIS_BASE_URL` points to `../../rust/anubis` runtime URL
-- `VITE_ANUBIS_APP_ID` Anubis app UUID used for session endpoints
-- `VITE_GOOGLE_CLIENT_ID` Google Identity Services client ID
-- `VITE_FANTASY_API_BASE_URL` points to `../../go/fantasy-league` runtime URL
+- `NEXT_PUBLIC_USE_MOCKS=true` to use mock repositories (default, backend not required)
+- `NEXT_PUBLIC_USE_MOCKS=false` to call real services
+- `NEXT_PUBLIC_ANUBIS_BASE_URL` points to `../../rust/anubis` runtime URL
+- `NEXT_PUBLIC_ANUBIS_APP_ID` Anubis app UUID used for session endpoints
+- `NEXT_PUBLIC_GOOGLE_CLIENT_ID` Google Identity Services client ID
+- `NEXT_PUBLIC_FANTASY_API_BASE_URL` points to `../../go/fantasy-league` runtime URL
 
 ## Deploy To Vercel
 
-- Use Framework Preset: `Vite`
+- Use Framework Preset: `Next.js`
 - Build Command: `npm run build`
-- Output Directory: `dist`
 - Install Command: `npm install`
 - Node.js version: `20.x` (recommended)
 
 Set these Environment Variables in Vercel Project Settings:
 
-- `VITE_USE_MOCKS`
-- `VITE_ANUBIS_BASE_URL`
-- `VITE_ANUBIS_APP_ID`
-- `VITE_GOOGLE_CLIENT_ID`
-- `VITE_FANTASY_API_BASE_URL`
+- `NEXT_PUBLIC_USE_MOCKS`
+- `NEXT_PUBLIC_ANUBIS_BASE_URL`
+- `NEXT_PUBLIC_ANUBIS_APP_ID`
+- `NEXT_PUBLIC_GOOGLE_CLIENT_ID`
+- `NEXT_PUBLIC_FANTASY_API_BASE_URL`
 
 Notes:
 - Dockerfile is not required for Vercel deployment.
-- `vercel.json` includes SPA rewrite so direct URLs like `/team` do not 404.
+- Routing is served by Next App Router catch-all page.
 
 ## Current Mock Scope
 
