@@ -11,6 +11,7 @@ import {
   STARTER_SIZE,
   SUBSTITUTE_SIZE
 } from "../../domain/fantasy/services/lineupRules";
+import { pickAutoSquadPlayerIds } from "../../domain/fantasy/services/squadBuilder";
 import { LoadingState } from "../components/LoadingState";
 import { LazyImage } from "../components/LazyImage";
 import { useLeagueSelection } from "../hooks/useLeagueSelection";
@@ -287,6 +288,22 @@ const isLineupDraftComplete = (lineup: TeamLineup | null): boolean => {
       lineup.forwardIds.every(Boolean) &&
       lineup.substituteIds.every(Boolean)
   );
+};
+
+const byProjectedThenFormThenPrice = (left: Player, right: Player): number => {
+  if (left.projectedPoints !== right.projectedPoints) {
+    return right.projectedPoints - left.projectedPoints;
+  }
+
+  if (left.form !== right.form) {
+    return right.form - left.form;
+  }
+
+  if (left.price !== right.price) {
+    return left.price - right.price;
+  }
+
+  return left.id.localeCompare(right.id);
 };
 
 const scrollElementToViewportCenter = (element: HTMLElement) => {
@@ -893,6 +910,71 @@ export const OnboardingPage = () => {
     }
   };
 
+  const onAutoPick = () => {
+    if (!leagueId || players.length === 0) {
+      setErrorMessage("Players are not ready yet.");
+      return;
+    }
+
+    try {
+      const pickedIds = pickAutoSquadPlayerIds(players);
+      const pickedPlayers = pickedIds
+        .map((id) => playersById.get(id))
+        .filter((player): player is Player => Boolean(player));
+
+      const byPosition: Record<Player["position"], Player[]> = {
+        GK: pickedPlayers.filter((player) => player.position === "GK").sort(byProjectedThenFormThenPrice),
+        DEF: pickedPlayers.filter((player) => player.position === "DEF").sort(byProjectedThenFormThenPrice),
+        MID: pickedPlayers.filter((player) => player.position === "MID").sort(byProjectedThenFormThenPrice),
+        FWD: pickedPlayers.filter((player) => player.position === "FWD").sort(byProjectedThenFormThenPrice)
+      };
+
+      if (
+        byPosition.GK.length < 2 ||
+        byPosition.DEF.length < 5 ||
+        byPosition.MID.length < 5 ||
+        byPosition.FWD.length < 3
+      ) {
+        throw new Error("Auto-pick could not satisfy onboarding formation requirements.");
+      }
+
+      const goalkeeperId = byPosition.GK[0].id;
+      const defenderIds = byPosition.DEF.slice(0, ONBOARDING_STARTER_SLOTS.DEF).map((player) => player.id);
+      const midfielderIds = byPosition.MID.slice(0, ONBOARDING_STARTER_SLOTS.MID).map((player) => player.id);
+      const forwardIds = byPosition.FWD.slice(0, ONBOARDING_STARTER_SLOTS.FWD).map((player) => player.id);
+      const substituteIds = [
+        byPosition.GK[1].id,
+        byPosition.DEF[ONBOARDING_STARTER_SLOTS.DEF].id,
+        byPosition.MID[ONBOARDING_STARTER_SLOTS.MID].id,
+        byPosition.FWD[ONBOARDING_STARTER_SLOTS.FWD].id
+      ];
+
+      const starters = [goalkeeperId, ...defenderIds, ...midfielderIds, ...forwardIds]
+        .map((id) => playersById.get(id))
+        .filter((player): player is Player => Boolean(player))
+        .sort(byProjectedThenFormThenPrice);
+      const captainId = starters[0]?.id ?? goalkeeperId;
+      const viceCaptainId = starters.find((player) => player.id !== captainId)?.id ?? captainId;
+
+      setLineupDraft({
+        leagueId,
+        goalkeeperId,
+        defenderIds,
+        midfielderIds,
+        forwardIds,
+        substituteIds,
+        captainId,
+        viceCaptainId,
+        updatedAt: new Date().toISOString()
+      });
+      setErrorMessage(null);
+      setInfoMessage("Auto-picked squad created. Review and complete onboarding.");
+      recenterToPitch();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to auto-pick squad.");
+    }
+  };
+
   const renderPitchCard = (zone: SlotZone, index: number, label: string, player: Player | null) => {
     if (!player) {
       return (
@@ -1089,6 +1171,9 @@ export const OnboardingPage = () => {
             <section className="onboarding-actions onboarding-actions-between">
               <button type="button" className="secondary-button" onClick={() => setStep("favorite")}>
                 Back
+              </button>
+              <button type="button" className="secondary-button" onClick={onAutoPick} disabled={isLoading || isSubmitting || players.length === 0}>
+                Auto Pick
               </button>
               <button type="button" onClick={onSubmit} disabled={isSubmitting || isLoading || !canSubmit}>
                 {isSubmitting ? "Saving..." : "Complete"}

@@ -1,37 +1,50 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import { cacheKeys, cacheTtlMs, getOrLoadCached } from "../../app/cache/requestCache";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
 import type { LeagueStanding } from "../../domain/fantasy/entities/LeagueStanding";
 import { FixtureCard } from "../components/FixtureCard";
-import { LazyImage } from "../components/LazyImage";
 import { LoadingState } from "../components/LoadingState";
 import { useLeagueSelection } from "../hooks/useLeagueSelection";
+import { useSession } from "../hooks/useSession";
 import { appAlert } from "../lib/appAlert";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-
-type FixturesTab = "fixtures" | "standings";
+import { LazyImage } from "../components/LazyImage";
 
 const LIVE_STATUSES = new Set(["LIVE", "IN_PLAY", "HT", "1H", "2H", "ET"]);
+type FixturesTab = "fixtures" | "standings";
+type FormResult = "W" | "D" | "L";
 
 const isLiveFixture = (fixture: Fixture): boolean => {
   const status = fixture.status?.trim().toUpperCase() ?? "";
-  return LIVE_STATUSES.has(status);
+  return LIVE_STATUSES.has(status) || status.includes("LIVE");
+};
+
+const parseStandingForm = (rawForm?: string): FormResult[] => {
+  const tokens = rawForm?.toUpperCase().match(/[WDL]/g) ?? [];
+  return tokens.slice(-5) as FormResult[];
+};
+
+const parseStandingFormLastFive = (rawForm?: string): Array<FormResult | null> => {
+  const values = parseStandingForm(rawForm);
+  if (values.length >= 5) {
+    return values;
+  }
+
+  return [...Array.from({ length: 5 - values.length }, () => null), ...values];
 };
 
 export const FixturesPage = () => {
   const { getFixtures, getLeagueStandings } = useContainer();
   const { leagues, selectedLeagueId } = useLeagueSelection();
+  const { session } = useSession();
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [standings, setStandings] = useState<LeagueStanding[]>([]);
   const [standingsMode, setStandingsMode] = useState<"live" | "final">("final");
+  const [activeTab, setActiveTab] = useState<FixturesTab>("fixtures");
   const [isFixturesLoading, setIsFixturesLoading] = useState(false);
   const [isStandingsLoading, setIsStandingsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<FixturesTab>("fixtures");
   const [gameweekPageIndex, setGameweekPageIndex] = useState(0);
   const activeGameweekButtonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -169,7 +182,7 @@ export const FixturesPage = () => {
   }, [activeTab, getLeagueStandings, selectedLeagueId]);
 
   const selectedLeagueName = useMemo(() => {
-    return leagues.find((league) => league.id === selectedLeagueId)?.name ?? "League";
+    return leagues.find((league) => league.id === selectedLeagueId)?.name ?? "Liga 1 Indonesia";
   }, [leagues, selectedLeagueId]);
 
   const groupedByGameweek = useMemo(() => {
@@ -248,135 +261,115 @@ export const FixturesPage = () => {
 
   const activeGameweekGroup = groupedByGameweek[gameweekPageIndex] ?? null;
   const activeGameweek = activeGameweekGroup?.gameweek ?? null;
-  const totalGameweeks = groupedByGameweek.length;
+  const activeFixtures = activeGameweekGroup?.items ?? [];
+  const displayName = session?.user.displayName?.trim() || "Riski Ramdan";
 
   return (
-    <div className="page-grid">
-      <Card className="card page-section">
-        <div className="home-section-head">
-          <div className="section-title">
-            <h2 className="section-icon-title">
-              <CalendarDays className="inline-icon" aria-hidden="true" />
-              Fixtures
-            </h2>
-            <p className="small-label">{selectedLeagueName}</p>
-            <p className="muted">
-              {activeTab === "fixtures"
-                ? activeGameweekGroup
-                  ? `${activeGameweekGroup.items.length} matches in GW ${activeGameweek}`
-                  : "0 matches"
-                : `${standings.length} teams`}
-              {activeTab === "fixtures" && fixtures.length > 0 ? ` • ${fixtures.length} total` : ""}
-              {activeTab === "standings" ? ` • ${standingsMode === "live" ? "Live table" : "Official table"}` : ""}
-            </p>
-          </div>
-        </div>
+    <div className="page-grid fixtures-modern-page">
+      <section className="fixtures-modern-header">
+        <p className="fixtures-app-name">Fantasy Nusantara</p>
+        <h1 className="fixtures-user-name">{displayName}</h1>
+        <p className="fixtures-gw-summary">
+          {activeGameweek ? `GW${activeGameweek}` : "GW -"} • {selectedLeagueName}
+        </p>
+        <p className="fixtures-match-count">
+          {activeTab === "fixtures"
+            ? `${activeFixtures.length} matches`
+            : `${standings.length} teams • ${standingsMode === "live" ? "Live" : "Official"}`}
+        </p>
+      </section>
 
-        <div className="segmented-control fixtures-segmented" role="tablist" aria-label="Fixtures and standings tabs">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "fixtures"}
-            className={`segment ${activeTab === "fixtures" ? "active" : ""}`}
-            onClick={() => setActiveTab("fixtures")}
-          >
-            Fixtures
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "standings"}
-            className={`segment ${activeTab === "standings" ? "active" : ""}`}
-            onClick={() => setActiveTab("standings")}
-          >
-            Standing
-          </button>
-        </div>
+      <section className="fixtures-modern-tabs" role="tablist" aria-label="Fixtures and standings tabs">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "fixtures"}
+          className={`fixtures-modern-tab ${activeTab === "fixtures" ? "active" : ""}`}
+          onClick={() => setActiveTab("fixtures")}
+        >
+          Fixtures
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "standings"}
+          className={`fixtures-modern-tab ${activeTab === "standings" ? "active" : ""}`}
+          onClick={() => setActiveTab("standings")}
+        >
+          Standings
+        </button>
+      </section>
 
-        {activeTab === "fixtures" ? (
-          <>
-            {totalGameweeks > 0 ? (
-              <div className="fixtures-pagination">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  className="fixtures-page-nav"
-                  onClick={() => setGameweekPageIndex((previous) => Math.max(0, previous - 1))}
-                  disabled={gameweekPageIndex <= 0}
-                >
-                  <ChevronLeft className="inline-icon" aria-hidden="true" />
-                  Prev
-                </Button>
+      {activeTab === "fixtures" ? (
+        <>
+          <section className="fixtures-gw-section">
+            <div className="fixtures-modern-gw-strip" role="tablist" aria-label="Gameweek list">
+              {groupedByGameweek.map((group, index) => {
+                const isActive = index === gameweekPageIndex;
+                return (
+                  <button
+                    key={group.gameweek}
+                    ref={isActive ? activeGameweekButtonRef : null}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    className={`fixtures-modern-gw-pill ${isActive ? "active" : ""}`}
+                    onClick={() => setGameweekPageIndex(index)}
+                  >
+                    GW{group.gameweek}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
 
-                <div className="fixtures-gw-strip" role="tablist" aria-label="Gameweek list">
-                  {groupedByGameweek.map((group, index) => {
-                    const isActive = index === gameweekPageIndex;
-                    return (
-                      <button
-                        key={group.gameweek}
-                        ref={isActive ? activeGameweekButtonRef : null}
-                        type="button"
-                        role="tab"
-                        aria-selected={isActive}
-                        className={`fixtures-gw-chip ${isActive ? "active" : ""}`}
-                        onClick={() => setGameweekPageIndex(index)}
-                      >
-                        GW {group.gameweek}
-                      </button>
-                    );
-                  })}
-                </div>
+          {isFixturesLoading ? <LoadingState label="Loading fixtures" /> : null}
+          {isFixturesLoading ? (
+            <div className="fixtures-modern-list" aria-hidden="true">
+              <div className="fixtures-modern-skeleton" />
+              <div className="fixtures-modern-skeleton" />
+              <div className="fixtures-modern-skeleton" />
+            </div>
+          ) : null}
 
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  className="fixtures-page-nav"
-                  onClick={() =>
-                    setGameweekPageIndex((previous) => Math.min(groupedByGameweek.length - 1, previous + 1))
-                  }
-                  disabled={gameweekPageIndex >= groupedByGameweek.length - 1}
-                >
-                  Next
-                  <ChevronRight className="inline-icon" aria-hidden="true" />
-                </Button>
-              </div>
-            ) : null}
+          {!isFixturesLoading && activeFixtures.length === 0 ? (
+            <p className="muted">No fixtures found.</p>
+          ) : null}
 
-            {isFixturesLoading ? <LoadingState label="Loading fixtures" /> : null}
-            {isFixturesLoading ? (
-              <>
-                <div className="skeleton-card" />
-                <div className="skeleton-card" />
-                <div className="skeleton-card" />
-              </>
-            ) : null}
-            <div className="fixtures-list">
-              {!isFixturesLoading && fixtures.length === 0 ? <p className="muted">No fixtures found.</p> : null}
-              {(activeGameweekGroup?.items ?? []).map((fixture) => (
+          {!isFixturesLoading && activeFixtures.length > 0 ? (
+            <div className="fixtures-modern-list">
+              {activeFixtures.map((fixture) => (
                 <Link
                   key={fixture.id}
                   to={`/fixtures/${encodeURIComponent(fixture.id)}?leagueId=${encodeURIComponent(selectedLeagueId)}`}
-                  className="fixture-card-link"
+                  className="fixture-modern-link"
                 >
                   <FixtureCard fixture={fixture} />
                 </Link>
               ))}
             </div>
-          </>
-        ) : (
-          <>
-            {isStandingsLoading ? <LoadingState label="Loading standings" /> : null}
-            {!isStandingsLoading && standings.length === 0 ? <p className="muted">No standings found.</p> : null}
-            {!isStandingsLoading && standings.length > 0 ? (
-              <div className="team-picker-table-wrap custom-standing-wrap">
-                <table className="team-picker-table">
+          ) : null}
+        </>
+      ) : (
+        <>
+          {isStandingsLoading ? <LoadingState label="Loading standings" /> : null}
+          {!isStandingsLoading && standings.length === 0 ? <p className="muted">No standings found.</p> : null}
+
+          {!isStandingsLoading && standings.length > 0 ? (
+            <div className="fixtures-standings-shell">
+              <div className="fixtures-standings-shell-head">
+                <span className={`fixtures-standings-mode ${standingsMode === "live" ? "live" : ""}`}>
+                  {standingsMode === "live" ? "Live" : "Official"}
+                </span>
+              </div>
+
+              <div className="fixtures-standings-table-wrap">
+                <table className="fixtures-standings-table">
                   <thead>
                     <tr>
                       <th>#</th>
-                      <th>Team</th>
-                      <th>P</th>
+                      <th>Club</th>
+                      <th>MP</th>
                       <th>W</th>
                       <th>D</th>
                       <th>L</th>
@@ -384,54 +377,70 @@ export const FixturesPage = () => {
                       <th>GA</th>
                       <th>GD</th>
                       <th>Pts</th>
-                      <th>Form</th>
+                      <th>Last 5</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {standings.map((item) => (
-                      <tr key={`${item.teamId}-${item.position}-${item.isLive ? "live" : "final"}`}>
-                        <td>{item.position}</td>
-                        <td>
-                          <div className="media-line">
-                            {item.teamLogoUrl ? (
-                              <LazyImage
-                                src={item.teamLogoUrl}
-                                alt={item.teamName ?? item.teamId}
-                                className="media-thumb media-thumb-small"
-                                fallback={
-                                  <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
-                                    T
-                                  </span>
-                                }
-                              />
-                            ) : (
-                              <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
-                                T
-                              </span>
-                            )}
-                            <div className="media-copy">
+                    {standings.map((item) => {
+                      const recentForm = parseStandingFormLastFive(item.form);
+
+                      return (
+                        <tr key={`${item.teamId}-${item.position}-${item.isLive ? "live" : "final"}`}>
+                          <td>{item.position}</td>
+                          <td>
+                            <div className="fixtures-standing-team-cell">
+                              {item.teamLogoUrl ? (
+                                <LazyImage
+                                  src={item.teamLogoUrl}
+                                  alt={item.teamName ?? item.teamId}
+                                  className="fixtures-standing-logo"
+                                  fallback={<span className="fixtures-standing-logo fixtures-standing-logo-fallback">T</span>}
+                                />
+                              ) : (
+                                <span className="fixtures-standing-logo fixtures-standing-logo-fallback">T</span>
+                              )}
                               <strong>{item.teamName ?? item.teamId}</strong>
                             </div>
-                          </div>
-                        </td>
-                        <td>{item.played}</td>
-                        <td>{item.won}</td>
-                        <td>{item.draw}</td>
-                        <td>{item.lost}</td>
-                        <td>{item.goalsFor}</td>
-                        <td>{item.goalsAgainst}</td>
-                        <td>{item.goalDifference}</td>
-                        <td>{item.points}</td>
-                        <td>{item.form?.trim() || "-"}</td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td>{item.played}</td>
+                          <td>{item.won}</td>
+                          <td>{item.draw}</td>
+                          <td>{item.lost}</td>
+                          <td>{item.goalsFor}</td>
+                          <td>{item.goalsAgainst}</td>
+                          <td>{item.goalDifference}</td>
+                          <td className="fixtures-standing-points">{item.points}</td>
+                          <td>
+                            <div className="fixtures-standing-form" aria-label="Last five form">
+                              {recentForm.map((result, index) => (
+                                <span
+                                  key={`${item.teamId}-form-${index}`}
+                                  className={`fixtures-standing-form-chip ${result ? `fixtures-standing-form-${result.toLowerCase()}` : "fixtures-standing-form-empty-chip"} ${index === recentForm.length - 1 ? "latest" : ""}`}
+                                  title={
+                                    result === "W"
+                                      ? "Win"
+                                      : result === "D"
+                                        ? "Draw"
+                                        : result === "L"
+                                          ? "Loss"
+                                          : "No data"
+                                  }
+                                >
+                                  {result === "W" ? "✓" : result === "D" ? "—" : result === "L" ? "✕" : "·"}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
-            ) : null}
-          </>
-        )}
-      </Card>
+            </div>
+          ) : null}
+        </>
+      )}
     </div>
   );
 };

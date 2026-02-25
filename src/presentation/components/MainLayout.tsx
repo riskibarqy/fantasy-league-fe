@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { CalendarDays, Home, Settings2, Shield, Waves } from "lucide-react";
 import { useSession } from "../hooks/useSession";
 import { useI18n } from "../hooks/useI18n";
@@ -6,20 +6,24 @@ import { useI18n } from "../hooks/useI18n";
 export const MainLayout = () => {
   const { session } = useSession();
   const { t } = useI18n();
+  const { pathname } = useLocation();
+  const showTopBar = !pathname.startsWith("/fixtures");
 
   return (
     <div className="app-shell">
-      <header className="top-bar">
-        <div className="top-bar-brand">
-          <span className="brand-icon" aria-hidden="true">
-            <Waves />
-          </span>
-          <div>
-            <p className="small-label">Fantasy Nusantara</p>
-            <h1>{session?.user.displayName ?? t("settings.account.fallbackName")}</h1>
+      {showTopBar ? (
+        <header className="top-bar">
+          <div className="top-bar-brand">
+            <span className="brand-icon" aria-hidden="true">
+              <Waves />
+            </span>
+            <div>
+              <p className="small-label">Fantasy Nusantara</p>
+              <h1>{session?.user.displayName ?? t("settings.account.fallbackName")}</h1>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+      ) : null}
 
       <main className="content">
         <Outlet />
