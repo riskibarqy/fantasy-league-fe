@@ -1,11 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
-import { cacheKeys, cacheTtlMs, getOrLoadCached } from "../../app/cache/requestCache";
-import type {
-  CustomLeague,
-  CustomLeagueStanding
-} from "../../domain/fantasy/entities/CustomLeague";
+import type { CustomLeague, CustomLeagueStanding } from "../../domain/fantasy/entities/CustomLeague";
 import { LoadingState } from "../components/LoadingState";
 import { RankMovementBadge } from "../components/RankMovementBadge";
 import { useSession } from "../hooks/useSession";
@@ -28,87 +26,47 @@ const resolveTeamName = (item: CustomLeagueStanding): string => {
   return `Manager ${shortValue(item.userId)}`;
 };
 
+type StandingsPayload = {
+  group: CustomLeague;
+  standings: CustomLeagueStanding[];
+};
+
 export const CustomLeagueStandingsPage = () => {
   const { groupId = "" } = useParams();
   const { getCustomLeague, getCustomLeagueStandings } = useContainer();
   const { session } = useSession();
 
-  const [group, setGroup] = useState<CustomLeague | null>(null);
-  const [standings, setStandings] = useState<CustomLeagueStanding[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const accessToken = session?.accessToken?.trim() ?? "";
+  const userId = session?.user.id?.trim() ?? "";
+  const normalizedGroupId = groupId.trim();
 
-  useEffect(() => {
-    if (errorMessage) {
-      void appAlert.error("Standings Load Failed", errorMessage);
+  const standingsQuery = useQuery<StandingsPayload>({
+    queryKey: ["custom-league-standings", normalizedGroupId, userId],
+    enabled: Boolean(accessToken) && Boolean(userId) && Boolean(normalizedGroupId),
+    staleTime: 60_000,
+    queryFn: async () => {
+      const [group, standings] = await Promise.all([
+        getCustomLeague.execute(normalizedGroupId, accessToken),
+        getCustomLeagueStandings.execute(normalizedGroupId, accessToken)
+      ]);
+
+      return {
+        group,
+        standings: [...standings].sort((left, right) => left.rank - right.rank)
+      };
     }
-  }, [errorMessage]);
+  });
 
   useEffect(() => {
-    const accessToken = session?.accessToken?.trim() ?? "";
-    const userId = session?.user.id?.trim() ?? "";
-
-    if (!accessToken || !userId) {
-      setGroup(null);
-      setStandings([]);
-      setErrorMessage("Session expired. Please login again.");
+    if (!(standingsQuery.error instanceof Error)) {
       return;
     }
 
-    if (!groupId.trim()) {
-      setGroup(null);
-      setStandings([]);
-      setErrorMessage("Group id is missing.");
-      return;
-    }
+    void appAlert.error("Standings Load Failed", standingsQuery.error.message);
+  }, [standingsQuery.error]);
 
-    let mounted = true;
-
-    const load = async () => {
-      try {
-        setIsLoading(true);
-
-        const [groupResult, standingsResult] = await Promise.all([
-          getOrLoadCached({
-            key: cacheKeys.customLeague(groupId, userId),
-            ttlMs: cacheTtlMs.customLeagues,
-            loader: () => getCustomLeague.execute(groupId, accessToken),
-            allowStaleOnError: true
-          }),
-          getOrLoadCached({
-            key: cacheKeys.customLeagueStandings(groupId, userId),
-            ttlMs: cacheTtlMs.customLeagueStandings,
-            loader: () => getCustomLeagueStandings.execute(groupId, accessToken),
-            allowStaleOnError: true
-          })
-        ]);
-
-        if (!mounted) {
-          return;
-        }
-
-        setGroup(groupResult);
-        setStandings([...standingsResult].sort((left, right) => left.rank - right.rank));
-        setErrorMessage(null);
-      } catch (error) {
-        if (!mounted) {
-          return;
-        }
-
-        setErrorMessage(error instanceof Error ? error.message : "Failed to load standings.");
-      } finally {
-        if (mounted) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    void load();
-
-    return () => {
-      mounted = false;
-    };
-  }, [getCustomLeague, getCustomLeagueStandings, groupId, session?.accessToken, session?.user.id]);
+  const group = standingsQuery.data?.group ?? null;
+  const standings = standingsQuery.data?.standings ?? [];
 
   const calculatedAt = useMemo(() => {
     const latest = standings.find((item) => item.lastCalculatedAt.trim());
@@ -123,6 +81,42 @@ export const CustomLeagueStandingsPage = () => {
       minute: "2-digit"
     });
   }, [standings]);
+
+  const columns = useMemo<ColumnDef<CustomLeagueStanding>[]>(
+    () => [
+      {
+        id: "rank",
+        accessorKey: "rank",
+        header: "Rank",
+        cell: ({ row }) => `#${row.original.rank}`
+      },
+      {
+        id: "teamName",
+        header: "Team Name",
+        cell: ({ row }) => resolveTeamName(row.original)
+      },
+      {
+        id: "rankMovement",
+        header: "Rank Movement",
+        cell: ({ row }) => <RankMovementBadge value={row.original.rankMovement} />
+      },
+      {
+        id: "points",
+        accessorKey: "points",
+        header: "Fantasy Squad Point"
+      }
+    ],
+    []
+  );
+
+  const table = useReactTable({
+    data: standings,
+    columns,
+    getCoreRowModel: getCoreRowModel()
+  });
+
+  const hasSession = Boolean(accessToken) && Boolean(userId);
+  const isGroupProvided = Boolean(normalizedGroupId);
 
   return (
     <div className="page-grid">
@@ -141,30 +135,34 @@ export const CustomLeagueStandingsPage = () => {
       </section>
 
       <section className="card page-section">
-        {isLoading ? <LoadingState label="Loading standings" /> : null}
+        {!hasSession ? <p className="muted">Session expired. Please login again.</p> : null}
+        {hasSession && !isGroupProvided ? <p className="muted">Group id is missing.</p> : null}
 
-        {!isLoading && standings.length === 0 ? <p className="muted">No standings data yet.</p> : null}
+        {hasSession && isGroupProvided && standingsQuery.isPending ? <LoadingState label="Loading standings" /> : null}
+        {hasSession && isGroupProvided && !standingsQuery.isPending && standings.length === 0 ? (
+          <p className="muted">No standings data yet.</p>
+        ) : null}
 
-        {!isLoading && standings.length > 0 ? (
+        {hasSession && isGroupProvided && !standingsQuery.isPending && standings.length > 0 ? (
           <div className="team-picker-table-wrap custom-standing-wrap">
             <table className="team-picker-table">
               <thead>
-                <tr>
-                  <th>Rank</th>
-                  <th>Team Name</th>
-                  <th>Rank Movement</th>
-                  <th>Fantasy Squad Point</th>
-                </tr>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <tr key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <th key={header.id}>
+                        {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                      </th>
+                    ))}
+                  </tr>
+                ))}
               </thead>
               <tbody>
-                {standings.map((item) => (
-                  <tr key={`${item.userId}-${item.squadId}`}>
-                    <td>#{item.rank}</td>
-                    <td>{resolveTeamName(item)}</td>
-                    <td>
-                      <RankMovementBadge value={item.rankMovement} />
-                    </td>
-                    <td>{item.points}</td>
+                {table.getRowModel().rows.map((row) => (
+                  <tr key={row.id}>
+                    {row.getVisibleCells().map((cell) => (
+                      <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+                    ))}
                   </tr>
                 ))}
               </tbody>

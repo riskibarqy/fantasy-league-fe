@@ -6,7 +6,7 @@ import { cacheKeys, cacheTtlMs, getOrLoadCached } from "../../app/cache/requestC
 import type { Dashboard } from "../../domain/fantasy/entities/Team";
 import type { CustomLeague } from "../../domain/fantasy/entities/CustomLeague";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
-import { FixtureCard } from "../components/FixtureCard";
+import { FixtureMatchRow } from "../components/FixtureMatchRow";
 import { LazyImage } from "../components/LazyImage";
 import { LoadingState } from "../components/LoadingState";
 import { formatRankMovement, RankMovementBadge } from "../components/RankMovementBadge";
@@ -166,6 +166,7 @@ export const DashboardPage = () => {
   const fixtureSectionLabel = featuredGameweek !== null ? `GW ${featuredGameweek}` : "-";
   const fixtureSectionTitle =
     nextUpcomingFixture || featuredFixtures.length === 0 ? "Upcoming Fixtures" : "Recent Fixtures";
+  const fixturesLeagueId = selectedLeagueId || dashboard?.selectedLeagueId || "";
 
   const leaguesById = useMemo(() => new Map(leagues.map((league) => [league.id, league])), [leagues]);
 
@@ -236,7 +237,7 @@ export const DashboardPage = () => {
         </div>
       </Card>
 
-      <Card className="card home-news">
+      <Card className="card home-news home-fixtures">
         <div className="home-section-head">
           <div className="section-title">
             <h3 className="section-icon-title">
@@ -328,11 +329,24 @@ export const DashboardPage = () => {
             </Link>
           </Button>
         </div>
-        <div className="home-news-list">
+        <div className="home-news-list home-fixtures-list">
           {featuredFixtures.length === 0 ? <p className="muted">No fixtures found.</p> : null}
-          {featuredFixtures.map((fixture) => (
-            <FixtureCard key={fixture.id} fixture={fixture} />
-          ))}
+          {featuredFixtures.length > 0 ? (
+            <section className="fixtures-v2-day-card home-fixtures-day-card">
+              <h4>{fixtureSectionLabel}</h4>
+              <div className="fixtures-v2-match-list">
+                {featuredFixtures.map((fixture) => (
+                  <FixtureMatchRow
+                    key={fixture.id}
+                    fixture={fixture}
+                    to={`/fixtures/${encodeURIComponent(fixture.id)}${
+                      fixturesLeagueId ? `?leagueId=${encodeURIComponent(fixturesLeagueId)}` : ""
+                    }`}
+                  />
+                ))}
+              </div>
+            </section>
+          ) : null}
         </div>
       </Card>
     </div>

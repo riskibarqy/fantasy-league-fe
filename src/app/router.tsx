@@ -1,7 +1,7 @@
 import { Suspense, lazy } from "react";
 import { Navigate, Outlet, Route, Routes, useSearchParams } from "react-router-dom";
 import { useSession } from "../presentation/hooks/useSession";
-import { useOnboardingStatus } from "../presentation/hooks/useOnboardingStatus";
+import { useOnboardingStatus, type OnboardingStatus } from "../presentation/hooks/useOnboardingStatus";
 import { LoadingState } from "../presentation/components/LoadingState";
 
 const DashboardPage = lazy(() =>
@@ -56,9 +56,7 @@ const ProtectedRoutes = () => {
   return <Outlet />;
 };
 
-const OnboardingRequiredRoutes = () => {
-  const { status } = useOnboardingStatus();
-
+const OnboardingRequiredRoutes = ({ status }: { status: OnboardingStatus }) => {
   if (status === "checking") {
     return (
       <div className="centered-page">
@@ -74,8 +72,7 @@ const OnboardingRequiredRoutes = () => {
   return <Outlet />;
 };
 
-const OnboardingEntryPage = () => {
-  const { status } = useOnboardingStatus();
+const OnboardingEntryPage = ({ status }: { status: OnboardingStatus }) => {
   const [searchParams] = useSearchParams();
   const forceOnboarding = searchParams.get("force") === "1" || searchParams.get("force") === "true";
 
@@ -100,6 +97,7 @@ const OnboardingEntryPage = () => {
 
 export const AppRouter = () => {
   const { isAuthenticated } = useSession();
+  const { status } = useOnboardingStatus();
 
   return (
     <Suspense
@@ -116,9 +114,9 @@ export const AppRouter = () => {
         />
 
         <Route element={<ProtectedRoutes />}>
-          <Route path="/onboarding" element={<OnboardingEntryPage />} />
+          <Route path="/onboarding" element={<OnboardingEntryPage status={status} />} />
           <Route path="/onboarding/pick" element={<TeamPlayerPickerPage />} />
-          <Route element={<OnboardingRequiredRoutes />}>
+          <Route element={<OnboardingRequiredRoutes status={status} />}>
             <Route element={<MainLayout />}>
               <Route path="/" element={<DashboardPage />} />
               <Route path="/team" element={<TeamBuilderPage />} />

@@ -1,12 +1,9 @@
-const SW_VERSION = "v1";
+const SW_VERSION = "v2";
 const IMAGE_CACHE = `fantasy-images-${SW_VERSION}`;
-const STATIC_CACHE = `fantasy-static-${SW_VERSION}`;
-const KNOWN_CACHES = [IMAGE_CACHE, STATIC_CACHE];
+const KNOWN_CACHES = [IMAGE_CACHE];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) => cache.addAll(["/", "/index.html", "/manifest.webmanifest"]))
-  );
+  event.waitUntil(Promise.resolve());
   self.skipWaiting();
 });
 
@@ -23,6 +20,12 @@ self.addEventListener("activate", (event) => {
       )
       .then(() => self.clients.claim())
   );
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });
 
 const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".svg", ".webp", ".avif", ".gif"];

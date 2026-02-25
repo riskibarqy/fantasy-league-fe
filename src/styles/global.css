@@ -471,6 +471,284 @@ button:disabled {
   gap: 0.65rem;
 }
 
+.fixtures-v2-page {
+  gap: 16px;
+}
+
+.fixtures-v2-hero {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.fixtures-v2-hero-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin-bottom: 6px;
+  font-weight: 700;
+}
+
+.fixtures-v2-season-button {
+  border: 1px solid var(--border);
+  background: color-mix(in oklab, var(--surface-soft) 90%, transparent);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 7px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 0.86rem;
+}
+
+.fixtures-v2-season-button:hover {
+  border-color: color-mix(in oklab, var(--accent) 45%, var(--border));
+  background: color-mix(in oklab, var(--accent) 12%, var(--surface-soft));
+  box-shadow: none;
+  transform: none;
+}
+
+.fixtures-v2-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.fixtures-v2-tab {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  min-height: 40px;
+  background: color-mix(in oklab, var(--surface-soft) 92%, transparent);
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 700;
+  padding: 0 10px;
+  position: relative;
+}
+
+.fixtures-v2-tab:hover {
+  border-color: color-mix(in oklab, var(--accent) 35%, var(--border));
+  background: color-mix(in oklab, var(--accent) 10%, var(--surface-soft));
+  transform: none;
+  box-shadow: none;
+}
+
+.fixtures-v2-tab.active {
+  border-color: transparent;
+  color: #fff;
+  background: var(--accent);
+}
+
+.fixtures-v2-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.fixtures-v2-filter-chip,
+.fixtures-v2-filter-select {
+  min-height: 42px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: color-mix(in oklab, var(--surface-soft) 94%, transparent);
+  color: var(--text);
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.fixtures-v2-filter-chip:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.fixtures-v2-filter-select {
+  position: relative;
+  margin: 0;
+}
+
+.fixtures-v2-filter-select select {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  appearance: none;
+  width: 100%;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.fixtures-v2-filter-select .inline-icon {
+  pointer-events: none;
+}
+
+.fixtures-v2-filter-reset {
+  min-height: 42px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: color-mix(in oklab, var(--surface-soft) 92%, transparent);
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.fixtures-v2-filter-reset:hover {
+  border-color: color-mix(in oklab, var(--accent) 35%, var(--border));
+  background: color-mix(in oklab, var(--accent) 10%, var(--surface-soft));
+  color: var(--text);
+  transform: none;
+}
+
+.fixtures-v2-week-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.fixtures-v2-week-head h3 {
+  text-align: center;
+  font-size: 1.16rem;
+  color: var(--text);
+}
+
+.fixtures-v2-week-head p {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.84rem;
+  margin-top: 4px;
+}
+
+.fixtures-v2-week-nav {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 0;
+  display: grid;
+  place-items: center;
+  background: color-mix(in oklab, var(--accent) 20%, transparent);
+  color: color-mix(in oklab, var(--accent) 78%, #fff);
+}
+
+.fixtures-v2-week-nav:disabled {
+  opacity: 0.4;
+}
+
+.fixtures-v2-week-nav:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.fixtures-v2-day-list {
+  display: grid;
+  gap: 12px;
+}
+
+.fixtures-v2-day-card {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+  padding: 14px 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.fixtures-v2-day-card h4 {
+  color: var(--text);
+  font-size: 0.92rem;
+}
+
+.fixtures-v2-match-list {
+  display: grid;
+}
+
+.fixtures-v2-match-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 58px;
+  text-decoration: none;
+  color: inherit;
+  border-top: 1px solid var(--border);
+}
+
+.fixtures-v2-match-row:hover {
+  background: color-mix(in oklab, var(--accent) 8%, transparent);
+}
+
+.fixtures-v2-match-row:first-child {
+  border-top: 0;
+}
+
+.fixtures-v2-team {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--text);
+  font-size: 0.93rem;
+  font-weight: 700;
+}
+
+.fixtures-v2-team span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fixtures-v2-team-left {
+  justify-content: flex-end;
+}
+
+.fixtures-v2-team-right {
+  justify-content: flex-start;
+}
+
+.fixtures-v2-team-logo {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.fixtures-v2-team-logo-fallback {
+  display: grid;
+  place-items: center;
+  font-size: 0.68rem;
+  font-weight: 800;
+  background: var(--surface-soft);
+  color: var(--muted);
+}
+
+.fixtures-v2-center-label {
+  color: var(--text);
+  font-size: 1.08rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.fixtures-v2-stats-placeholder {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  padding: 16px;
+  display: grid;
+  gap: 6px;
+}
+
 .fixtures-modern-page {
   gap: 20px;
 }
@@ -1162,6 +1440,14 @@ button:disabled {
 .home-news-list {
   display: grid;
   gap: 0.5rem;
+}
+
+.home-fixtures-list {
+  gap: 0.58rem;
+}
+
+.home-fixtures-day-card {
+  margin: 0;
 }
 
 .home-news-item {
@@ -2728,6 +3014,43 @@ button:disabled {
     grid-column: 1 / -1;
   }
 
+  .fixtures-v2-hero {
+    padding: 13px 11px;
+    border-radius: 14px;
+  }
+
+  .fixtures-v2-tabs {
+    gap: 16px;
+  }
+
+  .fixtures-v2-tab {
+    font-size: 0.94rem;
+  }
+
+  .fixtures-v2-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .fixtures-v2-filter-reset {
+    grid-column: 1 / -1;
+  }
+
+  .fixtures-v2-week-head h3 {
+    font-size: 1.04rem;
+  }
+
+  .fixtures-v2-day-card {
+    padding: 12px 10px;
+  }
+
+  .fixtures-v2-team {
+    font-size: 0.82rem;
+  }
+
+  .fixtures-v2-center-label {
+    font-size: 0.96rem;
+  }
+
   .fixtures-modern-page {
     gap: 16px;
   }
@@ -2897,6 +3220,81 @@ button:disabled {
   .nav-icon {
     width: 14px;
     height: 14px;
+  }
+
+  .fixtures-v2-page {
+    gap: 12px;
+  }
+
+  .fixtures-v2-hero {
+    padding: 12px 10px;
+    border-radius: 13px;
+  }
+
+  .fixtures-v2-hero-label {
+    font-size: 0.72rem;
+  }
+
+  .fixtures-v2-season-button {
+    font-size: 0.86rem;
+    padding: 7px 12px;
+  }
+
+  .fixtures-v2-tabs {
+    gap: 14px;
+  }
+
+  .fixtures-v2-tab {
+    font-size: 0.88rem;
+  }
+
+  .fixtures-v2-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .fixtures-v2-filter-reset {
+    grid-column: auto;
+  }
+
+  .fixtures-v2-week-nav {
+    width: 34px;
+    height: 34px;
+  }
+
+  .fixtures-v2-week-head h3 {
+    font-size: 0.98rem;
+  }
+
+  .fixtures-v2-week-head p {
+    font-size: 0.76rem;
+  }
+
+  .fixtures-v2-day-card {
+    border-radius: 14px;
+    padding: 11px 9px;
+  }
+
+  .fixtures-v2-day-card h4 {
+    font-size: 0.88rem;
+  }
+
+  .fixtures-v2-match-row {
+    min-height: 52px;
+    gap: 6px;
+  }
+
+  .fixtures-v2-team {
+    gap: 6px;
+    font-size: 0.74rem;
+  }
+
+  .fixtures-v2-team-logo {
+    width: 20px;
+    height: 20px;
+  }
+
+  .fixtures-v2-center-label {
+    font-size: 0.86rem;
   }
 
   .fixtures-modern-page {

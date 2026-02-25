@@ -898,7 +898,7 @@ export const OnboardingPage = () => {
       );
 
       setSelectedLeagueId(leagueId);
-      markOnboardingCompleted(session?.user.id ?? "");
+      markOnboardingCompleted(session?.user.id ?? "", leagueId);
       void appAlert.success("Onboarding Completed", "Your first squad is ready.");
       navigate("/", { replace: true });
     } catch (error) {
