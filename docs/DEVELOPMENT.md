@@ -24,7 +24,6 @@ App default URL:
 - `make test`: run unit tests once
 - `make test-watch`: run tests in watch mode
 - `make build`: production build
-- `npm run build:spa`: SPA build output (`dist/`) for Capacitor sync
 - `make check`: full quality gate (`typecheck + test + build`)
 - `make clean`: remove generated artifacts
 

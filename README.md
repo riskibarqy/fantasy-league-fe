@@ -6,8 +6,6 @@ Frontend for fantasy football platform focused on Indonesian leagues first, but 
 
 - Next.js 15 (App Router) + React 18 + TypeScript
 - Tailwind CSS v4 + shadcn/ui primitives
-- Vite build pipeline for Capacitor web asset sync (`dist/`)
-- Capacitor (Android + iOS wrapper for mobile app install)
 - Clean Architecture + DDD boundaries
 - Vitest for unit tests
 - Mobile-first responsive UI (PWA-ready manifest)
@@ -58,44 +56,6 @@ make test
 ```bash
 make check
 ```
-
-## Run As Mobile App (Capacitor)
-
-This project is configured with Capacitor and already has native wrappers in:
-
-- `android/`
-- `ios/`
-
-Typical workflow after frontend changes:
-
-1. Sync web build to native projects:
-```bash
-make cap-sync
-```
-
-`make cap-sync` uses the SPA build pipeline (`npm run build:spa`) so native wrappers always receive `dist/` assets.
-
-2. Open Android:
-```bash
-make mobile-android
-```
-
-3. Open iOS:
-```bash
-make mobile-ios
-```
-
-You can also run each step separately:
-
-- `make cap-sync-android`
-- `make cap-sync-ios`
-- `make open-android`
-- `make open-ios`
-
-Prerequisites:
-
-- Android Studio (Android SDK installed)
-- Xcode + CocoaPods (for iOS on macOS)
 
 ## Environment
 
@@ -160,7 +120,6 @@ Expected endpoints (placeholder contract):
 - Repository contracts isolate API changes from UI layer.
 - Usecases contain business logic and validation to avoid fat components.
 - Domain rule (`validateLineup`) is testable and framework-independent.
-- App is already wrapped with Capacitor for iOS/Android without rewriting core frontend.
 - Request caching is centralized in `/Users/riskiramdan/ts/fantasy-league-fe/src/app/cache/requestCache.ts`:
   use `getOrLoadCached` + `cacheKeys` + `cacheTtlMs` for new pages/usecases to avoid refetching on every route switch.
 
