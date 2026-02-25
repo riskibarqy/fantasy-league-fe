@@ -258,14 +258,7 @@ export const FixturesPage = () => {
               <CalendarDays className="inline-icon" aria-hidden="true" />
               Fixtures
             </h2>
-          </div>
-        </div>
-      </Card>
-
-      <Card className="card page-section">
-        <div className="home-section-head">
-          <div className="section-title">
-            <h3>{selectedLeagueName}</h3>
+            <p className="small-label">{selectedLeagueName}</p>
             <p className="muted">
               {activeTab === "fixtures"
                 ? activeGameweekGroup
@@ -278,7 +271,7 @@ export const FixturesPage = () => {
           </div>
         </div>
 
-        <div className="segmented-control" role="tablist" aria-label="Fixtures and standings tabs">
+        <div className="segmented-control fixtures-segmented" role="tablist" aria-label="Fixtures and standings tabs">
           <button
             type="button"
             role="tab"
