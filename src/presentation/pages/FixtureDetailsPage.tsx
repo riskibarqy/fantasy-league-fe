@@ -17,6 +17,13 @@ const toMinuteText = (minute: number, extraMinute: number): string => {
   return `${minute}'`;
 };
 
+const toExternalKey = (value?: number): string => {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return "";
+  }
+  return `ext:${value}`;
+};
+
 export const FixtureDetailsPage = () => {
   const { fixtureId = "" } = useParams();
   const [searchParams] = useSearchParams();
@@ -102,6 +109,10 @@ export const FixtureDetailsPage = () => {
     for (const item of details?.playerStats ?? []) {
       if (item.playerName?.trim()) {
         map.set(item.playerId, item.playerName.trim());
+        const externalKey = toExternalKey(item.playerExternalId);
+        if (externalKey) {
+          map.set(externalKey, item.playerName.trim());
+        }
       }
     }
     return map;
@@ -112,6 +123,10 @@ export const FixtureDetailsPage = () => {
     for (const item of details?.teamStats ?? []) {
       if (item.teamName?.trim()) {
         map.set(item.teamId, item.teamName.trim());
+        const externalKey = toExternalKey(item.teamExternalId);
+        if (externalKey) {
+          map.set(externalKey, item.teamName.trim());
+        }
       }
     }
     return map;
@@ -218,7 +233,7 @@ export const FixtureDetailsPage = () => {
                       </thead>
                       <tbody>
                         {details.teamStats.map((item) => (
-                          <tr key={item.teamId}>
+                          <tr key={item.teamId || toExternalKey(item.teamExternalId)}>
                             <td>{item.teamName || item.teamId}</td>
                             <td>{item.possessionPct.toFixed(1)}%</td>
                             <td>{item.shots}</td>
@@ -243,7 +258,7 @@ export const FixtureDetailsPage = () => {
                 {topPlayerStats.length > 0 ? (
                   <ul className="fixture-top-player-list">
                     {topPlayerStats.map((item) => (
-                      <li key={item.playerId}>
+                      <li key={item.playerId || toExternalKey(item.playerExternalId)}>
                         <div>
                           <strong>{item.playerName || item.playerId}</strong>
                           <p className="muted">{item.teamName || item.teamId}</p>
@@ -273,8 +288,18 @@ export const FixtureDetailsPage = () => {
                         <strong>{item.eventType}</strong>
                         <p className="muted">
                           {[
-                            item.teamId ? teamNameByID.get(item.teamId) || item.teamId : "",
-                            item.playerId ? playerNameByID.get(item.playerId) || item.playerId : "",
+                            item.teamId || item.teamExternalId
+                              ? (() => {
+                                  const key = item.teamId || toExternalKey(item.teamExternalId);
+                                  return teamNameByID.get(key) || key;
+                                })()
+                              : "",
+                            item.playerId || item.playerExternalId
+                              ? (() => {
+                                  const key = item.playerId || toExternalKey(item.playerExternalId);
+                                  return playerNameByID.get(key) || key;
+                                })()
+                              : "",
                             item.detail ?? ""
                           ]
                             .filter(Boolean)

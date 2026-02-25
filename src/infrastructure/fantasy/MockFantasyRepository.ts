@@ -2,6 +2,7 @@ import type { FantasyRepository } from "../../domain/fantasy/repositories/Fantas
 import type { Dashboard, TeamLineup } from "../../domain/fantasy/entities/Team";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
 import type { FixtureDetails } from "../../domain/fantasy/entities/FixtureDetails";
+import type { LeagueStanding } from "../../domain/fantasy/entities/LeagueStanding";
 import type { League } from "../../domain/fantasy/entities/League";
 import type { Player } from "../../domain/fantasy/entities/Player";
 import type { PlayerDetails } from "../../domain/fantasy/entities/PlayerDetails";
@@ -52,6 +53,31 @@ export class MockFantasyRepository implements FantasyRepository {
   async getFixtures(leagueId: string): Promise<Fixture[]> {
     await delay(280);
     return mockFixtures.filter((fixture) => fixture.leagueId === leagueId);
+  }
+
+  async getLeagueStandings(leagueId: string, live = false): Promise<LeagueStanding[]> {
+    await delay(240);
+    const teams = mockTeams
+      .filter((item) => item.leagueId === leagueId)
+      .sort((left, right) => left.name.localeCompare(right.name, "id-ID"));
+
+    return teams.map((team, idx) => ({
+      leagueId,
+      teamId: team.id,
+      teamName: team.name,
+      teamLogoUrl: team.logoUrl,
+      position: idx + 1,
+      played: 26,
+      won: Math.max(0, 20 - idx),
+      draw: Math.max(0, 4 + (idx % 3)),
+      lost: Math.max(0, idx),
+      goalsFor: 42 - idx,
+      goalsAgainst: 18 + idx,
+      goalDifference: (42 - idx) - (18 + idx),
+      points: 60 - idx * 2,
+      form: "WWDWL",
+      isLive: live
+    }));
   }
 
   async getFixtureDetails(leagueId: string, fixtureId: string): Promise<FixtureDetails> {
