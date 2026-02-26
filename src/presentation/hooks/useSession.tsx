@@ -11,6 +11,7 @@ import type { AuthSession } from "../../domain/auth/entities/User";
 import { clearRequestCache } from "../../app/cache/requestCache";
 
 const SESSION_KEY = "fantasy-session";
+const IMAGE_CACHE_STORAGE_KEY = "fantasy:image-cache:v1";
 const SESSION_EXPIRY_SKEW_MS = 5_000;
 
 type SessionContextValue = {
@@ -27,13 +28,13 @@ export const SessionProvider = ({ children }: PropsWithChildren) => {
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
-    const raw = localStorage.getItem(SESSION_KEY);
-    if (!raw) {
-      setIsHydrated(true);
-      return;
-    }
-
     try {
+      const raw = localStorage.getItem(SESSION_KEY);
+      if (!raw) {
+        setIsHydrated(true);
+        return;
+      }
+
       const parsed = JSON.parse(raw) as AuthSession;
       if (isSessionExpired(parsed)) {
         localStorage.removeItem(SESSION_KEY);
@@ -54,12 +55,29 @@ export const SessionProvider = ({ children }: PropsWithChildren) => {
     setSessionState(nextSession);
 
     if (!nextSession) {
-      localStorage.removeItem(SESSION_KEY);
+      try {
+        localStorage.removeItem(SESSION_KEY);
+      } catch {
+        // Ignore storage remove failures; in-memory session is already cleared.
+      }
       clearRequestCache();
       return;
     }
 
-    localStorage.setItem(SESSION_KEY, JSON.stringify(nextSession));
+    const payload = JSON.stringify(nextSession);
+    try {
+      localStorage.setItem(SESSION_KEY, payload);
+      return;
+    } catch {
+      // localStorage can be full due image/request cache. Evict and retry once.
+      clearRequestCache();
+      try {
+        localStorage.removeItem(IMAGE_CACHE_STORAGE_KEY);
+        localStorage.setItem(SESSION_KEY, payload);
+      } catch {
+        // Keep authenticated state in memory to avoid breaking post-login redirect.
+      }
+    }
   }, []);
 
   useEffect(() => {
