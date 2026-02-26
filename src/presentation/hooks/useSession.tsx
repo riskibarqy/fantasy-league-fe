@@ -11,8 +11,12 @@ import type { AuthSession } from "../../domain/auth/entities/User";
 import { clearRequestCache } from "../../app/cache/requestCache";
 
 const SESSION_KEY = "fantasy-session";
+const SESSION_FALLBACK_KEY = "fantasy-session-fallback";
 const IMAGE_CACHE_STORAGE_KEY = "fantasy:image-cache:v1";
 const SESSION_EXPIRY_SKEW_MS = 5_000;
+const SESSION_CLOCK_DRIFT_TOLERANCE_MS = 5 * 60 * 1000;
+
+let volatileSession: AuthSession | null = null;
 
 type SessionContextValue = {
   session: AuthSession | null;
@@ -29,37 +33,40 @@ export const SessionProvider = ({ children }: PropsWithChildren) => {
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(SESSION_KEY);
+      const raw = readSessionRaw();
       if (!raw) {
+        if (volatileSession && !isSessionExpired(volatileSession)) {
+          setSessionState(volatileSession);
+        }
         setIsHydrated(true);
         return;
       }
 
       const parsed = JSON.parse(raw) as AuthSession;
       if (isSessionExpired(parsed)) {
-        localStorage.removeItem(SESSION_KEY);
+        removeSessionFromStorage();
+        volatileSession = null;
         clearRequestCache();
         setIsHydrated(true);
         return;
       }
 
+      volatileSession = parsed;
       setSessionState(parsed);
       setIsHydrated(true);
     } catch {
-      localStorage.removeItem(SESSION_KEY);
+      removeSessionFromStorage();
+      volatileSession = null;
       setIsHydrated(true);
     }
   }, []);
 
   const setSession = useCallback((nextSession: AuthSession | null) => {
+    volatileSession = nextSession;
     setSessionState(nextSession);
 
     if (!nextSession) {
-      try {
-        localStorage.removeItem(SESSION_KEY);
-      } catch {
-        // Ignore storage remove failures; in-memory session is already cleared.
-      }
+      removeSessionFromStorage();
       clearRequestCache();
       return;
     }
@@ -67,6 +74,11 @@ export const SessionProvider = ({ children }: PropsWithChildren) => {
     const payload = JSON.stringify(nextSession);
     try {
       localStorage.setItem(SESSION_KEY, payload);
+      try {
+        sessionStorage.setItem(SESSION_FALLBACK_KEY, payload);
+      } catch {
+        // Ignore fallback storage failure.
+      }
       return;
     } catch {
       // localStorage can be full due image/request cache. Evict and retry once.
@@ -74,8 +86,17 @@ export const SessionProvider = ({ children }: PropsWithChildren) => {
       try {
         localStorage.removeItem(IMAGE_CACHE_STORAGE_KEY);
         localStorage.setItem(SESSION_KEY, payload);
+        try {
+          sessionStorage.setItem(SESSION_FALLBACK_KEY, payload);
+        } catch {
+          // Ignore fallback storage failure.
+        }
       } catch {
-        // Keep authenticated state in memory to avoid breaking post-login redirect.
+        try {
+          sessionStorage.setItem(SESSION_FALLBACK_KEY, payload);
+        } catch {
+          // Keep authenticated state in memory to avoid breaking post-login redirect.
+        }
       }
     }
   }, []);
@@ -98,7 +119,10 @@ export const SessionProvider = ({ children }: PropsWithChildren) => {
       return;
     }
 
-    const timeoutMs = Math.max(0, expiryAtMs - Date.now() + SESSION_EXPIRY_SKEW_MS);
+    const timeoutMs = Math.max(
+      0,
+      expiryAtMs - Date.now() + SESSION_EXPIRY_SKEW_MS + SESSION_CLOCK_DRIFT_TOLERANCE_MS
+    );
     const timeoutId = window.setTimeout(() => {
       setSession(null);
     }, timeoutMs);
@@ -163,7 +187,7 @@ const isSessionExpired = (session: AuthSession): boolean => {
     return false;
   }
 
-  return expiryAtMs <= Date.now() + SESSION_EXPIRY_SKEW_MS;
+  return expiryAtMs <= Date.now() + SESSION_EXPIRY_SKEW_MS - SESSION_CLOCK_DRIFT_TOLERANCE_MS;
 };
 
 const readJwtExpiryMs = (token: string): number | null => {
@@ -185,4 +209,40 @@ const readJwtExpiryMs = (token: string): number | null => {
   }
 
   return null;
+};
+
+const readSessionRaw = (): string | null => {
+  try {
+    const primary = localStorage.getItem(SESSION_KEY);
+    if (primary?.trim()) {
+      return primary;
+    }
+  } catch {
+    // Ignore storage read failures.
+  }
+
+  try {
+    const fallback = sessionStorage.getItem(SESSION_FALLBACK_KEY);
+    if (fallback?.trim()) {
+      return fallback;
+    }
+  } catch {
+    // Ignore fallback storage read failures.
+  }
+
+  return null;
+};
+
+const removeSessionFromStorage = (): void => {
+  try {
+    localStorage.removeItem(SESSION_KEY);
+  } catch {
+    // Ignore storage remove failures.
+  }
+
+  try {
+    sessionStorage.removeItem(SESSION_FALLBACK_KEY);
+  } catch {
+    // Ignore fallback storage remove failures.
+  }
 };

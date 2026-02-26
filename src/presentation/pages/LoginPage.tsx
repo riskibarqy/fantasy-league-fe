@@ -56,6 +56,14 @@ export const LoginPage = () => {
 
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
   const googleClientWarningShownRef = useRef(false);
+  const redirectToHome = () => {
+    if (typeof window !== "undefined") {
+      window.location.replace("/");
+      return;
+    }
+
+    navigate("/", { replace: true });
+  };
 
   const handleGoogleLogin = async (idToken: string) => {
     setIsGoogleSubmitting(true);
@@ -63,7 +71,7 @@ export const LoginPage = () => {
     try {
       const session = await loginWithGoogleIdToken.execute(idToken);
       setSession(session);
-      navigate("/", { replace: true });
+      redirectToHome();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Google login failed.";
       void appAlert.error("Google Sign-in Failed", message);
@@ -149,7 +157,7 @@ export const LoginPage = () => {
     try {
       const session = await loginWithPassword.execute({ email, password });
       setSession(session);
-      navigate("/", { replace: true });
+      redirectToHome();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Login failed.";
       void appAlert.error("Sign-in Failed", message);
@@ -167,8 +175,8 @@ export const LoginPage = () => {
       return;
     }
 
-    navigate("/", { replace: true });
-  }, [isAuthenticated, navigate]);
+    redirectToHome();
+  }, [isAuthenticated]);
 
   return (
     <div className="login-page">
