@@ -46,9 +46,8 @@ export class HttpAuthRepository implements AuthRepository {
     const appId = this.getAppId();
 
     const rawResult = await this.loginWithGooglePayloadFallback(appId, idToken);
-    const result = normalizeLoginResult(rawResult);
-
     const payload = decodeGoogleIdTokenPayload(idToken);
+    const result = normalizeLoginResult(rawResult, payload?.sub);
 
     return buildSession(result, {
       email: payload?.email ?? "google-user@unknown.local",
@@ -63,9 +62,17 @@ export class HttpAuthRepository implements AuthRepository {
 
   private async loginWithGooglePayloadFallback(appId: string, idToken: string): Promise<AnubisLoginResult> {
     try {
-      return await this.httpClient.post<{ idToken: string }, AnubisLoginResult>(
+      return await this.httpClient.post<
+        { idToken: string; id_token: string; credential: string; token: string },
+        AnubisLoginResult
+      >(
         `/v1/apps/${appId}/sessions/google`,
-        { idToken }
+        {
+          idToken,
+          id_token: idToken,
+          credential: idToken,
+          token: idToken
+        }
       );
     } catch (error) {
       if (!(error instanceof HttpError) || (error.statusCode !== 400 && error.statusCode !== 422)) {
@@ -107,14 +114,38 @@ const buildSession = (
   };
 };
 
-const normalizeLoginResult = (result: AnubisLoginResult | null | undefined): AnubisLoginResult => {
+const normalizeLoginResult = (
+  result: AnubisLoginResult | null | undefined,
+  fallbackUserId = ""
+): AnubisLoginResult => {
   if (!result || typeof result !== "object") {
     throw new Error("Invalid auth response: missing session payload.");
   }
 
-  const userId = (result.userId ?? result.user_id ?? "").trim();
-  const accessToken = (result.accessToken ?? result.access_token ?? "").trim();
-  const refreshToken = (result.refreshToken ?? result.refresh_token ?? "").trim();
+  const userId = (
+    readString(result, "userId") ??
+    readString(result, "user_id") ??
+    readString(result, "user.id") ??
+    readString(result, "user.user_id") ??
+    readString(result, "session.userId") ??
+    readString(result, "session.user_id") ??
+    readString(result, "session.user.id") ??
+    fallbackUserId
+  ).trim();
+  const accessToken = (
+    readString(result, "accessToken") ??
+    readString(result, "access_token") ??
+    readString(result, "token") ??
+    readString(result, "session.accessToken") ??
+    readString(result, "session.access_token") ??
+    readString(result, "session.token")
+  )?.trim() ?? "";
+  const refreshToken = (
+    readString(result, "refreshToken") ??
+    readString(result, "refresh_token") ??
+    readString(result, "session.refreshToken") ??
+    readString(result, "session.refresh_token")
+  )?.trim() ?? "";
 
   if (!userId || !accessToken) {
     throw new Error("Invalid auth response: missing userId/accessToken.");
@@ -124,8 +155,47 @@ const normalizeLoginResult = (result: AnubisLoginResult | null | undefined): Anu
     ...result,
     userId,
     accessToken,
-    refreshToken
+    refreshToken,
+    expiresAt:
+      readString(result, "expiresAt") ??
+      readString(result, "expires_at") ??
+      readString(result, "session.expiresAt") ??
+      readString(result, "session.expires_at"),
+    expiresIn:
+      readNumber(result, "expiresIn") ??
+      readNumber(result, "expires_in") ??
+      readNumber(result, "session.expiresIn") ??
+      readNumber(result, "session.expires_in")
   };
+};
+
+const readString = (source: unknown, path: string): string | undefined => {
+  const value = readPath(source, path);
+  return typeof value === "string" ? value : undefined;
+};
+
+const readNumber = (source: unknown, path: string): number | undefined => {
+  const value = readPath(source, path);
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+};
+
+const readPath = (source: unknown, path: string): unknown => {
+  if (!source || typeof source !== "object") {
+    return undefined;
+  }
+
+  const segments = path.split(".");
+  let cursor: unknown = source;
+
+  for (const segment of segments) {
+    if (!cursor || typeof cursor !== "object" || !(segment in (cursor as Record<string, unknown>))) {
+      return undefined;
+    }
+
+    cursor = (cursor as Record<string, unknown>)[segment];
+  }
+
+  return cursor;
 };
 
 const resolveSessionExpiryIso = (result: AnubisLoginResult): string => {
