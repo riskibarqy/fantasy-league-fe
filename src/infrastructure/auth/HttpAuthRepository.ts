@@ -125,8 +125,10 @@ const normalizeLoginResult = (
   const userId = (
     readString(result, "userId") ??
     readString(result, "user_id") ??
+    readString(result, "sub") ??
     readString(result, "user.id") ??
     readString(result, "user.user_id") ??
+    readString(result, "user.sub") ??
     readString(result, "session.userId") ??
     readString(result, "session.user_id") ??
     readString(result, "session.user.id") ??
@@ -136,6 +138,10 @@ const normalizeLoginResult = (
     readString(result, "accessToken") ??
     readString(result, "access_token") ??
     readString(result, "token") ??
+    readString(result, "token.accessToken") ??
+    readString(result, "token.access_token") ??
+    readString(result, "session.token.accessToken") ??
+    readString(result, "session.token.access_token") ??
     readString(result, "session.accessToken") ??
     readString(result, "session.access_token") ??
     readString(result, "session.token")
@@ -143,8 +149,12 @@ const normalizeLoginResult = (
   const refreshToken = (
     readString(result, "refreshToken") ??
     readString(result, "refresh_token") ??
+    readString(result, "token.refreshToken") ??
+    readString(result, "token.refresh_token") ??
     readString(result, "session.refreshToken") ??
-    readString(result, "session.refresh_token")
+    readString(result, "session.refresh_token") ??
+    readString(result, "session.token.refreshToken") ??
+    readString(result, "session.token.refresh_token")
   )?.trim() ?? "";
 
   if (!userId || !accessToken) {
@@ -159,13 +169,21 @@ const normalizeLoginResult = (
     expiresAt:
       readString(result, "expiresAt") ??
       readString(result, "expires_at") ??
+      readString(result, "token.expiresAt") ??
+      readString(result, "token.expires_at") ??
       readString(result, "session.expiresAt") ??
-      readString(result, "session.expires_at"),
+      readString(result, "session.expires_at") ??
+      readString(result, "session.token.expiresAt") ??
+      readString(result, "session.token.expires_at"),
     expiresIn:
       readNumber(result, "expiresIn") ??
       readNumber(result, "expires_in") ??
+      readNumber(result, "token.expiresIn") ??
+      readNumber(result, "token.expires_in") ??
       readNumber(result, "session.expiresIn") ??
-      readNumber(result, "session.expires_in")
+      readNumber(result, "session.expires_in") ??
+      readNumber(result, "session.token.expiresIn") ??
+      readNumber(result, "session.token.expires_in")
   };
 };
 
