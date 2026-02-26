@@ -17,30 +17,6 @@ export const NextClientApp = () => {
     setMounted(true);
   }, []);
 
-  useEffect(() => {
-    if (process.env.NODE_ENV !== "production" || typeof window === "undefined") {
-      return;
-    }
-
-    if (!("serviceWorker" in navigator)) {
-      return;
-    }
-
-    const disableSW = async () => {
-      try {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(registrations.map((registration) => registration.unregister()));
-      } catch {
-        return;
-      }
-    };
-
-    window.addEventListener("load", disableSW);
-    return () => {
-      window.removeEventListener("load", disableSW);
-    };
-  }, []);
-
   if (!mounted) {
     return null;
   }

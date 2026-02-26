@@ -13,11 +13,6 @@ import { clearRequestCache } from "../../app/cache/requestCache";
 const SESSION_KEY = "fantasy-session";
 const SESSION_FALLBACK_KEY = "fantasy-session-fallback";
 const IMAGE_CACHE_STORAGE_KEY = "fantasy:image-cache:v1";
-const SESSION_EXPIRY_SKEW_MS = 5_000;
-const SESSION_CLOCK_DRIFT_TOLERANCE_MS = 5 * 60 * 1000;
-const ENFORCE_CLIENT_EXPIRY = false;
-
-let volatileSession: AuthSession | null = null;
 
 type SessionContextValue = {
   session: AuthSession | null;
@@ -36,34 +31,20 @@ export const SessionProvider = ({ children }: PropsWithChildren) => {
     try {
       const raw = readSessionRaw();
       if (!raw) {
-        if (volatileSession && !isSessionExpired(volatileSession)) {
-          setSessionState(volatileSession);
-        }
         setIsHydrated(true);
         return;
       }
 
       const parsed = JSON.parse(raw) as AuthSession;
-      if (ENFORCE_CLIENT_EXPIRY && isSessionExpired(parsed)) {
-        removeSessionFromStorage();
-        volatileSession = null;
-        clearRequestCache();
-        setIsHydrated(true);
-        return;
-      }
-
-      volatileSession = parsed;
       setSessionState(parsed);
       setIsHydrated(true);
     } catch {
       removeSessionFromStorage();
-      volatileSession = null;
       setIsHydrated(true);
     }
   }, []);
 
   const setSession = useCallback((nextSession: AuthSession | null) => {
-    volatileSession = nextSession;
     setSessionState(nextSession);
 
     if (!nextSession) {
@@ -102,54 +83,6 @@ export const SessionProvider = ({ children }: PropsWithChildren) => {
     }
   }, []);
 
-  useEffect(() => {
-    if (!ENFORCE_CLIENT_EXPIRY) {
-      return;
-    }
-
-    if (!session) {
-      return;
-    }
-
-    const checkAndLogoutIfExpired = () => {
-      if (isSessionExpired(session)) {
-        setSession(null);
-      }
-    };
-
-    checkAndLogoutIfExpired();
-
-    const expiryAtMs = resolveSessionExpiryMs(session);
-    if (!expiryAtMs) {
-      return;
-    }
-
-    const timeoutMs = Math.max(
-      0,
-      expiryAtMs - Date.now() + SESSION_EXPIRY_SKEW_MS + SESSION_CLOCK_DRIFT_TOLERANCE_MS
-    );
-    const timeoutId = window.setTimeout(() => {
-      setSession(null);
-    }, timeoutMs);
-    const intervalId = window.setInterval(checkAndLogoutIfExpired, 30_000);
-
-    const onVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        checkAndLogoutIfExpired();
-      }
-    };
-
-    window.addEventListener("focus", checkAndLogoutIfExpired);
-    document.addEventListener("visibilitychange", onVisibilityChange);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-      window.clearInterval(intervalId);
-      window.removeEventListener("focus", checkAndLogoutIfExpired);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-    };
-  }, [session, setSession]);
-
   const value = useMemo(
     () => ({
       session,
@@ -170,54 +103,6 @@ export const useSession = (): SessionContextValue => {
   }
 
   return context;
-};
-
-const resolveSessionExpiryMs = (session: AuthSession): number | null => {
-  const expiryFromField = Date.parse(session.expiresAt);
-  if (Number.isFinite(expiryFromField)) {
-    return expiryFromField;
-  }
-
-  const expiryFromToken = readJwtExpiryMs(session.accessToken);
-  if (expiryFromToken) {
-    return expiryFromToken;
-  }
-
-  return null;
-};
-
-const isSessionExpired = (session: AuthSession): boolean => {
-  if (!ENFORCE_CLIENT_EXPIRY) {
-    return false;
-  }
-
-  const expiryAtMs = resolveSessionExpiryMs(session);
-  if (!expiryAtMs) {
-    return false;
-  }
-
-  return expiryAtMs <= Date.now() + SESSION_EXPIRY_SKEW_MS - SESSION_CLOCK_DRIFT_TOLERANCE_MS;
-};
-
-const readJwtExpiryMs = (token: string): number | null => {
-  const parts = token.split(".");
-  if (parts.length < 2) {
-    return null;
-  }
-
-  try {
-    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
-    const payload = JSON.parse(atob(padded)) as { exp?: number };
-
-    if (typeof payload.exp === "number" && Number.isFinite(payload.exp) && payload.exp > 0) {
-      return payload.exp * 1000;
-    }
-  } catch {
-    return null;
-  }
-
-  return null;
 };
 
 const readSessionRaw = (): string | null => {
