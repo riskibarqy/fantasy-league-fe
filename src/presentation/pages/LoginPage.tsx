@@ -48,11 +48,12 @@ export const LoginPage = () => {
   const { loginWithPassword, loginWithGoogleIdToken } = useContainer();
   const { isAuthenticated, setSession } = useSession();
 
-  const [email, setEmail] = useState("manager@fantasy.id");
-  const [password, setPassword] = useState("password123");
+  const [email, setEmail] = useState(appEnv.useMocks ? "manager@fantasy.id" : "");
+  const [password, setPassword] = useState(appEnv.useMocks ? "password123" : "");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
   const [googleReady, setGoogleReady] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
   const googleClientWarningShownRef = useRef(false);
@@ -67,6 +68,7 @@ export const LoginPage = () => {
 
   const handleGoogleLogin = async (idToken: string) => {
     setIsGoogleSubmitting(true);
+    setFormError(null);
 
     try {
       const session = await loginWithGoogleIdToken.execute(idToken);
@@ -152,6 +154,15 @@ export const LoginPage = () => {
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    setFormError(null);
+
+    if (!appEnv.useMocks && password.length < 12) {
+      const message = "Password login requires at least 12 characters.";
+      setFormError(message);
+      void appAlert.error("Sign-in Failed", message);
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -160,6 +171,7 @@ export const LoginPage = () => {
       redirectToHome();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Login failed.";
+      setFormError(message);
       void appAlert.error("Sign-in Failed", message);
     } finally {
       setIsSubmitting(false);
@@ -218,6 +230,8 @@ export const LoginPage = () => {
           </Button>
         </form>
 
+        {formError ? <p className="text-sm text-red-400">{formError}</p> : null}
+
         <div className="auth-divider">
           <span>or</span>
         </div>
@@ -235,7 +249,7 @@ export const LoginPage = () => {
           </>
         )}
 
-        <p className="small-label">Demo password (mock mode): password123</p>
+        {appEnv.useMocks ? <p className="small-label">Demo password (mock mode): password123</p> : null}
       </Card>
     </div>
   );

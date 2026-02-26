@@ -75,14 +75,26 @@ export class HttpAuthRepository implements AuthRepository {
         }
       );
     } catch (error) {
-      if (!(error instanceof HttpError) || (error.statusCode !== 400 && error.statusCode !== 422)) {
+      if (!(error instanceof HttpError)) {
         throw error;
       }
 
-      return this.httpClient.post<{ id_token: string }, AnubisLoginResult>(
-        `/v1/apps/${appId}/sessions/google`,
-        { id_token: idToken }
-      );
+      if (error.statusCode === 400 || error.statusCode === 422) {
+        return this.httpClient.post<{ id_token: string }, AnubisLoginResult>(
+          `/v1/apps/${appId}/sessions/google`,
+          { id_token: idToken }
+        );
+      }
+
+      if (error.statusCode === 404 || error.statusCode === 405 || error.statusCode === 501) {
+        // Backward/forward compatibility when backend only exposes OIDC provider route.
+        return this.httpClient.post<{ id_token: string }, AnubisLoginResult>(
+          `/v1/apps/${appId}/sessions/oidc/google`,
+          { id_token: idToken }
+        );
+      }
+
+      throw error;
     }
   }
 
