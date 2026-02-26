@@ -126,23 +126,17 @@ export const useSession = (): SessionContextValue => {
 };
 
 const resolveSessionExpiryMs = (session: AuthSession): number | null => {
-  const candidates: number[] = [];
-
   const expiryFromField = Date.parse(session.expiresAt);
   if (Number.isFinite(expiryFromField)) {
-    candidates.push(expiryFromField);
+    return expiryFromField;
   }
 
   const expiryFromToken = readJwtExpiryMs(session.accessToken);
   if (expiryFromToken) {
-    candidates.push(expiryFromToken);
+    return expiryFromToken;
   }
 
-  if (candidates.length === 0) {
-    return null;
-  }
-
-  return Math.min(...candidates);
+  return null;
 };
 
 const isSessionExpired = (session: AuthSession): boolean => {
