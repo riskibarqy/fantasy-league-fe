@@ -15,6 +15,7 @@ const SESSION_FALLBACK_KEY = "fantasy-session-fallback";
 const IMAGE_CACHE_STORAGE_KEY = "fantasy:image-cache:v1";
 const SESSION_EXPIRY_SKEW_MS = 5_000;
 const SESSION_CLOCK_DRIFT_TOLERANCE_MS = 5 * 60 * 1000;
+const ENFORCE_CLIENT_EXPIRY = false;
 
 let volatileSession: AuthSession | null = null;
 
@@ -43,7 +44,7 @@ export const SessionProvider = ({ children }: PropsWithChildren) => {
       }
 
       const parsed = JSON.parse(raw) as AuthSession;
-      if (isSessionExpired(parsed)) {
+      if (ENFORCE_CLIENT_EXPIRY && isSessionExpired(parsed)) {
         removeSessionFromStorage();
         volatileSession = null;
         clearRequestCache();
@@ -102,6 +103,10 @@ export const SessionProvider = ({ children }: PropsWithChildren) => {
   }, []);
 
   useEffect(() => {
+    if (!ENFORCE_CLIENT_EXPIRY) {
+      return;
+    }
+
     if (!session) {
       return;
     }
@@ -182,6 +187,10 @@ const resolveSessionExpiryMs = (session: AuthSession): number | null => {
 };
 
 const isSessionExpired = (session: AuthSession): boolean => {
+  if (!ENFORCE_CLIENT_EXPIRY) {
+    return false;
+  }
+
   const expiryAtMs = resolveSessionExpiryMs(session);
   if (!expiryAtMs) {
     return false;

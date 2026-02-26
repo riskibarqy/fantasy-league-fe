@@ -26,39 +26,18 @@ export const NextClientApp = () => {
       return;
     }
 
-    const registerSW = async () => {
-      const SW_BUILD_VERSION = "2026-02-26-1";
-      const swUrl = `/sw.js?v=${SW_BUILD_VERSION}`;
-
+    const disableSW = async () => {
       try {
         const registrations = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(
-          registrations.map(async (registration) => {
-            const scriptUrl = registration.active?.scriptURL ?? registration.waiting?.scriptURL ?? "";
-            if (scriptUrl.includes("/sw.js") && !scriptUrl.includes(SW_BUILD_VERSION)) {
-              await registration.unregister();
-              return;
-            }
-
-            await registration.update();
-          })
-        );
-
-        const registration = await navigator.serviceWorker.register(swUrl, {
-          updateViaCache: "none"
-        });
-
-        if (registration.waiting) {
-          registration.waiting.postMessage({ type: "SKIP_WAITING" });
-        }
+        await Promise.all(registrations.map((registration) => registration.unregister()));
       } catch {
         return;
       }
     };
 
-    window.addEventListener("load", registerSW);
+    window.addEventListener("load", disableSW);
     return () => {
-      window.removeEventListener("load", registerSW);
+      window.removeEventListener("load", disableSW);
     };
   }, []);
 
