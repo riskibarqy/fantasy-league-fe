@@ -16,6 +16,7 @@ const SESSION_EXPIRY_SKEW_MS = 5_000;
 type SessionContextValue = {
   session: AuthSession | null;
   isAuthenticated: boolean;
+  isHydrated: boolean;
   setSession: (session: AuthSession | null) => void;
 };
 
@@ -23,10 +24,12 @@ const SessionContext = createContext<SessionContextValue | null>(null);
 
 export const SessionProvider = ({ children }: PropsWithChildren) => {
   const [session, setSessionState] = useState<AuthSession | null>(null);
+  const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
     const raw = localStorage.getItem(SESSION_KEY);
     if (!raw) {
+      setIsHydrated(true);
       return;
     }
 
@@ -35,12 +38,15 @@ export const SessionProvider = ({ children }: PropsWithChildren) => {
       if (isSessionExpired(parsed)) {
         localStorage.removeItem(SESSION_KEY);
         clearRequestCache();
+        setIsHydrated(true);
         return;
       }
 
       setSessionState(parsed);
+      setIsHydrated(true);
     } catch {
       localStorage.removeItem(SESSION_KEY);
+      setIsHydrated(true);
     }
   }, []);
 
@@ -101,9 +107,10 @@ export const SessionProvider = ({ children }: PropsWithChildren) => {
     () => ({
       session,
       isAuthenticated: Boolean(session),
+      isHydrated,
       setSession
     }),
-    [session, setSession]
+    [isHydrated, session, setSession]
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

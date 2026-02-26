@@ -5,6 +5,11 @@ import { HttpClient } from "../http/httpClient";
 type AnubisLoginResult = {
   userId: string;
   accessToken: string;
+  refreshToken?: string;
+  expiresAt?: string;
+  expires_at?: string;
+  expiresIn?: number;
+  expires_in?: number;
 };
 
 type GoogleIdTokenPayload = {
@@ -68,17 +73,44 @@ const buildSession = (
   result: AnubisLoginResult,
   profile: { email: string; displayName: string }
 ): AuthSession => {
+  const expiresAt = resolveSessionExpiryIso(result);
+
   return {
     accessToken: result.accessToken,
-    refreshToken: "",
-    // Access token expiry is not returned directly by Anubis login response.
-    expiresAt: new Date(Date.now() + 3600 * 1000).toISOString(),
+    refreshToken: result.refreshToken?.trim() ?? "",
+    expiresAt,
     user: {
       id: result.userId,
       email: profile.email,
       displayName: profile.displayName
     }
   };
+};
+
+const resolveSessionExpiryIso = (result: AnubisLoginResult): string => {
+  const explicitIso = (result.expiresAt ?? result.expires_at ?? "").trim();
+  const explicitMs = Date.parse(explicitIso);
+  if (Number.isFinite(explicitMs)) {
+    return new Date(explicitMs).toISOString();
+  }
+
+  const expiresInSeconds =
+    typeof result.expiresIn === "number"
+      ? result.expiresIn
+      : typeof result.expires_in === "number"
+        ? result.expires_in
+        : null;
+  if (expiresInSeconds && Number.isFinite(expiresInSeconds) && expiresInSeconds > 0) {
+    return new Date(Date.now() + expiresInSeconds * 1000).toISOString();
+  }
+
+  const jwtExpiryMs = readJwtExpiryMs(result.accessToken);
+  if (jwtExpiryMs) {
+    return new Date(jwtExpiryMs).toISOString();
+  }
+
+  // Conservative fallback when backend does not expose expiry metadata.
+  return new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString();
 };
 
 const toDisplayName = (value: string): string => {
@@ -111,4 +143,25 @@ const decodeGoogleIdTokenPayload = (idToken: string): GoogleIdTokenPayload | nul
   } catch {
     return null;
   }
+};
+
+const readJwtExpiryMs = (token: string): number | null => {
+  const parts = token.split(".");
+  if (parts.length < 2) {
+    return null;
+  }
+
+  try {
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
+    const payload = JSON.parse(atob(padded)) as { exp?: number };
+
+    if (typeof payload.exp === "number" && Number.isFinite(payload.exp) && payload.exp > 0) {
+      return payload.exp * 1000;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
 };

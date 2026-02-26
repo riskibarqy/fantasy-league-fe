@@ -47,7 +47,15 @@ const MainLayout = lazy(() =>
 );
 
 const ProtectedRoutes = () => {
-  const { isAuthenticated } = useSession();
+  const { isAuthenticated, isHydrated } = useSession();
+
+  if (!isHydrated) {
+    return (
+      <div className="centered-page">
+        <LoadingState label="Restoring session" />
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -96,7 +104,7 @@ const OnboardingEntryPage = ({ status }: { status: OnboardingStatus }) => {
 };
 
 export const AppRouter = () => {
-  const { isAuthenticated } = useSession();
+  const { isAuthenticated, isHydrated } = useSession();
   const { status } = useOnboardingStatus();
 
   return (
@@ -110,7 +118,7 @@ export const AppRouter = () => {
       <Routes>
         <Route
           path="/login"
-          element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />}
+          element={isHydrated && isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />}
         />
 
         <Route element={<ProtectedRoutes />}>

@@ -10,3 +10,12 @@ coverage
 *.tsbuildinfo
 vite.config.js
 vite.config.d.ts
+
+# Capacitor native artifacts (keep android/ and ios/ sources in git)
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+
+ios/DerivedData/
+ios/build/
