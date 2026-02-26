@@ -1,6 +1,6 @@
 import type { AuthRepository } from "../../domain/auth/repositories/AuthRepository";
 import type { AuthSession, LoginCredentials } from "../../domain/auth/entities/User";
-import { HttpClient } from "../http/httpClient";
+import { HttpClient, HttpError } from "../http/httpClient";
 
 type AnubisLoginResult = {
   userId: string;
@@ -10,6 +10,9 @@ type AnubisLoginResult = {
   expires_at?: string;
   expiresIn?: number;
   expires_in?: number;
+  user_id?: string;
+  access_token?: string;
+  refresh_token?: string;
 };
 
 type GoogleIdTokenPayload = {
@@ -27,10 +30,11 @@ export class HttpAuthRepository implements AuthRepository {
   async loginWithPassword(credentials: LoginCredentials): Promise<AuthSession> {
     const appId = this.getAppId();
 
-    const result = await this.httpClient.post<LoginCredentials, AnubisLoginResult>(
+    const rawResult = await this.httpClient.post<LoginCredentials, AnubisLoginResult>(
       `/v1/apps/${appId}/sessions`,
       credentials
     );
+    const result = normalizeLoginResult(rawResult);
 
     return buildSession(result, {
       email: credentials.email,
@@ -41,10 +45,8 @@ export class HttpAuthRepository implements AuthRepository {
   async loginWithGoogleIdToken(idToken: string): Promise<AuthSession> {
     const appId = this.getAppId();
 
-    const result = await this.httpClient.post<{ idToken: string }, AnubisLoginResult>(
-      `/v1/apps/${appId}/sessions/google`,
-      { idToken }
-    );
+    const rawResult = await this.loginWithGooglePayloadFallback(appId, idToken);
+    const result = normalizeLoginResult(rawResult);
 
     const payload = decodeGoogleIdTokenPayload(idToken);
 
@@ -57,6 +59,24 @@ export class HttpAuthRepository implements AuthRepository {
   async logout(_accessToken: string): Promise<void> {
     // Anubis currently exposes token introspection but no logout/revocation endpoint.
     return;
+  }
+
+  private async loginWithGooglePayloadFallback(appId: string, idToken: string): Promise<AnubisLoginResult> {
+    try {
+      return await this.httpClient.post<{ idToken: string }, AnubisLoginResult>(
+        `/v1/apps/${appId}/sessions/google`,
+        { idToken }
+      );
+    } catch (error) {
+      if (!(error instanceof HttpError) || (error.statusCode !== 400 && error.statusCode !== 422)) {
+        throw error;
+      }
+
+      return this.httpClient.post<{ id_token: string }, AnubisLoginResult>(
+        `/v1/apps/${appId}/sessions/google`,
+        { id_token: idToken }
+      );
+    }
   }
 
   private getAppId(): string {
@@ -84,6 +104,27 @@ const buildSession = (
       email: profile.email,
       displayName: profile.displayName
     }
+  };
+};
+
+const normalizeLoginResult = (result: AnubisLoginResult | null | undefined): AnubisLoginResult => {
+  if (!result || typeof result !== "object") {
+    throw new Error("Invalid auth response: missing session payload.");
+  }
+
+  const userId = (result.userId ?? result.user_id ?? "").trim();
+  const accessToken = (result.accessToken ?? result.access_token ?? "").trim();
+  const refreshToken = (result.refreshToken ?? result.refresh_token ?? "").trim();
+
+  if (!userId || !accessToken) {
+    throw new Error("Invalid auth response: missing userId/accessToken.");
+  }
+
+  return {
+    ...result,
+    userId,
+    accessToken,
+    refreshToken
   };
 };
 

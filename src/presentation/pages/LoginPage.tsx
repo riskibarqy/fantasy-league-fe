@@ -46,7 +46,7 @@ const GOOGLE_SCRIPT_ID = "google-identity-services";
 export const LoginPage = () => {
   const navigate = useNavigate();
   const { loginWithPassword, loginWithGoogleIdToken } = useContainer();
-  const { setSession } = useSession();
+  const { isAuthenticated, setSession } = useSession();
 
   const [email, setEmail] = useState("manager@fantasy.id");
   const [password, setPassword] = useState("password123");
@@ -161,6 +161,14 @@ export const LoginPage = () => {
   const onMockGoogle = () => {
     void handleGoogleLogin("mock.google.id.token");
   };
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    navigate("/", { replace: true });
+  }, [isAuthenticated, navigate]);
 
   return (
     <div className="login-page">
