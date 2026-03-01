@@ -44,8 +44,6 @@ const parseKickoffMs = (kickoffAt: string): number => {
   return Number.isFinite(value) ? value : Number.POSITIVE_INFINITY;
 };
 
-type FantasyTabKey = "average" | "mine" | "highest";
-
 const formatFantasyPoints = (value: number): string => {
   if (!Number.isFinite(value)) {
     return "-";
@@ -63,7 +61,6 @@ export const DashboardPage = () => {
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [customLeagues, setCustomLeagues] = useState<CustomLeague[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [activeFantasyTab, setActiveFantasyTab] = useState<FantasyTabKey>("average");
 
   useEffect(() => {
     if (errorMessage) {
@@ -182,31 +179,9 @@ export const DashboardPage = () => {
   const leaguesById = useMemo(() => new Map(leagues.map((league) => [league.id, league])), [leagues]);
 
   const newsItems = useMemo(() => getGlobalNewsItems(2), []);
-  const fantasyTabs = useMemo(
-    () => [
-      {
-        key: "average" as const,
-        label: "Average Point",
-        subtitle: `Users in GW ${dashboard?.gameweek ?? "-"}`,
-        value: dashboard ? formatFantasyPoints(dashboard.averageGwPoints) : "-"
-      },
-      {
-        key: "mine" as const,
-        label: "My Fantasy Point",
-        subtitle: `Your GW ${dashboard?.gameweek ?? "-"}`,
-        value: dashboard ? formatFantasyPoints(dashboard.myGwPoints || dashboard.totalPoints) : "-"
-      },
-      {
-        key: "highest" as const,
-        label: "Highest Point",
-        subtitle: `Top score in GW ${dashboard?.gameweek ?? "-"}`,
-        value: dashboard ? formatFantasyPoints(dashboard.highestGwPoints) : "-"
-      }
-    ],
-    [dashboard]
-  );
-  const activeFantasyMetric =
-    fantasyTabs.find((tab) => tab.key === activeFantasyTab) ?? fantasyTabs[0];
+  const averageGwPointsValue = dashboard ? formatFantasyPoints(dashboard.averageGwPoints) : "-";
+  const myGwPointsValue = dashboard ? formatFantasyPoints(dashboard.myGwPoints || dashboard.totalPoints) : "-";
+  const highestGwPointsValue = dashboard ? formatFantasyPoints(dashboard.highestGwPoints) : "-";
 
   if (!dashboard) {
     if (errorMessage) {
@@ -256,24 +231,20 @@ export const DashboardPage = () => {
         </div>
 
         <div className="fantasy-card">
-          <div className="fantasy-card-tabs" role="tablist" aria-label="Fantasy points tabs">
-            {fantasyTabs.map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                role="tab"
-                aria-selected={activeFantasyTab === tab.key}
-                className={`fantasy-card-tab ${activeFantasyTab === tab.key ? "active" : ""}`}
-                onClick={() => setActiveFantasyTab(tab.key)}
-              >
-                {tab.label}
-              </button>
-            ))}
+          <div className="fantasy-points-row" aria-label="Gameweek fantasy points">
+            <article className="fantasy-points-item fantasy-points-item-side">
+              <p className="small-label">Average Point</p>
+              <strong className="fantasy-card-value">{averageGwPointsValue}</strong>
+            </article>
+            <article className="fantasy-points-item fantasy-points-item-center">
+              <p className="small-label">My Fantasy Point</p>
+              <strong className="fantasy-card-value">{myGwPointsValue}</strong>
+            </article>
+            <article className="fantasy-points-item fantasy-points-item-side">
+              <p className="small-label">Highest Point</p>
+              <strong className="fantasy-card-value">{highestGwPointsValue}</strong>
+            </article>
           </div>
-          <article className="fantasy-card-metric">
-            <p className="small-label">{activeFantasyMetric.subtitle}</p>
-            <strong className="fantasy-card-value">{activeFantasyMetric.value}</strong>
-          </article>
           <div className="fantasy-card-actions">
             <Button asChild variant="secondary" className="fantasy-action-button">
               <Link to="/team?mode=PAT">
@@ -281,7 +252,7 @@ export const DashboardPage = () => {
                 Pick Team
               </Link>
             </Button>
-            <Button asChild className="fantasy-action-button">
+            <Button asChild variant="secondary" className="fantasy-action-button">
               <Link to="/team?mode=TRF">
                 <ArrowLeftRight className="inline-icon" aria-hidden="true" />
                 Transfers

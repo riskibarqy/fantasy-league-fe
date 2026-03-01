@@ -1441,45 +1441,32 @@ button:disabled {
   background: var(--surface-soft);
 }
 
-.fantasy-card-tabs {
+.fantasy-points-row {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.36rem;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 0.45rem;
 }
 
-.fantasy-card-tab {
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  background: color-mix(in oklab, var(--surface-strong) 84%, transparent);
-  color: var(--muted);
-  font-size: 0.68rem;
-  font-weight: 700;
-  padding: 0.34rem 0.42rem;
-  line-height: 1.2;
-  text-align: center;
-}
-
-.fantasy-card-tab.active {
-  color: #fff;
-  border-color: color-mix(in oklab, var(--accent) 55%, var(--border));
-  background: linear-gradient(
-    120deg,
-    color-mix(in oklab, var(--accent) 90%, #5f9bff) 0%,
-    color-mix(in oklab, var(--accent-strong) 82%, #3875ff) 100%
-  );
-}
-
-.fantasy-card-metric {
+.fantasy-points-item {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 0.56rem;
   display: grid;
-  gap: 0.18rem;
+  gap: 0.12rem;
   background: color-mix(in oklab, var(--surface-strong) 90%, transparent);
+  text-align: center;
+  align-content: center;
+}
+
+.fantasy-points-item-side .fantasy-card-value {
+  font-size: 1rem;
+}
+
+.fantasy-points-item-center .fantasy-card-value {
+  font-size: 1.48rem;
 }
 
 .fantasy-card-value {
-  font-size: 1.2rem;
   font-weight: 800;
   line-height: 1;
 }
@@ -3733,8 +3720,12 @@ button:disabled {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .fantasy-card-tab {
-    font-size: 0.72rem;
+  .fantasy-points-item-side .fantasy-card-value {
+    font-size: 1.08rem;
+  }
+
+  .fantasy-points-item-center .fantasy-card-value {
+    font-size: 1.62rem;
   }
 
   .players-board {
