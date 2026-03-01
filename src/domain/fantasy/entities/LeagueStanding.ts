@@ -1,5 +1,6 @@
 export type LeagueStanding = {
   leagueId: string;
+  gameweek: number;
   teamId: string;
   teamName?: string;
   teamLogoUrl?: string;

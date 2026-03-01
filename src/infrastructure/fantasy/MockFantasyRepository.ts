@@ -14,6 +14,7 @@ import type {
   SaveFavoriteClubInput
 } from "../../domain/fantasy/entities/Onboarding";
 import type { PickSquadInput, Squad } from "../../domain/fantasy/entities/Squad";
+import type { SeasonPointsSummary } from "../../domain/fantasy/entities/SeasonPointsSummary";
 import type {
   CreateCustomLeagueInput,
   CustomLeague,
@@ -55,6 +56,21 @@ export class MockFantasyRepository implements FantasyRepository {
     return mockFixtures.filter((fixture) => fixture.leagueId === leagueId);
   }
 
+  async getSeasonPointsSummary(
+    leagueId: string,
+    _accessToken: string
+  ): Promise<SeasonPointsSummary> {
+    await delay(160);
+    return {
+      leagueId,
+      userId: "mock-user",
+      totalPoints: mockDashboard.totalPoints,
+      averagePoints: Number(mockDashboard.averageGwPoints.toFixed(2)),
+      highestPoints: Math.round(mockDashboard.highestGwPoints),
+      gameweeks: Math.max(1, mockDashboard.gameweek)
+    };
+  }
+
   async getLeagueStandings(leagueId: string, live = false): Promise<LeagueStanding[]> {
     await delay(240);
     const teams = mockTeams
@@ -64,6 +80,7 @@ export class MockFantasyRepository implements FantasyRepository {
 
     return teams.map((team, idx) => ({
       leagueId,
+      gameweek: 23,
       teamId: team.id,
       teamName: team.name,
       teamLogoUrl: team.logoUrl,

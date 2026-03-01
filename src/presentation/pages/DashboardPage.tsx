@@ -6,6 +6,7 @@ import { cacheKeys, cacheTtlMs, getOrLoadCached } from "../../app/cache/requestC
 import type { Dashboard } from "../../domain/fantasy/entities/Team";
 import type { CustomLeague } from "../../domain/fantasy/entities/CustomLeague";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
+import type { SeasonPointsSummary } from "../../domain/fantasy/entities/SeasonPointsSummary";
 import { FixtureMatchRow } from "../components/FixtureMatchRow";
 import { LazyImage } from "../components/LazyImage";
 import { LoadingState } from "../components/LoadingState";
@@ -44,20 +45,21 @@ const parseKickoffMs = (kickoffAt: string): number => {
   return Number.isFinite(value) ? value : Number.POSITIVE_INFINITY;
 };
 
-const formatFantasyPoints = (value: number): string => {
+const formatFantasyPoints = (value: number, fractionDigits = 1): string => {
   if (!Number.isFinite(value)) {
     return "-";
   }
 
-  return value.toFixed(1);
+  return value.toFixed(Math.max(0, fractionDigits));
 };
 
 export const DashboardPage = () => {
-  const { getDashboard, getFixtures, getMyCustomLeagues } = useContainer();
+  const { getDashboard, getFixtures, getMyCustomLeagues, getSeasonPointsSummary } = useContainer();
   const { leagues, selectedLeagueId } = useLeagueSelection();
   const { session } = useSession();
 
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
+  const [seasonPointsSummary, setSeasonPointsSummary] = useState<SeasonPointsSummary | null>(null);
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [customLeagues, setCustomLeagues] = useState<CustomLeague[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -84,30 +86,45 @@ export const DashboardPage = () => {
           ttlMs: cacheTtlMs.dashboard,
           loader: () => getDashboard.execute(accessToken)
         });
-        const leagueIdForFixtures = selectedLeagueId || dashboardResult.selectedLeagueId;
-        const fixtureResult = leagueIdForFixtures
-          ? await getOrLoadCached({
-              key: cacheKeys.fixtures(leagueIdForFixtures),
+        const leagueIDForHome = selectedLeagueId || dashboardResult.selectedLeagueId;
+        const fixturePromise = leagueIDForHome
+          ? getOrLoadCached({
+              key: cacheKeys.fixtures(leagueIDForHome),
               ttlMs: cacheTtlMs.fixtures,
-              loader: () => getFixtures.execute(leagueIdForFixtures),
+              loader: () => getFixtures.execute(leagueIDForHome),
               allowStaleOnError: true
             })
-          : [];
-        const customLeagueResult =
+          : Promise.resolve<Fixture[]>([]);
+        const summaryPromise = leagueIDForHome
+          ? getOrLoadCached({
+              key: cacheKeys.seasonPointsSummary(userId, leagueIDForHome),
+              ttlMs: cacheTtlMs.seasonPointsSummary,
+              loader: () => getSeasonPointsSummary.execute(leagueIDForHome, accessToken),
+              allowStaleOnError: true
+            })
+          : Promise.resolve<SeasonPointsSummary | null>(null);
+        const customLeaguePromise =
           accessToken && userId
-            ? await getOrLoadCached({
+            ? getOrLoadCached({
                 key: cacheKeys.customLeagues(userId),
                 ttlMs: cacheTtlMs.customLeagues,
                 loader: () => getMyCustomLeagues.execute(accessToken),
                 allowStaleOnError: true
               })
-            : [];
+            : Promise.resolve<CustomLeague[]>([]);
+
+        const [fixtureResult, summaryResult, customLeagueResult] = await Promise.all([
+          fixturePromise,
+          summaryPromise,
+          customLeaguePromise
+        ]);
 
         if (!mounted) {
           return;
         }
 
         setDashboard(dashboardResult);
+        setSeasonPointsSummary(summaryResult);
         setFixtures(fixtureResult);
         setCustomLeagues(customLeagueResult.slice(0, 3));
       } catch (error) {
@@ -128,6 +145,7 @@ export const DashboardPage = () => {
     getDashboard,
     getFixtures,
     getMyCustomLeagues,
+    getSeasonPointsSummary,
     selectedLeagueId,
     session?.accessToken,
     session?.user.id
@@ -186,9 +204,21 @@ export const DashboardPage = () => {
   const leaguesById = useMemo(() => new Map(leagues.map((league) => [league.id, league])), [leagues]);
 
   const newsItems = useMemo(() => getGlobalNewsItems(2), []);
-  const averageGwPointsValue = dashboard ? formatFantasyPoints(dashboard.averageGwPoints) : "-";
-  const squadPointsValue = dashboard ? formatFantasyPoints(dashboard.myGwPoints || dashboard.totalPoints) : "-";
-  const highestGwPointsValue = dashboard ? formatFantasyPoints(dashboard.highestGwPoints) : "-";
+  const averagePointsValue = seasonPointsSummary
+    ? formatFantasyPoints(seasonPointsSummary.averagePoints)
+    : dashboard
+      ? formatFantasyPoints(dashboard.averageGwPoints)
+      : "-";
+  const totalPointsValue = seasonPointsSummary
+    ? formatFantasyPoints(seasonPointsSummary.totalPoints, 0)
+    : dashboard
+      ? formatFantasyPoints(dashboard.myGwPoints || dashboard.totalPoints, 0)
+      : "-";
+  const highestPointsValue = seasonPointsSummary
+    ? formatFantasyPoints(seasonPointsSummary.highestPoints, 0)
+    : dashboard
+      ? formatFantasyPoints(dashboard.highestGwPoints, 0)
+      : "-";
   const rankLabel = dashboard && dashboard.rank > 0 ? `#${dashboard.rank.toLocaleString("en-US")}` : "-";
 
   if (!dashboard) {
@@ -242,18 +272,18 @@ export const DashboardPage = () => {
           </div>
         </div>
 
-        <div className="menu-home-points-inline" aria-label="Average, squad points, and highest points">
+        <div className="menu-home-points-inline" aria-label="Average, total points, and highest points">
           <article className="menu-home-point-inline-item">
             <p className="small-label">Average</p>
-            <strong>{averageGwPointsValue}</strong>
+            <strong>{averagePointsValue}</strong>
           </article>
           <article className="menu-home-point-inline-item">
-            <p className="small-label">Squad Points</p>
-            <strong>{squadPointsValue}</strong>
+            <p className="small-label">Total Points</p>
+            <strong>{totalPointsValue}</strong>
           </article>
           <article className="menu-home-point-inline-item">
             <p className="small-label">Highest</p>
-            <strong>{highestGwPointsValue}</strong>
+            <strong>{highestPointsValue}</strong>
           </article>
         </div>
 

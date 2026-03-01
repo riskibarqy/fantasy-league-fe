@@ -8,6 +8,7 @@ import { GetDashboard } from "../../application/fantasy/usecases/GetDashboard";
 import { GetFixtureDetails } from "../../application/fantasy/usecases/GetFixtureDetails";
 import { GetFixtures } from "../../application/fantasy/usecases/GetFixtures";
 import { GetLeagueStandings } from "../../application/fantasy/usecases/GetLeagueStandings";
+import { GetSeasonPointsSummary } from "../../application/fantasy/usecases/GetSeasonPointsSummary";
 import { GetCustomLeague } from "../../application/fantasy/usecases/GetCustomLeague";
 import { GetCustomLeagueStandings } from "../../application/fantasy/usecases/GetCustomLeagueStandings";
 import { GetLeagues } from "../../application/fantasy/usecases/GetLeagues";
@@ -55,6 +56,7 @@ export const buildContainer = () => {
     getLeagues: new GetLeagues(repositories.fantasyRepository),
     getTeams: new GetTeams(repositories.fantasyRepository),
     getFixtures: new GetFixtures(repositories.fantasyRepository),
+    getSeasonPointsSummary: new GetSeasonPointsSummary(repositories.fantasyRepository),
     getLeagueStandings: new GetLeagueStandings(repositories.fantasyRepository),
     getFixtureDetails: new GetFixtureDetails(repositories.fantasyRepository),
     getMyCustomLeagues: new GetMyCustomLeagues(repositories.fantasyRepository),

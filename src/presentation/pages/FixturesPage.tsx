@@ -165,6 +165,15 @@ export const FixturesPage = () => {
   const fixtures = fixturesQuery.data ?? [];
   const standings = standingsQuery.data?.items ?? [];
   const standingsMode = standingsQuery.data?.mode ?? "final";
+  const standingsGameweek = useMemo(() => {
+    let latest = 0;
+    for (const item of standings) {
+      if (item.gameweek > latest) {
+        latest = item.gameweek;
+      }
+    }
+    return latest > 0 ? latest : null;
+  }, [standings]);
 
   const selectedLeagueName = useMemo(() => {
     return leagues.find((league) => league.id === selectedLeagueId)?.name ?? "Liga 1 Indonesia";
@@ -517,6 +526,9 @@ export const FixturesPage = () => {
                 <div className="fixtures-standings-shell-head">
                   <span className={`fixtures-standings-mode ${standingsMode === "live" ? "live" : ""}`}>
                     {standingsMode === "live" ? "Live" : "Official"}
+                  </span>
+                  <span className="fixtures-standings-snapshot">
+                    {standingsGameweek !== null ? `Snapshot GW ${standingsGameweek}` : "Snapshot latest"}
                   </span>
                 </div>
 

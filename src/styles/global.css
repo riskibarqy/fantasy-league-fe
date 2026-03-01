@@ -1009,7 +1009,11 @@ button:disabled {
 }
 
 .fixtures-standings-shell-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 12px 14px 0;
+  gap: 12px;
 }
 
 .fixtures-standings-mode {
@@ -1025,6 +1029,12 @@ button:disabled {
 .fixtures-standings-mode.live {
   color: #22c55e;
   border-bottom-color: #22c55e;
+}
+
+.fixtures-standings-snapshot {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-weight: 600;
 }
 
 .fixtures-standings-table-wrap {
@@ -4950,7 +4960,11 @@ body {
 }
 
 .fixtures-standings-shell-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 0.78rem 0.86rem 0;
+  gap: 12px;
 }
 
 .fixtures-standings-mode {
@@ -4959,6 +4973,12 @@ body {
 
 .fixtures-standings-mode.live {
   color: #22c55e;
+}
+
+.fixtures-standings-snapshot {
+  font-size: 0.74rem;
+  color: color-mix(in oklab, var(--muted) 90%, var(--text));
+  font-weight: 600;
 }
 
 .fixtures-standings-table-wrap {

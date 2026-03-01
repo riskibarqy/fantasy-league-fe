@@ -7,6 +7,7 @@ import type { Player } from "../entities/Player";
 import type { PlayerDetails } from "../entities/PlayerDetails";
 import type { Club } from "../entities/Club";
 import type { PickSquadInput, Squad } from "../entities/Squad";
+import type { SeasonPointsSummary } from "../entities/SeasonPointsSummary";
 import type {
   CompleteOnboardingInput,
   CompleteOnboardingResult,
@@ -24,6 +25,7 @@ export interface FantasyRepository {
   getLeagues(): Promise<League[]>;
   getTeams(leagueId: string): Promise<Club[]>;
   getFixtures(leagueId: string): Promise<Fixture[]>;
+  getSeasonPointsSummary(leagueId: string, accessToken: string): Promise<SeasonPointsSummary>;
   getLeagueStandings(leagueId: string, live?: boolean): Promise<LeagueStanding[]>;
   getFixtureDetails(leagueId: string, fixtureId: string): Promise<FixtureDetails>;
   getPlayers(leagueId: string): Promise<Player[]>;

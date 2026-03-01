@@ -13,6 +13,7 @@ import type { Player } from "../../domain/fantasy/entities/Player";
 import type { PlayerDetails, PlayerExtraInfo, PlayerMatchHistory, PlayerProfile, PlayerStatistics } from "../../domain/fantasy/entities/PlayerDetails";
 import type { Club } from "../../domain/fantasy/entities/Club";
 import type { PickSquadInput, Squad } from "../../domain/fantasy/entities/Squad";
+import type { SeasonPointsSummary } from "../../domain/fantasy/entities/SeasonPointsSummary";
 import type {
   CompleteOnboardingInput,
   CompleteOnboardingResult,
@@ -50,6 +51,17 @@ export class HttpFantasyRepository implements FantasyRepository {
   async getFixtures(leagueId: string): Promise<Fixture[]> {
     const payload = await this.httpClient.get<unknown>(`/v1/leagues/${leagueId}/fixtures`);
     return mapFixtures(payload);
+  }
+
+  async getSeasonPointsSummary(
+    leagueId: string,
+    accessToken: string
+  ): Promise<SeasonPointsSummary> {
+    const payload = await this.httpClient.get<unknown>(
+      `/v1/fantasy/points/summary?league_id=${encodeURIComponent(leagueId)}`,
+      this.authHeader(accessToken)
+    );
+    return mapSeasonPointsSummary(payload, leagueId);
   }
 
   async getLeagueStandings(leagueId: string, live = false): Promise<LeagueStanding[]> {
@@ -710,6 +722,19 @@ const mapDashboard = (payload: unknown): Dashboard => {
   };
 };
 
+const mapSeasonPointsSummary = (payload: unknown, fallbackLeagueID: string): SeasonPointsSummary => {
+  const record = asRecord(payload) ?? {};
+
+  return {
+    leagueId: readString(record, "league_id", "leagueId") || fallbackLeagueID,
+    userId: readString(record, "user_id", "userId"),
+    totalPoints: readNumber(record, "total_points", "totalPoints"),
+    averagePoints: readNumber(record, "average_points", "averagePoints"),
+    highestPoints: readNumber(record, "highest_points", "highestPoints"),
+    gameweeks: readNumber(record, "gameweeks")
+  };
+};
+
 const mapLeagues = (payload: unknown): League[] => {
   return toArrayFromPayload(payload, ["leagues", "items"])
     .map((item) => {
@@ -802,12 +827,15 @@ const mapLeagueStandingFromRecord = (record: Record<string, unknown>): LeagueSta
   if (position <= 0) {
     return null;
   }
+  const gameweek = readNumber(record, "gameweek");
+  const played = readNumber(record, "played");
 
   const output: LeagueStanding = {
     leagueId: readString(record, "leagueId", "league_id", "league_public_id"),
+    gameweek: gameweek > 0 ? gameweek : played,
     teamId: teamID,
     position,
-    played: readNumber(record, "played"),
+    played,
     won: readNumber(record, "won"),
     draw: readNumber(record, "draw"),
     lost: readNumber(record, "lost"),
