@@ -17,6 +17,7 @@ import { FixtureCard } from "../components/FixtureCard";
 
 type FixturesTab = "matches" | "table" | "stats";
 type FormResult = "W" | "D" | "L";
+type StandingsMode = "live" | "final" | "derived";
 type StandingsResponse = {
   mode: "live" | "final";
   items: LeagueStanding[];
@@ -34,6 +35,163 @@ const parseStandingForm = (rawForm?: string): Array<FormResult | null> => {
   }
 
   return [...Array.from({ length: 5 - values.length }, () => null), ...values];
+};
+
+const FINISHED_STATUSES = new Set(["FT", "FINISHED", "AET", "PEN"]);
+
+const hasScore = (fixture: Fixture): boolean =>
+  typeof fixture.homeScore === "number" && typeof fixture.awayScore === "number";
+
+const isCountedStandingFixture = (fixture: Fixture): boolean => {
+  if (!hasScore(fixture)) {
+    return false;
+  }
+
+  const status = fixture.status?.trim().toUpperCase() ?? "";
+  return FINISHED_STATUSES.has(status) || isLiveFixture(fixture);
+};
+
+const buildStandingsFromFixtures = (fixtures: Fixture[]): LeagueStanding[] => {
+  const byTeam = new Map<string, LeagueStanding>();
+  const formByTeam = new Map<string, FormResult[]>();
+  let snapshotGameweek = 0;
+  let anyLive = false;
+
+  const sorted = [...fixtures].sort(
+    (left, right) => new Date(left.kickoffAt).getTime() - new Date(right.kickoffAt).getTime()
+  );
+
+  const ensureTeam = (
+    teamKey: string,
+    leagueId: string,
+    teamName: string,
+    teamLogoUrl?: string
+  ): LeagueStanding => {
+    const existing = byTeam.get(teamKey);
+    if (existing) {
+      if (!existing.teamLogoUrl && teamLogoUrl) {
+        existing.teamLogoUrl = teamLogoUrl;
+      }
+      return existing;
+    }
+
+    const created: LeagueStanding = {
+      leagueId,
+      gameweek: 1,
+      teamId: teamKey,
+      teamName: teamName || teamKey,
+      teamLogoUrl,
+      position: 0,
+      played: 0,
+      won: 0,
+      draw: 0,
+      lost: 0,
+      goalsFor: 0,
+      goalsAgainst: 0,
+      goalDifference: 0,
+      points: 0,
+      form: "",
+      isLive: false
+    };
+
+    byTeam.set(teamKey, created);
+    formByTeam.set(teamKey, []);
+    return created;
+  };
+
+  for (const fixture of sorted) {
+    if (!isCountedStandingFixture(fixture)) {
+      continue;
+    }
+
+    const homeKey = fixture.homeTeam.trim();
+    const awayKey = fixture.awayTeam.trim();
+    if (!homeKey || !awayKey || fixture.homeScore === undefined || fixture.awayScore === undefined) {
+      continue;
+    }
+
+    const home = ensureTeam(homeKey, fixture.leagueId, fixture.homeTeam, fixture.homeTeamLogoUrl);
+    const away = ensureTeam(awayKey, fixture.leagueId, fixture.awayTeam, fixture.awayTeamLogoUrl);
+    const homeGoals = fixture.homeScore;
+    const awayGoals = fixture.awayScore;
+
+    home.played += 1;
+    away.played += 1;
+    home.goalsFor += homeGoals;
+    home.goalsAgainst += awayGoals;
+    away.goalsFor += awayGoals;
+    away.goalsAgainst += homeGoals;
+
+    const homeForm = formByTeam.get(homeKey) ?? [];
+    const awayForm = formByTeam.get(awayKey) ?? [];
+
+    if (homeGoals > awayGoals) {
+      home.won += 1;
+      home.points += 3;
+      away.lost += 1;
+      homeForm.push("W");
+      awayForm.push("L");
+    } else if (homeGoals < awayGoals) {
+      away.won += 1;
+      away.points += 3;
+      home.lost += 1;
+      homeForm.push("L");
+      awayForm.push("W");
+    } else {
+      home.draw += 1;
+      away.draw += 1;
+      home.points += 1;
+      away.points += 1;
+      homeForm.push("D");
+      awayForm.push("D");
+    }
+
+    formByTeam.set(homeKey, homeForm.slice(-5));
+    formByTeam.set(awayKey, awayForm.slice(-5));
+
+    if (fixture.gameweek > snapshotGameweek) {
+      snapshotGameweek = fixture.gameweek;
+    }
+    if (isLiveFixture(fixture)) {
+      anyLive = true;
+    }
+  }
+
+  const rows = [...byTeam.values()];
+  if (rows.length === 0) {
+    return [];
+  }
+
+  rows.sort((left, right) => {
+    if (left.points !== right.points) {
+      return right.points - left.points;
+    }
+
+    const leftGD = left.goalsFor - left.goalsAgainst;
+    const rightGD = right.goalsFor - right.goalsAgainst;
+    if (leftGD !== rightGD) {
+      return rightGD - leftGD;
+    }
+
+    if (left.goalsFor !== right.goalsFor) {
+      return right.goalsFor - left.goalsFor;
+    }
+
+    return (left.teamName ?? left.teamId).localeCompare(right.teamName ?? right.teamId);
+  });
+
+  return rows.map((item, index) => {
+    const key = item.teamId.trim();
+    const form = formByTeam.get(key) ?? [];
+    return {
+      ...item,
+      position: index + 1,
+      gameweek: snapshotGameweek > 0 ? snapshotGameweek : 1,
+      goalDifference: item.goalsFor - item.goalsAgainst,
+      form: form.join(""),
+      isLive: anyLive
+    };
+  });
 };
 
 const formatDayLabel = (kickoffAt: string): string => {
@@ -165,15 +323,25 @@ export const FixturesPage = () => {
   const fixtures = fixturesQuery.data ?? [];
   const standings = standingsQuery.data?.items ?? [];
   const standingsMode = standingsQuery.data?.mode ?? "final";
+  const derivedStandings = useMemo(() => buildStandingsFromFixtures(fixtures), [fixtures]);
+  const effectiveStandings = standings.length > 0 ? standings : derivedStandings;
+  const effectiveStandingsMode: StandingsMode =
+    standings.length > 0
+      ? standingsMode
+      : derivedStandings.length > 0
+        ? derivedStandings.some((item) => item.isLive)
+          ? "live"
+          : "derived"
+        : "final";
   const standingsGameweek = useMemo(() => {
     let latest = 0;
-    for (const item of standings) {
+    for (const item of effectiveStandings) {
       if (item.gameweek > latest) {
         latest = item.gameweek;
       }
     }
     return latest > 0 ? latest : null;
-  }, [standings]);
+  }, [effectiveStandings]);
 
   const selectedLeagueName = useMemo(() => {
     return leagues.find((league) => league.id === selectedLeagueId)?.name ?? "Liga 1 Indonesia";
@@ -348,7 +516,7 @@ export const FixturesPage = () => {
   );
 
   const standingsTable = useReactTable({
-    data: standings,
+    data: effectiveStandings,
     columns: standingsColumns,
     getCoreRowModel: getCoreRowModel()
   });
@@ -518,14 +686,18 @@ export const FixturesPage = () => {
 
         {activeTab === "table" ? (
           <motion.div key="fixtures-table" {...tableTransition}>
-            {standingsQuery.isPending ? <LoadingState label="Loading standings" /> : null}
-            {!standingsQuery.isPending && standings.length === 0 ? <p className="muted">No standings found.</p> : null}
+            {standingsQuery.isPending && effectiveStandings.length === 0 ? <LoadingState label="Loading standings" /> : null}
+            {!standingsQuery.isPending && effectiveStandings.length === 0 ? <p className="muted">No standings found.</p> : null}
 
-            {!standingsQuery.isPending && standings.length > 0 ? (
+            {!standingsQuery.isPending && effectiveStandings.length > 0 ? (
               <div className="fixtures-standings-shell">
                 <div className="fixtures-standings-shell-head">
-                  <span className={`fixtures-standings-mode ${standingsMode === "live" ? "live" : ""}`}>
-                    {standingsMode === "live" ? "Live" : "Official"}
+                  <span className={`fixtures-standings-mode ${effectiveStandingsMode === "live" ? "live" : ""}`}>
+                    {effectiveStandingsMode === "live"
+                      ? "Live"
+                      : effectiveStandingsMode === "derived"
+                        ? "Provisional"
+                        : "Official"}
                   </span>
                   <span className="fixtures-standings-snapshot">
                     {standingsGameweek !== null ? `Snapshot GW ${standingsGameweek}` : "Snapshot latest"}

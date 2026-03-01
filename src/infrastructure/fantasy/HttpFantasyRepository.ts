@@ -65,11 +65,25 @@ export class HttpFantasyRepository implements FantasyRepository {
   }
 
   async getLeagueStandings(leagueId: string, live = false): Promise<LeagueStanding[]> {
-    const path = live
-      ? `/v1/leagues/${encodeURIComponent(leagueId)}/standings/live`
-      : `/v1/leagues/${encodeURIComponent(leagueId)}/standings`;
-    const payload = await this.httpClient.get<unknown>(path);
-    return mapLeagueStandings(payload);
+    const normalizedLeagueId = encodeURIComponent(leagueId);
+    const primaryPath = live
+      ? `/v1/leagues/${normalizedLeagueId}/standings/live`
+      : `/v1/leagues/${normalizedLeagueId}/standings`;
+
+    try {
+      const payload = await this.httpClient.get<unknown>(primaryPath);
+      return mapLeagueStandings(payload);
+    } catch (error) {
+      if (!live || !(error instanceof HttpError) || error.statusCode !== 404) {
+        throw error;
+      }
+
+      // Compatibility with deployments exposing live standings via query param.
+      const fallbackPayload = await this.httpClient.get<unknown>(
+        `/v1/leagues/${normalizedLeagueId}/standings?live=true`
+      );
+      return mapLeagueStandings(fallbackPayload);
+    }
   }
 
   async getFixtureDetails(leagueId: string, fixtureId: string): Promise<FixtureDetails> {
@@ -511,6 +525,25 @@ const readBoolean = (record: Record<string, unknown>, ...keys: string[]): boolea
     if (typeof value === "boolean") {
       return value;
     }
+
+    if (typeof value === "number") {
+      if (value === 1) {
+        return true;
+      }
+      if (value === 0) {
+        return false;
+      }
+    }
+
+    if (typeof value === "string") {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === "true" || normalized === "1" || normalized === "yes") {
+        return true;
+      }
+      if (normalized === "false" || normalized === "0" || normalized === "no") {
+        return false;
+      }
+    }
   }
 
   return false;
@@ -818,17 +851,17 @@ const mapLeagueStandings = (payload: unknown): LeagueStanding[] => {
 };
 
 const mapLeagueStandingFromRecord = (record: Record<string, unknown>): LeagueStanding | null => {
-  const teamID = readString(record, "teamId", "team_id");
+  const teamID = readString(record, "teamId", "team_id", "team_public_id", "club_id");
   if (!teamID) {
     return null;
   }
 
-  const position = readNumber(record, "position");
+  const position = readNumber(record, "position", "rank", "place");
   if (position <= 0) {
     return null;
   }
-  const gameweek = readNumber(record, "gameweek");
-  const played = readNumber(record, "played");
+  const gameweek = readNumber(record, "gameweek", "snapshot_gameweek", "gw");
+  const played = readNumber(record, "played", "matches_played", "games_played", "mp");
 
   const output: LeagueStanding = {
     leagueId: readString(record, "leagueId", "league_id", "league_public_id"),
@@ -836,27 +869,33 @@ const mapLeagueStandingFromRecord = (record: Record<string, unknown>): LeagueSta
     teamId: teamID,
     position,
     played,
-    won: readNumber(record, "won"),
-    draw: readNumber(record, "draw"),
-    lost: readNumber(record, "lost"),
-    goalsFor: readNumber(record, "goalsFor", "goals_for"),
-    goalsAgainst: readNumber(record, "goalsAgainst", "goals_against"),
-    goalDifference: readNumber(record, "goalDifference", "goal_difference"),
-    points: readNumber(record, "points"),
-    isLive: readBoolean(record, "isLive", "is_live")
+    won: readNumber(record, "won", "wins", "w"),
+    draw: readNumber(record, "draw", "draws", "d"),
+    lost: readNumber(record, "lost", "losses", "l"),
+    goalsFor: readNumber(record, "goalsFor", "goals_for", "goals_scored", "gf"),
+    goalsAgainst: readNumber(record, "goalsAgainst", "goals_against", "goals_conceded", "ga"),
+    goalDifference: readNumber(record, "goalDifference", "goal_difference", "goal_diff", "gd"),
+    points: readNumber(record, "points", "pts"),
+    isLive: readBoolean(record, "isLive", "is_live", "live")
   };
 
-  const teamName = readString(record, "teamName", "team_name");
+  const teamName = readString(record, "teamName", "team_name", "name", "team");
   if (teamName) {
     output.teamName = teamName;
   }
 
-  const teamLogoURL = readString(record, "teamLogoUrl", "team_logo_url");
+  const teamLogoURL = readString(record, "teamLogoUrl", "team_logo_url", "logoUrl", "logo_url");
   if (teamLogoURL) {
     output.teamLogoUrl = teamLogoURL;
   }
 
-  const form = readString(record, "form");
+  let form = readString(record, "form");
+  if (!form && Array.isArray(record.form)) {
+    form = record.form
+      .map((value) => (typeof value === "string" ? value.trim().toUpperCase() : ""))
+      .filter(Boolean)
+      .join("");
+  }
   if (form) {
     output.form = form;
   }
@@ -869,7 +908,7 @@ const mapFixtureFromRecord = (
   fallbackLeagueId = "",
   fallbackFixtureId = ""
 ): Fixture | null => {
-  const id = readString(record, "id", "public_id") || fallbackFixtureId;
+  const id = readString(record, "id", "public_id", "fixture_id") || fallbackFixtureId;
   if (!id) {
     return null;
   }
@@ -877,19 +916,31 @@ const mapFixtureFromRecord = (
   const fixture: Fixture = {
     id,
     leagueId: readString(record, "leagueId", "league_id", "league_public_id") || fallbackLeagueId,
-    gameweek: readNumber(record, "gameweek"),
-    homeTeam: readString(record, "homeTeam", "home_team"),
-    awayTeam: readString(record, "awayTeam", "away_team"),
-    kickoffAt: readString(record, "kickoffAt", "kickoff_at"),
+    gameweek: readNumber(record, "gameweek", "gw", "matchday"),
+    homeTeam: readString(record, "homeTeam", "home_team", "homeTeamName", "home_team_name"),
+    awayTeam: readString(record, "awayTeam", "away_team", "awayTeamName", "away_team_name"),
+    kickoffAt: readString(record, "kickoffAt", "kickoff_at", "starting_at", "start_time"),
     venue: readString(record, "venue")
   };
 
-  const homeTeamLogoUrl = readString(record, "homeTeamLogoUrl", "home_team_logo_url");
+  const homeTeamLogoUrl = readString(
+    record,
+    "homeTeamLogoUrl",
+    "home_team_logo_url",
+    "home_logo_url",
+    "homeTeamLogo"
+  );
   if (homeTeamLogoUrl) {
     fixture.homeTeamLogoUrl = homeTeamLogoUrl;
   }
 
-  const awayTeamLogoUrl = readString(record, "awayTeamLogoUrl", "away_team_logo_url");
+  const awayTeamLogoUrl = readString(
+    record,
+    "awayTeamLogoUrl",
+    "away_team_logo_url",
+    "away_logo_url",
+    "awayTeamLogo"
+  );
   if (awayTeamLogoUrl) {
     fixture.awayTeamLogoUrl = awayTeamLogoUrl;
   }
@@ -904,7 +955,7 @@ const mapFixtureFromRecord = (
     fixture.awayScore = awayScore;
   }
 
-  const status = readString(record, "status");
+  const status = readString(record, "status", "state");
   if (status) {
     fixture.status = status;
   }
