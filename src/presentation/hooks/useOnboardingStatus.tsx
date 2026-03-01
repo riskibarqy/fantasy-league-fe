@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { appEnv } from "../../app/config/env";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import { useLeagueSelection } from "./useLeagueSelection";
 import { useSession } from "./useSession";
@@ -121,6 +122,8 @@ export const useOnboardingStatus = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
   const processedRevisionRef = useRef(0);
+  const skipOnboardingInDev =
+    process.env.NODE_ENV !== "production" && appEnv.skipOnboardingInDev;
 
   const userId = session?.user.id?.trim() ?? "";
   const accessToken = session?.accessToken?.trim() ?? "";
@@ -161,6 +164,14 @@ export const useOnboardingStatus = () => {
     if (!activeLeagueId) {
       setStatus("required");
       setErrorMessage("No league configured.");
+      return;
+    }
+
+    if (skipOnboardingInDev) {
+      writeCompletedMarker(userId, activeLeagueId);
+      writeStatusCache(userId, activeLeagueId, "completed");
+      setStatus("completed");
+      setErrorMessage(null);
       return;
     }
 
@@ -227,7 +238,7 @@ export const useOnboardingStatus = () => {
     return () => {
       mounted = false;
     };
-  }, [accessToken, activeLeagueId, getMySquad, isLeaguesLoading, revision, userId]);
+  }, [accessToken, activeLeagueId, getMySquad, isLeaguesLoading, revision, skipOnboardingInDev, userId]);
 
   return useMemo(
     () => ({

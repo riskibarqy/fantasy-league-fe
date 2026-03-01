@@ -1,11 +1,13 @@
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { CalendarDays, Home, Settings2, Shield, Waves } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useSession } from "../hooks/useSession";
 import { useI18n } from "../hooks/useI18n";
 
 export const MainLayout = () => {
   const { session } = useSession();
   const { t } = useI18n();
+  const reduceMotion = useReducedMotion();
   const { pathname } = useLocation();
   const showTopBar = !pathname.startsWith("/fixtures");
 
@@ -26,7 +28,25 @@ export const MainLayout = () => {
       ) : null}
 
       <main className="content">
-        <Outlet />
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={pathname}
+            className="route-motion-shell"
+            initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+            animate={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+            transition={
+              reduceMotion
+                ? { duration: 0 }
+                : {
+                    duration: 0.2,
+                    ease: [0.22, 1, 0.36, 1]
+                  }
+            }
+          >
+            <Outlet />
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       <nav className="bottom-nav">

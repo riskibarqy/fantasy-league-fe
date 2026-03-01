@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeftRight, ArrowRight, CalendarDays, Newspaper, Pickaxe, Trophy, Users } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, CalendarDays, Newspaper, Pickaxe, Users } from "lucide-react";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import { cacheKeys, cacheTtlMs, getOrLoadCached } from "../../app/cache/requestCache";
 import type { Dashboard } from "../../domain/fantasy/entities/Team";
@@ -124,7 +124,14 @@ export const DashboardPage = () => {
     return () => {
       mounted = false;
     };
-  }, [getDashboard, getFixtures, getMyCustomLeagues, selectedLeagueId, session?.accessToken, session?.user.id]);
+  }, [
+    getDashboard,
+    getFixtures,
+    getMyCustomLeagues,
+    selectedLeagueId,
+    session?.accessToken,
+    session?.user.id
+  ]);
 
   const selectedLeague = useMemo(() => {
     const targetLeagueId = selectedLeagueId || dashboard?.selectedLeagueId;
@@ -180,8 +187,9 @@ export const DashboardPage = () => {
 
   const newsItems = useMemo(() => getGlobalNewsItems(2), []);
   const averageGwPointsValue = dashboard ? formatFantasyPoints(dashboard.averageGwPoints) : "-";
-  const myGwPointsValue = dashboard ? formatFantasyPoints(dashboard.myGwPoints || dashboard.totalPoints) : "-";
+  const squadPointsValue = dashboard ? formatFantasyPoints(dashboard.myGwPoints || dashboard.totalPoints) : "-";
   const highestGwPointsValue = dashboard ? formatFantasyPoints(dashboard.highestGwPoints) : "-";
+  const rankLabel = dashboard && dashboard.rank > 0 ? `#${dashboard.rank.toLocaleString("en-US")}` : "-";
 
   if (!dashboard) {
     if (errorMessage) {
@@ -218,49 +226,59 @@ export const DashboardPage = () => {
 
   return (
     <div className="page-grid dashboard-page">
-      <Card className="card home-hero">
-        <div>
-          <h2 className="section-icon-title">
-            <Trophy className="inline-icon" aria-hidden="true" />
-            Home Overview • {selectedLeague?.name ?? "League"}
-          </h2>
-          <p className="muted">
-            Gameweek {dashboard.gameweek}
-            {headerFixture ? ` • Deadline ${formatDeadlineWindow(headerFixture.kickoffAt)}` : ""}
-          </p>
+      <Card className="card menu-home-hero">
+        <div className="menu-home-hero-head">
+          <div>
+            <p className="menu-home-kicker">Fantasy Nusantara</p>
+            <h2>My Team</h2>
+            <p className="menu-home-subtitle">
+              GW {dashboard.gameweek} • {selectedLeague?.name ?? "League"}
+              {headerFixture ? ` • Deadline ${formatDeadlineWindow(headerFixture.kickoffAt)}` : ""}
+            </p>
+          </div>
+          <div className="menu-home-rank-badge">
+            <span>Rank</span>
+            <strong>{rankLabel}</strong>
+          </div>
         </div>
 
-        <div className="fantasy-card">
-          <div className="fantasy-points-row" aria-label="Gameweek fantasy points">
-            <article className="fantasy-points-item fantasy-points-item-side">
-              <p className="small-label">Average Point</p>
-              <strong className="fantasy-card-value">{averageGwPointsValue}</strong>
-            </article>
-            <article className="fantasy-points-item fantasy-points-item-center">
-              <p className="small-label">My Fantasy Point</p>
-              <strong className="fantasy-card-value">{myGwPointsValue}</strong>
-            </article>
-            <article className="fantasy-points-item fantasy-points-item-side">
-              <p className="small-label">Highest Point</p>
-              <strong className="fantasy-card-value">{highestGwPointsValue}</strong>
-            </article>
-          </div>
-          <div className="fantasy-card-actions">
-            <Button asChild variant="secondary" className="fantasy-action-button">
-              <Link to="/team?mode=PAT">
-                <Pickaxe className="inline-icon" aria-hidden="true" />
-                Pick Team
-              </Link>
-            </Button>
-            <Button asChild variant="secondary" className="fantasy-action-button">
-              <Link to="/team?mode=TRF">
-                <ArrowLeftRight className="inline-icon" aria-hidden="true" />
-                Transfers
-              </Link>
-            </Button>
-          </div>
+        <div className="menu-home-points-inline" aria-label="Average, squad points, and highest points">
+          <article className="menu-home-point-inline-item">
+            <p className="small-label">Average</p>
+            <strong>{averageGwPointsValue}</strong>
+          </article>
+          <article className="menu-home-point-inline-item">
+            <p className="small-label">Squad Points</p>
+            <strong>{squadPointsValue}</strong>
+          </article>
+          <article className="menu-home-point-inline-item">
+            <p className="small-label">Highest</p>
+            <strong>{highestGwPointsValue}</strong>
+          </article>
         </div>
+
       </Card>
+
+      <div className="menu-home-actions">
+        <Link to="/team?mode=PAT" className="menu-home-action-card">
+          <span className="menu-home-action-icon">
+            <Pickaxe className="inline-icon" aria-hidden="true" />
+          </span>
+          <span className="menu-home-action-copy">
+            <strong>Pick Team</strong>
+            <small>Build your squad</small>
+          </span>
+        </Link>
+        <Link to="/team?mode=TRF" className="menu-home-action-card">
+          <span className="menu-home-action-icon">
+            <ArrowLeftRight className="inline-icon" aria-hidden="true" />
+          </span>
+          <span className="menu-home-action-copy">
+            <strong>Transfers</strong>
+            <small>Make changes</small>
+          </span>
+        </Link>
+      </div>
 
       <Card className="card home-news home-fixtures">
         <div className="home-section-head">

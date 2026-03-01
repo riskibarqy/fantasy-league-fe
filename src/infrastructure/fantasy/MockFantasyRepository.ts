@@ -60,6 +60,7 @@ export class MockFantasyRepository implements FantasyRepository {
     const teams = mockTeams
       .filter((item) => item.leagueId === leagueId)
       .sort((left, right) => left.name.localeCompare(right.name, "id-ID"));
+    const forms = ["WWWWW", "WWDWW", "WDLWW", "WDLWD", "DDLWW", "LLWDD"];
 
     return teams.map((team, idx) => ({
       leagueId,
@@ -67,15 +68,15 @@ export class MockFantasyRepository implements FantasyRepository {
       teamName: team.name,
       teamLogoUrl: team.logoUrl,
       position: idx + 1,
-      played: 26,
-      won: Math.max(0, 20 - idx),
-      draw: Math.max(0, 4 + (idx % 3)),
-      lost: Math.max(0, idx),
-      goalsFor: 42 - idx,
-      goalsAgainst: 18 + idx,
-      goalDifference: (42 - idx) - (18 + idx),
-      points: 60 - idx * 2,
-      form: "WWDWL",
+      played: 23,
+      won: Math.max(0, 15 - idx),
+      draw: Math.max(0, 5 - (idx % 3)),
+      lost: Math.max(0, 3 + idx),
+      goalsFor: Math.max(12, 37 - idx * 2),
+      goalsAgainst: Math.max(8, 15 + idx),
+      goalDifference: Math.max(-20, (37 - idx * 2) - (15 + idx)),
+      points: Math.max(10, 50 - idx * 3),
+      form: forms[idx % forms.length],
       isLive: live
     }));
   }

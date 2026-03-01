@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
@@ -12,7 +13,7 @@ import { useLeagueSelection } from "../hooks/useLeagueSelection";
 import { appAlert } from "../lib/appAlert";
 import { LazyImage } from "../components/LazyImage";
 import { isLiveFixture } from "../lib/fixtureDisplay";
-import { FixtureMatchRow } from "../components/FixtureMatchRow";
+import { FixtureCard } from "../components/FixtureCard";
 
 type FixturesTab = "matches" | "table" | "stats";
 type FormResult = "W" | "D" | "L";
@@ -490,11 +491,13 @@ export const FixturesPage = () => {
                     <h4>{dayGroup.label}</h4>
                     <div className="fixtures-v2-match-list">
                       {dayGroup.items.map((fixture) => (
-                        <FixtureMatchRow
+                        <Link
                           key={fixture.id}
-                          fixture={fixture}
+                          className="fixture-modern-link"
                           to={`/fixtures/${encodeURIComponent(fixture.id)}?leagueId=${encodeURIComponent(selectedLeagueId)}`}
-                        />
+                        >
+                          <FixtureCard fixture={fixture} />
+                        </Link>
                       ))}
                     </div>
                   </motion.section>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeftRight, Clock3, Pickaxe, Sparkles, Trophy } from "lucide-react";
+import { ArrowLeftRight, Clock3, Pickaxe, Sparkles } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import { cacheKeys, cacheTtlMs, getOrLoadCached, peekCached } from "../../app/cache/requestCache";
 import type { Club } from "../../domain/fantasy/entities/Club";
@@ -455,6 +456,7 @@ async function withRetry<T>(run: () => Promise<T>, retries: number): Promise<T> 
 }
 
 export const TeamBuilderPage = () => {
+  const reduceMotion = useReducedMotion();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { getPlayers, getTeams, getPlayerDetails, getLineup, getDashboard, getFixtures, getMySquad, pickSquad, logout, saveLineup } =
@@ -1745,6 +1747,9 @@ export const TeamBuilderPage = () => {
   };
 
   const selectedLeagueName = leagues.find((league) => league.id === selectedLeagueId)?.name ?? "-";
+  const startersCount = starterIds.length;
+  const benchCount = lineup?.substituteIds.filter(Boolean).length ?? 0;
+  const remainingBudget = Math.max(0, 100 - squadCost);
   const captainChecked = Boolean(selectedPlayer && lineup && lineup.captainId === selectedPlayer.id);
   const viceCaptainChecked = Boolean(selectedPlayer && lineup && lineup.viceCaptainId === selectedPlayer.id);
 
@@ -1932,49 +1937,72 @@ export const TeamBuilderPage = () => {
 
   return (
     <div className="page-grid team-builder-page">
-      <section className="section-title">
-        <h2 className="section-icon-title">
-          <Trophy className="inline-icon" aria-hidden="true" />
-          Team Builder
-        </h2>
-        <p className="muted">Choose mode: Pick Team or Transfers.</p>
-      </section>
-
-      <Card className="card team-header-box">
-        <div className="mode-switch">
-          <Button
-            type="button"
-            variant={mode === "PAT" ? "default" : "secondary"}
-            className={`mode-button ${mode === "PAT" ? "active" : ""}`}
-            onClick={() => setMode("PAT")}
-          >
-            <Pickaxe className="mode-icon" aria-hidden="true" />
-            Pick Team
-          </Button>
-          <Button
-            type="button"
-            variant={mode === "TRF" ? "default" : "secondary"}
-            className={`mode-button ${mode === "TRF" ? "active" : ""}`}
-            onClick={() => setMode("TRF")}
-          >
-            <ArrowLeftRight className="mode-icon" aria-hidden="true" />
-            Transfers
-          </Button>
+      <Card className="card team-menu-hero">
+        <div className="team-menu-hero-head">
+          <div>
+            <p className="team-menu-kicker">Fantasy Nusantara</p>
+            <h2>My Team</h2>
+            <p className="team-menu-subtitle">
+              GW {gameweek ?? "-"} • Deadline {formatDeadline(deadlineAt)}
+            </p>
+          </div>
+          <div className="team-menu-badge">
+            <span>League</span>
+            <strong>{selectedLeagueName}</strong>
+          </div>
         </div>
 
-        <div className="team-meta-grid">
-          <article className="team-meta-item">
-            <p className="small-label">League</p>
-            <strong>{selectedLeagueName}</strong>
+        <div className="team-menu-main-stat">
+          <p className="small-label">Squad Cost</p>
+          <strong>£{squadCost.toFixed(1)}m</strong>
+          <p className="team-menu-subtitle">Budget left £{remainingBudget.toFixed(1)}m</p>
+        </div>
+
+        <div className="team-menu-quick-stats">
+          <article className="team-menu-quick-item">
+            <strong>{squadPlayers.length}</strong>
+            <span>Players</span>
           </article>
-          <article className="team-meta-item">
-            <p className="small-label">Gameweek</p>
-            <strong>{gameweek ?? "-"}</strong>
+          <article className="team-menu-quick-item">
+            <strong>{startersCount}</strong>
+            <span>Starting XI</span>
           </article>
-          <article className="team-meta-item">
-            <p className="small-label">Deadline Transfers</p>
-            <strong>{formatDeadline(deadlineAt)}</strong>
+          <article className="team-menu-quick-item">
+            <strong>{benchCount}</strong>
+            <span>Bench</span>
           </article>
+        </div>
+
+        <div className="team-menu-actions">
+          <button
+            type="button"
+            className={`team-menu-action ${mode === "PAT" ? "active" : ""}`}
+            onClick={() => setMode("PAT")}
+            aria-pressed={mode === "PAT"}
+          >
+            <span className="team-menu-action-icon">
+              <Pickaxe className="mode-icon" aria-hidden="true" />
+            </span>
+            <span className="team-menu-action-copy">
+              <strong>Pick Team</strong>
+              <small>Build your lineup</small>
+            </span>
+          </button>
+
+          <button
+            type="button"
+            className={`team-menu-action ${mode === "TRF" ? "active" : ""}`}
+            onClick={() => setMode("TRF")}
+            aria-pressed={mode === "TRF"}
+          >
+            <span className="team-menu-action-icon">
+              <ArrowLeftRight className="mode-icon" aria-hidden="true" />
+            </span>
+            <span className="team-menu-action-copy">
+              <strong>Transfers</strong>
+              <small>Manage all players</small>
+            </span>
+          </button>
         </div>
 
         {isLeagueDataLoading ? <LoadingState label="Loading latest team data" inline compact /> : null}
@@ -2161,9 +2189,28 @@ export const TeamBuilderPage = () => {
         ) : null}
       </Card>
 
-      {selectedPlayer ? (
-        <div className="player-modal-overlay" onClick={() => setSelectedPlayerId(null)}>
-          <Card className="player-modal card" onClick={(event) => event.stopPropagation()}>
+      <AnimatePresence>
+        {selectedPlayer ? (
+          <motion.div
+            className="player-modal-overlay"
+            onClick={() => setSelectedPlayerId(null)}
+            initial={reduceMotion ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={reduceMotion ? { duration: 0 } : { duration: 0.16, ease: "easeOut" }}
+          >
+            <motion.div
+              onClick={(event) => event.stopPropagation()}
+              initial={reduceMotion ? false : { opacity: 0, y: 10, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 6, scale: 0.985 }}
+              transition={
+                reduceMotion
+                  ? { duration: 0 }
+                  : { type: "spring", stiffness: 360, damping: 32, mass: 0.9 }
+              }
+            >
+              <Card className="player-modal card">
             <Button
               type="button"
               variant="secondary"
@@ -2397,9 +2444,11 @@ export const TeamBuilderPage = () => {
                 {selectedPlayerIsSubstitutionSource ? "Substitution Active" : "Substitutes"}
               </Button>
             </div>
-          </Card>
-        </div>
-      ) : null}
+              </Card>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
     </div>
   );
 };

@@ -11,26 +11,19 @@ export const mockLeagues: League[] = [
     countryCode: "ID",
     logoUrl:
       "https://upload.wikimedia.org/wikipedia/commons/thumb/8/86/Liga_1_Indonesia.png/320px-Liga_1_Indonesia.png"
-  },
-  {
-    id: "eng-premier-league",
-    name: "Premier League",
-    countryCode: "GB",
-    logoUrl:
-      "https://upload.wikimedia.org/wikipedia/en/thumb/f/f2/Premier_League_Logo.svg/320px-Premier_League_Logo.svg.png"
   }
 ];
 
 export const mockDashboard: Dashboard = {
-  gameweek: 12,
-  budget: 100,
-  teamValue: 98.7,
-  totalPoints: 645,
-  rank: 2904,
+  gameweek: 23,
+  budget: 99.4,
+  teamValue: 101.2,
+  totalPoints: 712,
+  rank: 1814,
   selectedLeagueId: "idn-liga-1",
-  averageGwPoints: 48.6,
-  myGwPoints: 56.2,
-  highestGwPoints: 93.4
+  averageGwPoints: 45.8,
+  myGwPoints: 53.6,
+  highestGwPoints: 96.1
 };
 
 export const mockTeams: Club[] = [
@@ -65,22 +58,6 @@ export const mockTeams: Club[] = [
     short: "BOR",
     logoUrl: "https://upload.wikimedia.org/wikipedia/en/2/25/Borneo_FC_logo.png",
     teamColor: ["#9A3412", "#FB923C"]
-  },
-  {
-    id: "eng-arsenal",
-    leagueId: "eng-premier-league",
-    name: "Arsenal",
-    short: "ARS",
-    logoUrl: "https://upload.wikimedia.org/wikipedia/en/5/53/Arsenal_FC.svg",
-    teamColor: ["#B91C1C", "#F59E0B"]
-  },
-  {
-    id: "eng-liverpool",
-    leagueId: "eng-premier-league",
-    name: "Liverpool",
-    short: "LIV",
-    logoUrl: "https://upload.wikimedia.org/wikipedia/en/0/0c/Liverpool_FC.svg",
-    teamColor: ["#B91C1C", "#E5E7EB"]
   }
 ];
 
@@ -88,35 +65,79 @@ export const mockFixtures: Fixture[] = [
   {
     id: "fx-1",
     leagueId: "idn-liga-1",
-    gameweek: 12,
+    gameweek: 23,
     homeTeam: "Persib Bandung",
     awayTeam: "Persebaya Surabaya",
     homeTeamLogoUrl: "https://upload.wikimedia.org/wikipedia/en/0/07/Persib_Bandung_logo.svg",
     awayTeamLogoUrl: "https://upload.wikimedia.org/wikipedia/en/0/05/Persebaya_logo.svg",
-    kickoffAt: "2026-02-14T12:30:00.000Z",
-    venue: "Stadion Gelora Bandung Lautan Api"
+    kickoffAt: "2026-02-28T12:30:00.000Z",
+    venue: "Stadion Gelora Bandung Lautan Api",
+    homeScore: 2,
+    awayScore: 1,
+    status: "FT",
+    finishedAt: "2026-02-28T14:30:00.000Z"
   },
   {
     id: "fx-2",
     leagueId: "idn-liga-1",
-    gameweek: 12,
+    gameweek: 23,
     homeTeam: "Persija Jakarta",
-    awayTeam: "PSS Sleman",
+    awayTeam: "Borneo FC",
     homeTeamLogoUrl: "https://upload.wikimedia.org/wikipedia/en/4/4c/Persija_Jakarta_logo.svg",
-    awayTeamLogoUrl: "https://upload.wikimedia.org/wikipedia/en/8/8b/PSS_Sleman_logo.png",
-    kickoffAt: "2026-02-15T08:00:00.000Z",
-    venue: "Jakarta International Stadium"
+    awayTeamLogoUrl: "https://upload.wikimedia.org/wikipedia/en/2/25/Borneo_FC_logo.png",
+    kickoffAt: "2026-03-01T12:00:00.000Z",
+    venue: "Jakarta International Stadium",
+    homeScore: 1,
+    awayScore: 1,
+    status: "LIVE"
   },
   {
     id: "fx-3",
-    leagueId: "eng-premier-league",
-    gameweek: 26,
-    homeTeam: "Liverpool",
-    awayTeam: "Arsenal",
-    homeTeamLogoUrl: "https://upload.wikimedia.org/wikipedia/en/0/0c/Liverpool_FC.svg",
-    awayTeamLogoUrl: "https://upload.wikimedia.org/wikipedia/en/5/53/Arsenal_FC.svg",
-    kickoffAt: "2026-02-15T16:30:00.000Z",
-    venue: "Anfield"
+    leagueId: "idn-liga-1",
+    gameweek: 23,
+    homeTeam: "Persebaya Surabaya",
+    awayTeam: "Persija Jakarta",
+    homeTeamLogoUrl: "https://upload.wikimedia.org/wikipedia/en/0/05/Persebaya_logo.svg",
+    awayTeamLogoUrl: "https://upload.wikimedia.org/wikipedia/en/4/4c/Persija_Jakarta_logo.svg",
+    kickoffAt: "2026-03-01T13:30:00.000Z",
+    venue: "Gelora Bung Tomo",
+    status: "SCHEDULED"
+  },
+  {
+    id: "fx-4",
+    leagueId: "idn-liga-1",
+    gameweek: 23,
+    homeTeam: "Borneo FC",
+    awayTeam: "Persib Bandung",
+    homeTeamLogoUrl: "https://upload.wikimedia.org/wikipedia/en/2/25/Borneo_FC_logo.png",
+    awayTeamLogoUrl: "https://upload.wikimedia.org/wikipedia/en/0/07/Persib_Bandung_logo.svg",
+    kickoffAt: "2026-03-01T15:00:00.000Z",
+    venue: "Stadion Segiri",
+    status: "SCHEDULED"
+  },
+  {
+    id: "fx-5",
+    leagueId: "idn-liga-1",
+    gameweek: 24,
+    homeTeam: "Persib Bandung",
+    awayTeam: "Borneo FC",
+    homeTeamLogoUrl: "https://upload.wikimedia.org/wikipedia/en/0/07/Persib_Bandung_logo.svg",
+    awayTeamLogoUrl: "https://upload.wikimedia.org/wikipedia/en/2/25/Borneo_FC_logo.png",
+    kickoffAt: "2026-03-07T12:30:00.000Z",
+    venue: "Stadion Gelora Bandung Lautan Api",
+    status: "SCHEDULED"
+  },
+  {
+    id: "fx-6",
+    leagueId: "idn-liga-1",
+    gameweek: 24,
+    homeTeam: "Persija Jakarta",
+    awayTeam: "Persebaya Surabaya",
+    homeTeamLogoUrl: "https://upload.wikimedia.org/wikipedia/en/4/4c/Persija_Jakarta_logo.svg",
+    awayTeamLogoUrl: "https://upload.wikimedia.org/wikipedia/en/0/05/Persebaya_logo.svg",
+    kickoffAt: "2026-03-08T12:30:00.000Z",
+    venue: "Jakarta International Stadium",
+    status: "SCHEDULED"
   }
 ];
 
