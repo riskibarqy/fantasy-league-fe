@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, CalendarDays, Newspaper, Shield, Trophy, Users } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, CalendarDays, Newspaper, Pickaxe, Trophy, Users } from "lucide-react";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import { cacheKeys, cacheTtlMs, getOrLoadCached } from "../../app/cache/requestCache";
 import type { Dashboard } from "../../domain/fantasy/entities/Team";
@@ -44,6 +44,16 @@ const parseKickoffMs = (kickoffAt: string): number => {
   return Number.isFinite(value) ? value : Number.POSITIVE_INFINITY;
 };
 
+type FantasyTabKey = "average" | "mine" | "highest";
+
+const formatFantasyPoints = (value: number): string => {
+  if (!Number.isFinite(value)) {
+    return "-";
+  }
+
+  return value.toFixed(1);
+};
+
 export const DashboardPage = () => {
   const { getDashboard, getFixtures, getMyCustomLeagues } = useContainer();
   const { leagues, selectedLeagueId } = useLeagueSelection();
@@ -53,6 +63,7 @@ export const DashboardPage = () => {
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [customLeagues, setCustomLeagues] = useState<CustomLeague[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [activeFantasyTab, setActiveFantasyTab] = useState<FantasyTabKey>("average");
 
   useEffect(() => {
     if (errorMessage) {
@@ -171,6 +182,31 @@ export const DashboardPage = () => {
   const leaguesById = useMemo(() => new Map(leagues.map((league) => [league.id, league])), [leagues]);
 
   const newsItems = useMemo(() => getGlobalNewsItems(2), []);
+  const fantasyTabs = useMemo(
+    () => [
+      {
+        key: "average" as const,
+        label: "Average Point",
+        subtitle: `Users in GW ${dashboard?.gameweek ?? "-"}`,
+        value: dashboard ? formatFantasyPoints(dashboard.averageGwPoints) : "-"
+      },
+      {
+        key: "mine" as const,
+        label: "My Fantasy Point",
+        subtitle: `Your GW ${dashboard?.gameweek ?? "-"}`,
+        value: dashboard ? formatFantasyPoints(dashboard.myGwPoints || dashboard.totalPoints) : "-"
+      },
+      {
+        key: "highest" as const,
+        label: "Highest Point",
+        subtitle: `Top score in GW ${dashboard?.gameweek ?? "-"}`,
+        value: dashboard ? formatFantasyPoints(dashboard.highestGwPoints) : "-"
+      }
+    ],
+    [dashboard]
+  );
+  const activeFantasyMetric =
+    fantasyTabs.find((tab) => tab.key === activeFantasyTab) ?? fantasyTabs[0];
 
   if (!dashboard) {
     if (errorMessage) {
@@ -219,21 +255,39 @@ export const DashboardPage = () => {
           </p>
         </div>
 
-        <div className="home-quick-grid">
-          <Link to="/team" className="home-quick-link">
-            <strong className="quick-link-title">
-              <Shield className="inline-icon" aria-hidden="true" />
-              Manage Team
-            </strong>
-            <small>Edit lineup and transfers</small>
-          </Link>
-          <Link to="/fixtures" className="home-quick-link">
-            <strong className="quick-link-title">
-              <CalendarDays className="inline-icon" aria-hidden="true" />
-              Fixtures
-            </strong>
-            <small>See match schedule</small>
-          </Link>
+        <div className="fantasy-card">
+          <div className="fantasy-card-tabs" role="tablist" aria-label="Fantasy points tabs">
+            {fantasyTabs.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                role="tab"
+                aria-selected={activeFantasyTab === tab.key}
+                className={`fantasy-card-tab ${activeFantasyTab === tab.key ? "active" : ""}`}
+                onClick={() => setActiveFantasyTab(tab.key)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <article className="fantasy-card-metric">
+            <p className="small-label">{activeFantasyMetric.subtitle}</p>
+            <strong className="fantasy-card-value">{activeFantasyMetric.value}</strong>
+          </article>
+          <div className="fantasy-card-actions">
+            <Button asChild variant="secondary" className="fantasy-action-button">
+              <Link to="/team?mode=PAT">
+                <Pickaxe className="inline-icon" aria-hidden="true" />
+                Pick Team
+              </Link>
+            </Button>
+            <Button asChild className="fantasy-action-button">
+              <Link to="/team?mode=TRF">
+                <ArrowLeftRight className="inline-icon" aria-hidden="true" />
+                Transfers
+              </Link>
+            </Button>
+          </div>
         </div>
       </Card>
 

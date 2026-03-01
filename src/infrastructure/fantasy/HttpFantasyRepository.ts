@@ -669,6 +669,33 @@ const toArrayFromPayload = (payload: unknown, keys: string[] = []): unknown[] =>
 
 const mapDashboard = (payload: unknown): Dashboard => {
   const record = asRecord(payload) ?? {};
+  const myGwPoints = readNumber(
+    record,
+    "myGwPoints",
+    "my_gw_points",
+    "myFantasyGwPoints",
+    "my_fantasy_gw_points",
+    "pointsThisGw",
+    "points_this_gw"
+  );
+  const averageGwPoints = readNumber(
+    record,
+    "averageGwPoints",
+    "average_gw_points",
+    "averagePointsThisGw",
+    "average_points_this_gw",
+    "gwAveragePoints",
+    "gw_average_points"
+  );
+  const highestGwPoints = readNumber(
+    record,
+    "highestGwPoints",
+    "highest_gw_points",
+    "highestPointsThisGw",
+    "highest_points_this_gw",
+    "gwHighestPoints",
+    "gw_highest_points"
+  );
 
   return {
     gameweek: readNumber(record, "gameweek"),
@@ -676,7 +703,10 @@ const mapDashboard = (payload: unknown): Dashboard => {
     teamValue: readNumber(record, "teamValue", "team_value"),
     totalPoints: readNumber(record, "totalPoints", "total_points"),
     rank: readNumber(record, "rank"),
-    selectedLeagueId: readString(record, "selectedLeagueId", "selected_league_id")
+    selectedLeagueId: readString(record, "selectedLeagueId", "selected_league_id"),
+    averageGwPoints,
+    myGwPoints: myGwPoints || readNumber(record, "totalPoints", "total_points"),
+    highestGwPoints
   };
 };
 

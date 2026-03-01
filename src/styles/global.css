@@ -1432,6 +1432,72 @@ button:disabled {
   box-shadow: var(--shadow-soft);
 }
 
+.fantasy-card {
+  display: grid;
+  gap: 0.56rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.6rem;
+  background: var(--surface-soft);
+}
+
+.fantasy-card-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.36rem;
+}
+
+.fantasy-card-tab {
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: color-mix(in oklab, var(--surface-strong) 84%, transparent);
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.34rem 0.42rem;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.fantasy-card-tab.active {
+  color: #fff;
+  border-color: color-mix(in oklab, var(--accent) 55%, var(--border));
+  background: linear-gradient(
+    120deg,
+    color-mix(in oklab, var(--accent) 90%, #5f9bff) 0%,
+    color-mix(in oklab, var(--accent-strong) 82%, #3875ff) 100%
+  );
+}
+
+.fantasy-card-metric {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.56rem;
+  display: grid;
+  gap: 0.18rem;
+  background: color-mix(in oklab, var(--surface-strong) 90%, transparent);
+}
+
+.fantasy-card-value {
+  font-size: 1.2rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.fantasy-card-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.fantasy-action-button {
+  width: 100%;
+}
+
+.fantasy-action-button a {
+  width: 100%;
+}
+
 .home-news {
   display: grid;
   gap: 0.65rem;
@@ -3665,6 +3731,10 @@ button:disabled {
 
   .home-quick-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .fantasy-card-tab {
+    font-size: 0.72rem;
   }
 
   .players-board {

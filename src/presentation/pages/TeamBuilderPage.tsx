@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeftRight, Clock3, Pickaxe, Sparkles, Trophy } from "lucide-react";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import { cacheKeys, cacheTtlMs, getOrLoadCached, peekCached } from "../../app/cache/requestCache";
@@ -68,6 +68,10 @@ const SUBSTITUTION_MIN_STARTERS = {
   FWD: 1
 } as const;
 const DEFAULT_TEAM_COLOR_PAIR: [string, string] = ["#3A4250", "#A3ACBA"];
+
+const parseTeamMode = (value: string | null): TeamMode => {
+  return value?.trim().toUpperCase() === "TRF" ? "TRF" : "PAT";
+};
 
 const sanitizeStarterIds = (ids: string[], max: number): string[] => {
   return ids.filter(Boolean).slice(0, max);
@@ -452,6 +456,7 @@ async function withRetry<T>(run: () => Promise<T>, retries: number): Promise<T> 
 
 export const TeamBuilderPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { getPlayers, getTeams, getPlayerDetails, getLineup, getDashboard, getFixtures, getMySquad, pickSquad, logout, saveLineup } =
     useContainer();
   const { leagues, selectedLeagueId } = useLeagueSelection();
@@ -460,7 +465,7 @@ export const TeamBuilderPage = () => {
   const logoutInProgressRef = useRef(false);
   const pitchBoardRef = useRef<HTMLDivElement | null>(null);
 
-  const [mode, setMode] = useState<TeamMode>("PAT");
+  const [mode, setMode] = useState<TeamMode>(() => parseTeamMode(searchParams.get("mode")));
   const [players, setPlayers] = useState<Player[]>([]);
   const [teams, setTeams] = useState<Club[]>([]);
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
@@ -478,6 +483,11 @@ export const TeamBuilderPage = () => {
   const [hasSubstitutionDraftChanges, setHasSubstitutionDraftChanges] = useState(false);
   const [lastSavedLineup, setLastSavedLineup] = useState<TeamLineup | null>(null);
   const [isSavingLineup, setIsSavingLineup] = useState(false);
+
+  useEffect(() => {
+    const queryMode = parseTeamMode(searchParams.get("mode"));
+    setMode((current) => (current === queryMode ? current : queryMode));
+  }, [searchParams]);
 
   const recenterToPitch = useCallback(() => {
     if (!pitchBoardRef.current) {

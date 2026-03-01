@@ -27,7 +27,10 @@ export const mockDashboard: Dashboard = {
   teamValue: 98.7,
   totalPoints: 645,
   rank: 2904,
-  selectedLeagueId: "idn-liga-1"
+  selectedLeagueId: "idn-liga-1",
+  averageGwPoints: 48.6,
+  myGwPoints: 56.2,
+  highestGwPoints: 93.4
 };
 
 export const mockTeams: Club[] = [
