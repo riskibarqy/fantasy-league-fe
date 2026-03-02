@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeftRight, Clock3, Pickaxe, Sparkles } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import { cacheKeys, cacheTtlMs, getOrLoadCached, peekCached } from "../../app/cache/requestCache";
@@ -46,6 +45,9 @@ type PitchRow = {
 };
 
 type CardVisualState = "source" | "target" | null;
+type TeamBuilderPageProps = {
+  forcedMode?: TeamMode;
+};
 
 const PAT_MIN_SLOTS = {
   DEF: FORMATION_LIMITS.DEF.min,
@@ -371,20 +373,6 @@ const jerseyNumberFromPlayer = (playerId: string): string => {
   return String((hashString(playerId) % 99) + 1);
 };
 
-const formatDeadline = (date: string | null): string => {
-  if (!date) {
-    return "-";
-  }
-
-  return new Date(date).toLocaleString("id-ID", {
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-};
-
 const sortByProjectedDesc = (players: Player[]): Player[] => {
   return [...players].sort((left, right) => right.projectedPoints - left.projectedPoints);
 };
@@ -466,7 +454,7 @@ async function withRetry<T>(run: () => Promise<T>, retries: number): Promise<T> 
   throw lastError instanceof Error ? lastError : new Error("Request failed.");
 }
 
-export const TeamBuilderPage = () => {
+export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
   const reduceMotion = useReducedMotion();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -485,20 +473,19 @@ export const TeamBuilderPage = () => {
     saveLineup
   } =
     useContainer();
-  const { leagues, selectedLeagueId } = useLeagueSelection();
+  const { selectedLeagueId } = useLeagueSelection();
   const { session, setSession } = useSession();
   const userScope = session?.user.id ?? "";
   const logoutInProgressRef = useRef(false);
   const pitchBoardRef = useRef<HTMLDivElement | null>(null);
   const pointsViewCenteredKeyRef = useRef("");
 
-  const [mode, setMode] = useState<TeamMode>(() => parseTeamMode(searchParams.get("mode")));
+  const [mode, setMode] = useState<TeamMode>(() => forcedMode ?? parseTeamMode(searchParams.get("mode")));
   const [players, setPlayers] = useState<Player[]>([]);
   const [teams, setTeams] = useState<Club[]>([]);
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [lineup, setLineup] = useState<TeamLineup | null>(null);
   const [gameweek, setGameweek] = useState<number | null>(null);
-  const [deadlineAt, setDeadlineAt] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [isLeagueDataLoading, setIsLeagueDataLoading] = useState(false);
@@ -518,9 +505,14 @@ export const TeamBuilderPage = () => {
   const [pointsViewNotice, setPointsViewNotice] = useState<string | null>(null);
 
   useEffect(() => {
+    if (forcedMode) {
+      setMode((current) => (current === forcedMode ? current : forcedMode));
+      return;
+    }
+
     const queryMode = parseTeamMode(searchParams.get("mode"));
     setMode((current) => (current === queryMode ? current : queryMode));
-  }, [searchParams]);
+  }, [forcedMode, searchParams]);
 
   const isPointsView = searchParams.get("view")?.trim().toLowerCase() === "points";
   const pointsMetric = parsePointsMetric(searchParams.get("metric"));
@@ -1018,10 +1010,6 @@ export const TeamBuilderPage = () => {
           recenterToPitch();
         }
 
-        const nearestKickoff = [...fixturesResult]
-          .sort((left, right) => new Date(left.kickoffAt).getTime() - new Date(right.kickoffAt).getTime())[0]?.kickoffAt ?? null;
-
-        setDeadlineAt(nearestKickoff);
         if (fixturesResult[0]?.gameweek) {
           setGameweek(fixturesResult[0].gameweek);
         }
@@ -1237,7 +1225,8 @@ export const TeamBuilderPage = () => {
       {
         leagueId: selectedLeagueId,
         target,
-        lineup
+        lineup,
+        returnPath: mode === "TRF" ? "/transfers" : "/pick-team"
       },
       userScope
     );
@@ -1248,7 +1237,7 @@ export const TeamBuilderPage = () => {
       index: String(target.index)
     });
 
-    navigate(`/team/pick?${params.toString()}`);
+    navigate(`/pick-team/pick?${params.toString()}`);
   };
 
   const selectedPlayerIsStarter = useMemo(() => {
@@ -1873,19 +1862,21 @@ export const TeamBuilderPage = () => {
     );
   };
 
+  const isTransferMode = mode === "TRF";
+
   const renderPitch = (
     rows: PitchRow[],
     showLeadershipBadges: boolean,
     allowSlotPicking: boolean
   ) => {
     return (
-      <div className="fpl-pitch-stage">
+      <div className={`fpl-pitch-stage${isTransferMode ? " fpl-pitch-stage--trf" : ""}`}>
         <div className="pitch-top-boards">
           <div>Fantasy</div>
           <div>Fantasy</div>
         </div>
 
-        <div className="fpl-pitch">
+        <div className={`fpl-pitch${isTransferMode ? " fpl-pitch--trf" : ""}`}>
           <div className="pitch-lines">
             <div className="penalty-box" />
             <div className="center-circle" />
@@ -1893,7 +1884,11 @@ export const TeamBuilderPage = () => {
           </div>
 
           {rows.map((row) => (
-            <div key={row.label} className="fpl-line" style={{ "--slot-count": row.slots } as CSSProperties}>
+            <div
+              key={row.label}
+              className={`fpl-line${isTransferMode ? " fpl-line--trf" : ""}`}
+              style={{ "--slot-count": row.slots } as CSSProperties}
+            >
               {Array.from({ length: row.slots }).map((_, index) => {
                 const playerId = row.ids[index];
                 const player = playerId ? playersById.get(playerId) ?? null : null;
@@ -1933,10 +1928,6 @@ export const TeamBuilderPage = () => {
     );
   };
 
-  const selectedLeagueName = leagues.find((league) => league.id === selectedLeagueId)?.name ?? "-";
-  const startersCount = starterIds.length;
-  const benchCount = lineup?.substituteIds.filter(Boolean).length ?? 0;
-  const remainingBudget = Math.max(0, 100 - squadCost);
   const pointsViewTitle =
     pointsMetric === "average"
       ? "Average Points View"
@@ -2066,10 +2057,6 @@ export const TeamBuilderPage = () => {
     recenterToPitch();
   };
 
-  const cancelSubstitutionMode = () => {
-    setSubstitutionSourcePlayerId(null);
-  };
-
   const substitutionSourceName = substitutionSourcePlayerId
     ? playersById.get(substitutionSourcePlayerId)?.name ?? "selected player"
     : null;
@@ -2166,78 +2153,9 @@ export const TeamBuilderPage = () => {
   };
 
   return (
-    <div className="page-grid team-builder-page">
-      <Card className="card team-menu-hero">
-        <div className="team-menu-hero-head">
-          <div>
-            <p className="team-menu-kicker">Fantasy Nusantara</p>
-            <h2>My Team</h2>
-            <p className="team-menu-subtitle">
-              GW {gameweek ?? "-"} • Deadline {formatDeadline(deadlineAt)}
-            </p>
-          </div>
-          <div className="team-menu-badge">
-            <span>League</span>
-            <strong>{selectedLeagueName}</strong>
-          </div>
-        </div>
-
-        <div className="team-menu-main-stat">
-          <p className="small-label">Squad Cost</p>
-          <strong>£{squadCost.toFixed(1)}m</strong>
-          <p className="team-menu-subtitle">Budget left £{remainingBudget.toFixed(1)}m</p>
-        </div>
-
-        <div className="team-menu-quick-stats">
-          <article className="team-menu-quick-item">
-            <strong>{squadPlayers.length}</strong>
-            <span>Players</span>
-          </article>
-          <article className="team-menu-quick-item">
-            <strong>{startersCount}</strong>
-            <span>Starting XI</span>
-          </article>
-          <article className="team-menu-quick-item">
-            <strong>{benchCount}</strong>
-            <span>Bench</span>
-          </article>
-        </div>
-
-        <div className="team-menu-actions">
-          <button
-            type="button"
-            className={`team-menu-action ${mode === "PAT" ? "active" : ""}`}
-            onClick={() => setMode("PAT")}
-            aria-pressed={mode === "PAT"}
-            disabled={isReadOnlyPointsView}
-          >
-            <span className="team-menu-action-icon">
-              <Pickaxe className="mode-icon" aria-hidden="true" />
-            </span>
-            <span className="team-menu-action-copy">
-              <strong>Pick Team</strong>
-              <small>Build your lineup</small>
-            </span>
-          </button>
-
-          <button
-            type="button"
-            className={`team-menu-action ${mode === "TRF" ? "active" : ""}`}
-            onClick={() => setMode("TRF")}
-            aria-pressed={mode === "TRF"}
-            disabled={isReadOnlyPointsView}
-          >
-            <span className="team-menu-action-icon">
-              <ArrowLeftRight className="mode-icon" aria-hidden="true" />
-            </span>
-            <span className="team-menu-action-copy">
-              <strong>Transfers</strong>
-              <small>Manage all players</small>
-            </span>
-          </button>
-        </div>
-
-        {isReadOnlyPointsView ? (
+    <div className={`page-grid team-builder-page${isReadOnlyPointsView ? " team-builder-page--points-view" : ""}`}>
+      {mode === "PAT" && isReadOnlyPointsView ? (
+        <Card className="card">
           <div className="team-points-view-banner">
             <div>
               <strong>
@@ -2257,102 +2175,70 @@ export const TeamBuilderPage = () => {
               type="button"
               size="sm"
               variant="secondary"
-              onClick={() => navigate("/team?mode=PAT", { replace: true })}
+              onClick={() => navigate("/pick-team", { replace: true })}
             >
               Back to Team
             </Button>
           </div>
-        ) : null}
+        </Card>
+      ) : null}
 
-        {isLeagueDataLoading ? <LoadingState label="Loading latest team data" inline compact /> : null}
-      </Card>
+      {!isReadOnlyPointsView ? (
+        <Card className="card team-chip-box">
+          {mode === "PAT" ? (
+            <div className="team-pat-inline" aria-label="Pick Team chips">
+              <div className="team-pat-inline-item">
+                <p className="small-label">Wildcard</p>
+                <strong>Available</strong>
+              </div>
+              <div className="team-pat-inline-item">
+                <p className="small-label">Triple Captain</p>
+                <strong>Available</strong>
+              </div>
+              <div className="team-pat-inline-item">
+                <p className="small-label">Free Hit</p>
+                <strong>Available</strong>
+              </div>
+              <div className="team-pat-inline-item">
+                <p className="small-label">Bench Boost</p>
+                <strong>Available</strong>
+              </div>
+            </div>
+          ) : (
+            <div className="team-trf-inline" aria-label="Transfers metrics">
+              <div className="team-trf-inline-item">
+                <p className="small-label">Free TRF</p>
+                <strong>1</strong>
+              </div>
+              <div className="team-trf-inline-item">
+                <p className="small-label">Point Cost</p>
+                <strong>0 pts</strong>
+              </div>
+              <div className="team-trf-inline-item">
+                <p className="small-label">Budget</p>
+                <strong>£{Math.max(0, 100 - squadCost).toFixed(1)}</strong>
+              </div>
+              <div className="team-trf-inline-item">
+                <p className="small-label">Wildcard</p>
+                <strong>Available</strong>
+              </div>
+              <div className="team-trf-inline-item">
+                <p className="small-label">Free Hit</p>
+                <strong>Available</strong>
+              </div>
+            </div>
+          )}
+        </Card>
+      ) : null}
 
-      <Card className="card team-chip-box">
-        {mode === "PAT" ? (
-          <div className="chips-grid chips-grid-4">
-            <article className="chip-card">
-              <p className="chip-card-label">
-                <Sparkles className="inline-icon" aria-hidden="true" />
-                Wildcard
-              </p>
-              <strong>Available</strong>
-            </article>
-            <article className="chip-card">
-              <p className="chip-card-label">
-                <Sparkles className="inline-icon" aria-hidden="true" />
-                Triple Captain
-              </p>
-              <strong>Available</strong>
-            </article>
-            <article className="chip-card">
-              <p className="chip-card-label">
-                <Sparkles className="inline-icon" aria-hidden="true" />
-                Free Hit
-              </p>
-              <strong>Available</strong>
-            </article>
-            <article className="chip-card">
-              <p className="chip-card-label">
-                <Sparkles className="inline-icon" aria-hidden="true" />
-                Bench Boost
-              </p>
-              <strong>Available</strong>
-            </article>
-          </div>
-        ) : (
-          <div className="chips-grid chips-grid-6">
-            <article className="chip-card">
-              <p className="chip-card-label">
-                <Sparkles className="inline-icon" aria-hidden="true" />
-                Budget
-              </p>
-              <strong>£{Math.max(0, 100 - squadCost).toFixed(1)}</strong>
-            </article>
-            <article className="chip-card">
-              <p className="chip-card-label">
-                <Clock3 className="inline-icon" aria-hidden="true" />
-                Point Cost
-              </p>
-              <strong>0 pts</strong>
-            </article>
-            <article className="chip-card">
-              <p className="chip-card-label">
-                <Sparkles className="inline-icon" aria-hidden="true" />
-                Wildcard
-              </p>
-              <strong>Available</strong>
-            </article>
-            <article className="chip-card">
-              <p className="chip-card-label">
-                <Sparkles className="inline-icon" aria-hidden="true" />
-                Triple Captain
-              </p>
-              <strong>Available</strong>
-            </article>
-            <article className="chip-card">
-              <p className="chip-card-label">
-                <Sparkles className="inline-icon" aria-hidden="true" />
-                Free Hit
-              </p>
-              <strong>Available</strong>
-            </article>
-            <article className="chip-card">
-              <p className="chip-card-label">
-                <Sparkles className="inline-icon" aria-hidden="true" />
-                Bench Boost
-              </p>
-              <strong>Available</strong>
-            </article>
-          </div>
-        )}
-      </Card>
-
-      <Card ref={pitchBoardRef} className="fpl-board card">
+      <Card ref={pitchBoardRef} className={`fpl-board card${isTransferMode ? " fpl-board--trf" : ""}`}>
         {shouldShowBulkActions ? (
           <div className="pick-team-bulk-actions">
             <Button
               type="button"
+              size="sm"
               variant="secondary"
+              className="pick-team-bulk-btn"
               onClick={onCancelBulkChanges}
               disabled={!lastSavedLineup || !hasPendingChanges || isSavingLineup}
             >
@@ -2360,6 +2246,8 @@ export const TeamBuilderPage = () => {
             </Button>
             <Button
               type="button"
+              size="sm"
+              className="pick-team-bulk-btn"
               onClick={() => void onSaveBulkChanges()}
               disabled={!lastSavedLineup || !hasPendingChanges || isSavingLineup || isLeagueDataLoading}
             >
@@ -2373,9 +2261,6 @@ export const TeamBuilderPage = () => {
             <p>
               Swapping <strong>{substitutionSourceName}</strong>. Select a highlighted {substitutionTargetLabel} to continue.
             </p>
-            <Button type="button" variant="secondary" size="sm" onClick={cancelSubstitutionMode}>
-              Cancel
-            </Button>
           </div>
         ) : null}
 

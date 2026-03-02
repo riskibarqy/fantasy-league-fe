@@ -1,5 +1,5 @@
 import { Suspense, lazy } from "react";
-import { Navigate, Outlet, Route, Routes, useSearchParams } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes, useLocation, useSearchParams } from "react-router-dom";
 import { useSession } from "../presentation/hooks/useSession";
 import { useOnboardingStatus, type OnboardingStatus } from "../presentation/hooks/useOnboardingStatus";
 import { LoadingState } from "../presentation/components/LoadingState";
@@ -103,6 +103,16 @@ const OnboardingEntryPage = ({ status }: { status: OnboardingStatus }) => {
   return <OnboardingPage />;
 };
 
+const TeamLegacyRedirect = () => {
+  const { search } = useLocation();
+  return <Navigate to={`/pick-team${search}`} replace />;
+};
+
+const TeamPickerLegacyRedirect = () => {
+  const { search } = useLocation();
+  return <Navigate to={`/pick-team/pick${search}`} replace />;
+};
+
 export const AppRouter = () => {
   const { isAuthenticated, isHydrated } = useSession();
   const { status } = useOnboardingStatus();
@@ -127,8 +137,11 @@ export const AppRouter = () => {
           <Route element={<OnboardingRequiredRoutes status={status} />}>
             <Route element={<MainLayout />}>
               <Route path="/" element={<DashboardPage />} />
-              <Route path="/team" element={<TeamBuilderPage />} />
-              <Route path="/team/pick" element={<TeamPlayerPickerPage />} />
+              <Route path="/pick-team" element={<TeamBuilderPage forcedMode="PAT" />} />
+              <Route path="/pick-team/pick" element={<TeamPlayerPickerPage />} />
+              <Route path="/transfers" element={<TeamBuilderPage forcedMode="TRF" />} />
+              <Route path="/team" element={<TeamLegacyRedirect />} />
+              <Route path="/team/pick" element={<TeamPickerLegacyRedirect />} />
               <Route path="/custom-leagues" element={<CustomLeaguesPage />} />
               <Route path="/custom-leagues/:groupId" element={<CustomLeagueStandingsPage />} />
               <Route path="/news" element={<NewsPage />} />

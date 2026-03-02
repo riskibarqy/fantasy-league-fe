@@ -141,7 +141,7 @@ export const TeamPlayerPickerPage = () => {
       leagueId,
       target: parsedTarget,
       lineup: stored.lineup,
-      returnPath: stored.returnPath || "/team"
+      returnPath: stored.returnPath || "/pick-team"
     };
   }, [searchParams, userScope]);
 
@@ -303,7 +303,7 @@ export const TeamPlayerPickerPage = () => {
 
   const onCancel = () => {
     clearPickerContext(userScope);
-    navigate(context?.returnPath || "/team");
+    navigate(context?.returnPath || "/pick-team");
   };
 
   const onResetFilters = () => {
@@ -326,7 +326,7 @@ export const TeamPlayerPickerPage = () => {
       },
       userScope
     );
-    navigate(context.returnPath || "/team");
+    navigate(context.returnPath || "/pick-team");
   };
 
   if (!context) {
@@ -334,10 +334,10 @@ export const TeamPlayerPickerPage = () => {
       <div className="page-grid team-picker-page">
         <section className="card">
           <h2>Pick Player</h2>
-          <p className="muted">No active slot target found. Please pick from the Team page.</p>
+          <p className="muted">No active slot target found. Please pick from the Pick Team page.</p>
           <div className="team-picker-actions">
-            <button type="button" className="secondary-button" onClick={() => navigate("/team")}>
-              Back to Team
+            <button type="button" className="secondary-button" onClick={() => navigate("/pick-team")}>
+              Back to Pick Team
             </button>
           </div>
         </section>

@@ -285,15 +285,15 @@ export const DashboardPage = () => {
         </div>
 
         <div className="menu-home-points-inline" aria-label="Average, total points, and highest points">
-          <Link to="/team?mode=PAT&view=points&metric=average" className="menu-home-point-inline-item menu-home-point-link">
+          <Link to="/pick-team?view=points&metric=average" className="menu-home-point-inline-item menu-home-point-link">
             <p className="small-label">Average</p>
             <strong>{averagePointsValue}</strong>
           </Link>
-          <Link to="/team?mode=PAT&view=points&metric=my" className="menu-home-point-inline-item menu-home-point-link">
+          <Link to="/pick-team?view=points&metric=my" className="menu-home-point-inline-item menu-home-point-link">
             <p className="small-label">Squad Points</p>
             <strong>{totalPointsValue}</strong>
           </Link>
-          <Link to="/team?mode=PAT&view=points&metric=highest" className="menu-home-point-inline-item menu-home-point-link">
+          <Link to="/pick-team?view=points&metric=highest" className="menu-home-point-inline-item menu-home-point-link">
             <p className="small-label">Highest</p>
             <strong>{highestPointsValue}</strong>
           </Link>
@@ -302,7 +302,7 @@ export const DashboardPage = () => {
       </Card>
 
       <div className="menu-home-actions">
-        <Link to="/team?mode=PAT" className="menu-home-action-card">
+        <Link to="/pick-team" className="menu-home-action-card">
           <span className="menu-home-action-icon">
             <Pickaxe className="inline-icon" aria-hidden="true" />
           </span>
@@ -311,7 +311,7 @@ export const DashboardPage = () => {
             <small>Build your squad</small>
           </span>
         </Link>
-        <Link to="/team?mode=TRF" className="menu-home-action-card">
+        <Link to="/transfers" className="menu-home-action-card">
           <span className="menu-home-action-icon">
             <ArrowLeftRight className="inline-icon" aria-hidden="true" />
           </span>
