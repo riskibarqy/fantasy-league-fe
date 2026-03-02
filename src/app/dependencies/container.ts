@@ -8,6 +8,8 @@ import { GetDashboard } from "../../application/fantasy/usecases/GetDashboard";
 import { GetFixtureDetails } from "../../application/fantasy/usecases/GetFixtureDetails";
 import { GetFixtures } from "../../application/fantasy/usecases/GetFixtures";
 import { GetLeagueStandings } from "../../application/fantasy/usecases/GetLeagueStandings";
+import { GetHighestPlayerPointsByGameweek } from "../../application/fantasy/usecases/GetHighestPlayerPointsByGameweek";
+import { GetMyPlayerPointsByGameweek } from "../../application/fantasy/usecases/GetMyPlayerPointsByGameweek";
 import { GetSeasonPointsSummary } from "../../application/fantasy/usecases/GetSeasonPointsSummary";
 import { GetCustomLeague } from "../../application/fantasy/usecases/GetCustomLeague";
 import { GetCustomLeagueStandings } from "../../application/fantasy/usecases/GetCustomLeagueStandings";
@@ -57,6 +59,8 @@ export const buildContainer = () => {
     getTeams: new GetTeams(repositories.fantasyRepository),
     getFixtures: new GetFixtures(repositories.fantasyRepository),
     getSeasonPointsSummary: new GetSeasonPointsSummary(repositories.fantasyRepository),
+    getMyPlayerPointsByGameweek: new GetMyPlayerPointsByGameweek(repositories.fantasyRepository),
+    getHighestPlayerPointsByGameweek: new GetHighestPlayerPointsByGameweek(repositories.fantasyRepository),
     getLeagueStandings: new GetLeagueStandings(repositories.fantasyRepository),
     getFixtureDetails: new GetFixtureDetails(repositories.fantasyRepository),
     getMyCustomLeagues: new GetMyCustomLeagues(repositories.fantasyRepository),

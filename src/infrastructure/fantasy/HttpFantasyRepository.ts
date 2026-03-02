@@ -14,6 +14,7 @@ import type { PlayerDetails, PlayerExtraInfo, PlayerMatchHistory, PlayerProfile,
 import type { Club } from "../../domain/fantasy/entities/Club";
 import type { PickSquadInput, Squad } from "../../domain/fantasy/entities/Squad";
 import type { SeasonPointsSummary } from "../../domain/fantasy/entities/SeasonPointsSummary";
+import type { UserGameweekPoints, UserPlayerPoint } from "../../domain/fantasy/entities/UserGameweekPoints";
 import type {
   CompleteOnboardingInput,
   CompleteOnboardingResult,
@@ -62,6 +63,44 @@ export class HttpFantasyRepository implements FantasyRepository {
       this.authHeader(accessToken)
     );
     return mapSeasonPointsSummary(payload, leagueId);
+  }
+
+  async getMyPlayerPointsByGameweek(
+    leagueId: string,
+    accessToken: string,
+    gameweek?: number
+  ): Promise<UserGameweekPoints[]> {
+    const query = new URLSearchParams({
+      league_id: leagueId
+    });
+    if (gameweek && gameweek > 0) {
+      query.set("gameweek", String(gameweek));
+    }
+
+    const payload = await this.httpClient.get<unknown>(
+      `/v1/fantasy/points/players?${query.toString()}`,
+      this.authHeader(accessToken)
+    );
+    return mapUserGameweekPoints(payload, leagueId);
+  }
+
+  async getHighestPlayerPointsByGameweek(
+    leagueId: string,
+    accessToken: string,
+    gameweek?: number
+  ): Promise<UserGameweekPoints | null> {
+    const query = new URLSearchParams({
+      league_id: leagueId
+    });
+    if (gameweek && gameweek > 0) {
+      query.set("gameweek", String(gameweek));
+    }
+
+    const payload = await this.httpClient.get<unknown>(
+      `/v1/fantasy/points/players/highest?${query.toString()}`,
+      this.authHeader(accessToken)
+    );
+    return mapHighestUserGameweekPoints(payload, leagueId);
   }
 
   async getLeagueStandings(leagueId: string, live = false): Promise<LeagueStanding[]> {
@@ -766,6 +805,85 @@ const mapSeasonPointsSummary = (payload: unknown, fallbackLeagueID: string): Sea
     highestPoints: readNumber(record, "highest_points", "highestPoints"),
     gameweeks: readNumber(record, "gameweeks")
   };
+};
+
+const mapUserPlayerPoint = (payload: unknown): UserPlayerPoint | null => {
+  const record = asRecord(payload);
+  if (!record) {
+    return null;
+  }
+
+  const playerId = readString(record, "player_id", "playerId");
+  if (!playerId) {
+    return null;
+  }
+
+  return {
+    playerId,
+    playerName: readString(record, "player_name", "playerName") || undefined,
+    position: readString(record, "position"),
+    isStarter: readBoolean(record, "is_starter", "isStarter"),
+    isCaptain: readBoolean(record, "is_captain", "isCaptain"),
+    isViceCaptain: readBoolean(record, "is_vice_captain", "isViceCaptain"),
+    multiplier: readNumber(record, "multiplier"),
+    basePoints: readNumber(record, "base_points", "basePoints"),
+    countedPoints: readNumber(record, "counted_points", "countedPoints")
+  };
+};
+
+const mapUserGameweekPoints = (payload: unknown, fallbackLeagueID: string): UserGameweekPoints[] => {
+  const record = asRecord(payload);
+  const rows = toArrayFromPayload(payload, ["items", "results", "rows"]);
+  const leagueIdFallback =
+    readString(record ?? {}, "league_id", "leagueId") || fallbackLeagueID;
+  const userIdFallback = readString(record ?? {}, "user_id", "userId");
+
+  return rows
+    .map((item) => {
+      const row = asRecord(item);
+      if (!row) {
+        return null;
+      }
+
+      const gameweek = readNumber(row, "gameweek");
+      if (gameweek <= 0) {
+        return null;
+      }
+
+      const players = toArrayFromValue(row.players)
+        .map((playerItem) => mapUserPlayerPoint(playerItem))
+        .filter((player): player is UserPlayerPoint => Boolean(player));
+
+      return {
+        leagueId: readString(row, "league_id", "leagueId") || leagueIdFallback,
+        userId: readString(row, "user_id", "userId") || userIdFallback,
+        gameweek,
+        totalPoints: readNumber(row, "total_points", "totalPoints"),
+        players
+      } satisfies UserGameweekPoints;
+    })
+    .filter((item): item is UserGameweekPoints => Boolean(item))
+    .sort((left, right) => left.gameweek - right.gameweek);
+};
+
+const mapHighestUserGameweekPoints = (
+  payload: unknown,
+  fallbackLeagueID: string
+): UserGameweekPoints | null => {
+  const record = asRecord(payload);
+  const item = record?.item;
+  if (item) {
+    const rows = mapUserGameweekPoints(
+      {
+        league_id: readString(record ?? {}, "league_id", "leagueId") || fallbackLeagueID,
+        items: [item]
+      },
+      fallbackLeagueID
+    );
+    return rows[0] ?? null;
+  }
+
+  return mapUserGameweekPoints(payload, fallbackLeagueID)[0] ?? null;
 };
 
 const mapLeagues = (payload: unknown): League[] => {

@@ -9,6 +9,7 @@ import type { Player } from "../../domain/fantasy/entities/Player";
 import type { PlayerDetails } from "../../domain/fantasy/entities/PlayerDetails";
 import type { TeamLineup } from "../../domain/fantasy/entities/Team";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
+import type { UserGameweekPoints } from "../../domain/fantasy/entities/UserGameweekPoints";
 import {
   BENCH_SLOT_POSITIONS,
   FORMATION_LIMITS,
@@ -34,6 +35,7 @@ import {
 } from "./teamPickerStorage";
 
 type TeamMode = "PAT" | "TRF";
+type PointsMetric = "average" | "my" | "highest";
 type Position = Player["position"];
 type OutfieldPosition = Exclude<Position, "GK">;
 
@@ -72,6 +74,15 @@ const DEFAULT_TEAM_COLOR_PAIR: [string, string] = ["#3A4250", "#A3ACBA"];
 
 const parseTeamMode = (value: string | null): TeamMode => {
   return value?.trim().toUpperCase() === "TRF" ? "TRF" : "PAT";
+};
+
+const parsePointsMetric = (value: string | null): PointsMetric => {
+  const normalized = value?.trim().toLowerCase();
+  if (normalized === "average" || normalized === "highest") {
+    return normalized;
+  }
+
+  return "my";
 };
 
 const sanitizeStarterIds = (ids: string[], max: number): string[] => {
@@ -459,13 +470,27 @@ export const TeamBuilderPage = () => {
   const reduceMotion = useReducedMotion();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { getPlayers, getTeams, getPlayerDetails, getLineup, getDashboard, getFixtures, getMySquad, pickSquad, logout, saveLineup } =
+  const {
+    getPlayers,
+    getTeams,
+    getPlayerDetails,
+    getLineup,
+    getDashboard,
+    getFixtures,
+    getMySquad,
+    getHighestPlayerPointsByGameweek,
+    getMyPlayerPointsByGameweek,
+    pickSquad,
+    logout,
+    saveLineup
+  } =
     useContainer();
   const { leagues, selectedLeagueId } = useLeagueSelection();
   const { session, setSession } = useSession();
   const userScope = session?.user.id ?? "";
   const logoutInProgressRef = useRef(false);
   const pitchBoardRef = useRef<HTMLDivElement | null>(null);
+  const pointsViewCenteredKeyRef = useRef("");
 
   const [mode, setMode] = useState<TeamMode>(() => parseTeamMode(searchParams.get("mode")));
   const [players, setPlayers] = useState<Player[]>([]);
@@ -485,11 +510,20 @@ export const TeamBuilderPage = () => {
   const [hasSubstitutionDraftChanges, setHasSubstitutionDraftChanges] = useState(false);
   const [lastSavedLineup, setLastSavedLineup] = useState<TeamLineup | null>(null);
   const [isSavingLineup, setIsSavingLineup] = useState(false);
+  const [pointsByPlayerId, setPointsByPlayerId] = useState<Record<string, number>>({});
+  const [pointsViewGameweek, setPointsViewGameweek] = useState<number | null>(null);
+  const [pointsViewTotal, setPointsViewTotal] = useState<number | null>(null);
+  const [pointsViewTopUserId, setPointsViewTopUserId] = useState<string | null>(null);
+  const [isPointsViewLoading, setIsPointsViewLoading] = useState(false);
+  const [pointsViewNotice, setPointsViewNotice] = useState<string | null>(null);
 
   useEffect(() => {
     const queryMode = parseTeamMode(searchParams.get("mode"));
     setMode((current) => (current === queryMode ? current : queryMode));
   }, [searchParams]);
+
+  const isPointsView = searchParams.get("view")?.trim().toLowerCase() === "points";
+  const pointsMetric = parsePointsMetric(searchParams.get("metric"));
 
   const recenterToPitch = useCallback(() => {
     if (!pitchBoardRef.current) {
@@ -522,6 +556,153 @@ export const TeamBuilderPage = () => {
     },
     [logout, navigate, session?.accessToken, setSession]
   );
+
+  useEffect(() => {
+    if (!isPointsView) {
+      setPointsByPlayerId({});
+      setPointsViewGameweek(null);
+      setPointsViewTotal(null);
+      setPointsViewTopUserId(null);
+      setPointsViewNotice(null);
+      setIsPointsViewLoading(false);
+      return;
+    }
+
+    const leagueId = selectedLeagueId.trim();
+    const accessToken = session?.accessToken?.trim() ?? "";
+    if (!leagueId || !accessToken) {
+      setPointsByPlayerId({});
+      setPointsViewGameweek(null);
+      setPointsViewTotal(null);
+      setPointsViewTopUserId(null);
+      return;
+    }
+
+    let mounted = true;
+    setIsPointsViewLoading(true);
+
+    const pickPreferredRow = (rows: UserGameweekPoints[]): UserGameweekPoints | null => {
+      if (rows.length === 0) {
+        return null;
+      }
+
+      if (pointsMetric === "highest") {
+        return [...rows].sort((left, right) => {
+          if (left.totalPoints !== right.totalPoints) {
+            return right.totalPoints - left.totalPoints;
+          }
+
+          return right.gameweek - left.gameweek;
+        })[0];
+      }
+
+      if (gameweek) {
+        const gwRow = rows.find((item) => item.gameweek === gameweek);
+        if (gwRow) {
+          return gwRow;
+        }
+      }
+
+      return [...rows].sort((left, right) => right.gameweek - left.gameweek)[0];
+    };
+
+    const loadPointsView = async () => {
+      try {
+        if (pointsMetric === "highest") {
+          const highestRow = await getHighestPlayerPointsByGameweek.execute(
+            leagueId,
+            accessToken,
+            gameweek ?? undefined
+          );
+          if (!mounted) {
+            return;
+          }
+
+          if (!highestRow) {
+            setPointsByPlayerId({});
+            setPointsViewGameweek(null);
+            setPointsViewTotal(null);
+            setPointsViewTopUserId(null);
+            setPointsViewNotice("No highest lineup points available for this gameweek yet.");
+            return;
+          }
+
+          const nextPoints: Record<string, number> = {};
+          for (const item of highestRow.players) {
+            nextPoints[item.playerId] = item.countedPoints;
+          }
+
+          setPointsByPlayerId(nextPoints);
+          setPointsViewGameweek(highestRow.gameweek);
+          setPointsViewTotal(highestRow.totalPoints);
+          setPointsViewTopUserId(highestRow.userId || null);
+          setPointsViewNotice(null);
+          return;
+        }
+
+        const rows = await getMyPlayerPointsByGameweek.execute(leagueId, accessToken);
+        if (!mounted) {
+          return;
+        }
+
+        const selectedRow = pickPreferredRow(rows);
+        if (!selectedRow) {
+          setPointsByPlayerId({});
+          setPointsViewGameweek(null);
+          setPointsViewTotal(null);
+          setPointsViewTopUserId(null);
+          setPointsViewNotice("No player points available for this league yet.");
+          return;
+        }
+
+        const nextPoints: Record<string, number> = {};
+        for (const item of selectedRow.players) {
+          nextPoints[item.playerId] = item.countedPoints;
+        }
+
+        setPointsByPlayerId(nextPoints);
+        setPointsViewGameweek(selectedRow.gameweek);
+        setPointsViewTotal(selectedRow.totalPoints);
+        setPointsViewTopUserId(null);
+        setPointsViewNotice(null);
+      } catch (error) {
+        if (!mounted) {
+          return;
+        }
+
+        if (isUnauthorizedError(error)) {
+          await forceLogout("Your session has expired. Please sign in again.");
+          return;
+        }
+
+        setPointsByPlayerId({});
+        setPointsViewGameweek(null);
+        setPointsViewTotal(null);
+        setPointsViewTopUserId(null);
+        setPointsViewNotice(null);
+        void appAlert.error("Points View", error instanceof Error ? error.message : "Failed to load player points.");
+      } finally {
+        if (mounted) {
+          setIsPointsViewLoading(false);
+        }
+      }
+    };
+
+    void loadPointsView();
+
+    return () => {
+      mounted = false;
+    };
+  }, [
+    forceLogout,
+    getHighestPlayerPointsByGameweek,
+    gameweek,
+    getMyPlayerPointsByGameweek,
+    isPointsView,
+    pointsMetric,
+    selectedLeagueId,
+    session?.accessToken
+  ]);
 
   const syncSquadFromLineup = useCallback(
     async (draftLineup: TeamLineup, forceUpsert = false): Promise<boolean> => {
@@ -1632,6 +1813,7 @@ export const TeamBuilderPage = () => {
       isDisabled?: boolean;
       visualState?: CardVisualState;
       disableEmpty?: boolean;
+      pointsLabel?: string;
     }
   ) => {
     if (!player) {
@@ -1683,6 +1865,9 @@ export const TeamBuilderPage = () => {
         <div className="player-info-chip">
           <div className="player-name-chip">{shortName(player.name)}</div>
           <div className="player-fixture-chip">{fixtureLabel}</div>
+          {options?.pointsLabel !== undefined ? (
+            <div className="player-total-chip">{options.pointsLabel}</div>
+          ) : null}
         </div>
       </button>
     );
@@ -1727,14 +1912,16 @@ export const TeamBuilderPage = () => {
                 const isViceCaptain =
                   showLeadershipBadges && Boolean(lineup && player && lineup.viceCaptainId === player.id);
                 const interaction = player ? resolveCardInteraction(player.id) : null;
+                const pointsLabel = player && isReadOnlyPointsView ? resolvePlayerPointsLabel(player.id) : undefined;
 
                 return (
                   <div key={`${row.label}-${index}`}>
                     {renderPitchCard(player, isCaptain, isViceCaptain, row.label, onEmptyClick, {
-                      onPlayerClick: interaction?.onClick,
-                      isDisabled: interaction?.disabled,
+                      onPlayerClick: isReadOnlyPointsView ? undefined : interaction?.onClick,
+                      isDisabled: isReadOnlyPointsView || interaction?.disabled,
                       visualState: interaction?.visualState ?? null,
-                      disableEmpty: Boolean(substitutionSourcePlayerId)
+                      disableEmpty: isReadOnlyPointsView || Boolean(substitutionSourcePlayerId),
+                      pointsLabel
                     })}
                   </div>
                 );
@@ -1750,6 +1937,48 @@ export const TeamBuilderPage = () => {
   const startersCount = starterIds.length;
   const benchCount = lineup?.substituteIds.filter(Boolean).length ?? 0;
   const remainingBudget = Math.max(0, 100 - squadCost);
+  const pointsViewTitle =
+    pointsMetric === "average"
+      ? "Average Points View"
+      : pointsMetric === "highest"
+        ? "Highest Points View"
+        : "Squad Points View";
+  const isReadOnlyPointsView = isPointsView && mode === "PAT";
+
+  useEffect(() => {
+    if (!isReadOnlyPointsView) {
+      pointsViewCenteredKeyRef.current = "";
+      return;
+    }
+
+    if (!lineup || isLeagueDataLoading || isPointsViewLoading) {
+      return;
+    }
+
+    const viewKey = `${pointsMetric}:${pointsViewGameweek ?? "latest"}`;
+    if (pointsViewCenteredKeyRef.current === viewKey) {
+      return;
+    }
+
+    pointsViewCenteredKeyRef.current = viewKey;
+    recenterToPitch();
+  }, [
+    isLeagueDataLoading,
+    isPointsViewLoading,
+    isReadOnlyPointsView,
+    lineup,
+    pointsMetric,
+    pointsViewGameweek,
+    recenterToPitch
+  ]);
+
+  const resolvePlayerPointsLabel = useCallback(
+    (playerId: string): string => {
+      const value = pointsByPlayerId[playerId];
+      return Number.isFinite(value) ? `${value} pts` : "-";
+    },
+    [pointsByPlayerId]
+  );
   const captainChecked = Boolean(selectedPlayer && lineup && lineup.captainId === selectedPlayer.id);
   const viceCaptainChecked = Boolean(selectedPlayer && lineup && lineup.viceCaptainId === selectedPlayer.id);
 
@@ -1856,7 +2085,8 @@ export const TeamBuilderPage = () => {
     }
   }, [hasPendingChanges]);
 
-  const shouldShowBulkActions = mode === "PAT" && (Boolean(substitutionSourcePlayerId) || hasSubstitutionDraftChanges);
+  const shouldShowBulkActions =
+    mode === "PAT" && !isReadOnlyPointsView && (Boolean(substitutionSourcePlayerId) || hasSubstitutionDraftChanges);
 
   const onCancelBulkChanges = () => {
     if (!lastSavedLineup) {
@@ -1979,6 +2209,7 @@ export const TeamBuilderPage = () => {
             className={`team-menu-action ${mode === "PAT" ? "active" : ""}`}
             onClick={() => setMode("PAT")}
             aria-pressed={mode === "PAT"}
+            disabled={isReadOnlyPointsView}
           >
             <span className="team-menu-action-icon">
               <Pickaxe className="mode-icon" aria-hidden="true" />
@@ -1994,6 +2225,7 @@ export const TeamBuilderPage = () => {
             className={`team-menu-action ${mode === "TRF" ? "active" : ""}`}
             onClick={() => setMode("TRF")}
             aria-pressed={mode === "TRF"}
+            disabled={isReadOnlyPointsView}
           >
             <span className="team-menu-action-icon">
               <ArrowLeftRight className="mode-icon" aria-hidden="true" />
@@ -2004,6 +2236,33 @@ export const TeamBuilderPage = () => {
             </span>
           </button>
         </div>
+
+        {isReadOnlyPointsView ? (
+          <div className="team-points-view-banner">
+            <div>
+              <strong>
+                {pointsViewTitle}
+                {pointsViewGameweek ? ` • GW ${pointsViewGameweek}` : ""}
+              </strong>
+              <p>
+                Total: {pointsViewTotal ?? "-"} pts
+                {isPointsViewLoading ? " • loading..." : ""}
+              </p>
+              {pointsMetric === "highest" && pointsViewTopUserId ? (
+                <p>{`Top user: ${pointsViewTopUserId}`}</p>
+              ) : null}
+              {pointsViewNotice ? <p>{pointsViewNotice}</p> : null}
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => navigate("/team?mode=PAT", { replace: true })}
+            >
+              Back to Team
+            </Button>
+          </div>
+        ) : null}
 
         {isLeagueDataLoading ? <LoadingState label="Loading latest team data" inline compact /> : null}
       </Card>
@@ -2109,7 +2368,7 @@ export const TeamBuilderPage = () => {
           </div>
         ) : null}
 
-        {substitutionSourcePlayerId && mode === "PAT" ? (
+        {substitutionSourcePlayerId && mode === "PAT" && !isReadOnlyPointsView ? (
           <div className="substitution-banner">
             <p>
               Swapping <strong>{substitutionSourceName}</strong>. Select a highlighted {substitutionTargetLabel} to continue.
@@ -2120,7 +2379,9 @@ export const TeamBuilderPage = () => {
           </div>
         ) : null}
 
-        {mode === "PAT" ? renderPitch(patRows, true, true) : renderPitch(trfRows, false, false)}
+        {mode === "PAT"
+          ? renderPitch(patRows, true, !isReadOnlyPointsView)
+          : renderPitch(trfRows, false, false)}
 
         {mode === "PAT" ? (
           <div className="fpl-bench">
@@ -2138,10 +2399,13 @@ export const TeamBuilderPage = () => {
                       key={`bench-${index}`}
                       type="button"
                       className={`bench-card empty-slot player-card-button pick-slot-button ${
-                        substitutionSourcePlayerId ? "empty-slot-disabled" : ""
+                        substitutionSourcePlayerId || isReadOnlyPointsView ? "empty-slot-disabled" : ""
                       }`}
-                      disabled={Boolean(substitutionSourcePlayerId)}
+                      disabled={Boolean(substitutionSourcePlayerId) || isReadOnlyPointsView}
                       onClick={() => {
+                        if (isReadOnlyPointsView) {
+                          return;
+                        }
                         setSelectedPlayerId(null);
                         openPlayerPicker({
                           zone: "BENCH",
@@ -2161,10 +2425,10 @@ export const TeamBuilderPage = () => {
                     className={`bench-card player-card-button ${
                       interaction?.visualState === "source" ? "player-card-source" : ""
                     } ${interaction?.visualState === "target" ? "player-card-target" : ""} ${
-                      interaction?.disabled ? "player-card-disabled" : ""
+                      interaction?.disabled || isReadOnlyPointsView ? "player-card-disabled" : ""
                     }`}
-                    onClick={interaction?.onClick}
-                    disabled={interaction?.disabled}
+                    onClick={isReadOnlyPointsView ? undefined : interaction?.onClick}
+                    disabled={interaction?.disabled || isReadOnlyPointsView}
 	                  >
 	                    <div className="player-price-chip">£{player.price.toFixed(1)}m</div>
 	                    <div className="shirt-holder">
@@ -2180,6 +2444,9 @@ export const TeamBuilderPage = () => {
 	                    <div className="player-info-chip">
 	                      <div className="player-name-chip">{shortName(player.name)}</div>
                       <div className="player-fixture-chip">{`Bench ${player.position}`}</div>
+                      {isReadOnlyPointsView ? (
+                        <div className="player-total-chip">{resolvePlayerPointsLabel(player.id)}</div>
+                      ) : null}
                     </div>
                   </button>
                 );

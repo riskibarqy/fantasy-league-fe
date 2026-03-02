@@ -84,8 +84,13 @@ export const DashboardPage = () => {
         const dashboardResult = await getOrLoadCached({
           key: cacheKeys.dashboard(userId),
           ttlMs: cacheTtlMs.dashboard,
-          loader: () => getDashboard.execute(accessToken)
+          loader: () => getDashboard.execute(accessToken),
+          allowStaleOnError: true
         });
+        if (mounted) {
+          setDashboard(dashboardResult);
+        }
+
         const leagueIDForHome = selectedLeagueId || dashboardResult.selectedLeagueId;
         const fixturePromise = leagueIDForHome
           ? getOrLoadCached({
@@ -113,7 +118,7 @@ export const DashboardPage = () => {
               })
             : Promise.resolve<CustomLeague[]>([]);
 
-        const [fixtureResult, summaryResult, customLeagueResult] = await Promise.all([
+        const [fixtureResultRaw, summaryResultRaw, customLeagueResultRaw] = await Promise.allSettled([
           fixturePromise,
           summaryPromise,
           customLeaguePromise
@@ -123,10 +128,17 @@ export const DashboardPage = () => {
           return;
         }
 
-        setDashboard(dashboardResult);
+        const fixtureResult =
+          fixtureResultRaw.status === "fulfilled" ? fixtureResultRaw.value : [];
+        const summaryResult =
+          summaryResultRaw.status === "fulfilled" ? summaryResultRaw.value : null;
+        const customLeagueResult =
+          customLeagueResultRaw.status === "fulfilled" ? customLeagueResultRaw.value : [];
+
         setSeasonPointsSummary(summaryResult);
         setFixtures(fixtureResult);
         setCustomLeagues(customLeagueResult.slice(0, 3));
+        setErrorMessage(null);
       } catch (error) {
         if (!mounted) {
           return;
@@ -273,18 +285,18 @@ export const DashboardPage = () => {
         </div>
 
         <div className="menu-home-points-inline" aria-label="Average, total points, and highest points">
-          <article className="menu-home-point-inline-item">
+          <Link to="/team?mode=PAT&view=points&metric=average" className="menu-home-point-inline-item menu-home-point-link">
             <p className="small-label">Average</p>
             <strong>{averagePointsValue}</strong>
-          </article>
-          <article className="menu-home-point-inline-item">
-            <p className="small-label">Total Points</p>
+          </Link>
+          <Link to="/team?mode=PAT&view=points&metric=my" className="menu-home-point-inline-item menu-home-point-link">
+            <p className="small-label">Squad Points</p>
             <strong>{totalPointsValue}</strong>
-          </article>
-          <article className="menu-home-point-inline-item">
+          </Link>
+          <Link to="/team?mode=PAT&view=points&metric=highest" className="menu-home-point-inline-item menu-home-point-link">
             <p className="small-label">Highest</p>
             <strong>{highestPointsValue}</strong>
-          </article>
+          </Link>
         </div>
 
       </Card>
