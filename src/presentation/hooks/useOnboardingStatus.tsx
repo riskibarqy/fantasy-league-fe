@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { appEnv } from "../../app/config/env";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import { useLeagueSelection } from "./useLeagueSelection";
 import { useSession } from "./useSession";
@@ -7,12 +8,10 @@ export type OnboardingStatus = "checking" | "required" | "completed" | "unknown"
 type CacheStatus = Extract<OnboardingStatus, "required" | "completed">;
 type OnboardingStatusCache = {
   status: CacheStatus;
-  checkedAt: number;
 };
 
 export const ONBOARDING_COMPLETED_STORAGE_PREFIX = "fantasy-onboarding-completed";
-const ONBOARDING_STATUS_CACHE_PREFIX = "fantasy-onboarding-status-cache";
-const ONBOARDING_STATUS_CACHE_TTL_MS = 90_000;
+const ONBOARDING_STATUS_SESSION_CACHE_PREFIX = "fantasy-onboarding-status-session-cache";
 const LEGACY_ONBOARDING_COMPLETED_STORAGE_PREFIX = "fantasy-onboarding-completed";
 
 const onboardingStorageKey = (userId: string, leagueId: string): string =>
@@ -21,8 +20,18 @@ const onboardingStorageKey = (userId: string, leagueId: string): string =>
 const legacyOnboardingStorageKey = (userId: string): string =>
   `${LEGACY_ONBOARDING_COMPLETED_STORAGE_PREFIX}:${userId}`;
 
-const statusCacheKey = (userId: string, leagueId: string): string =>
-  `${ONBOARDING_STATUS_CACHE_PREFIX}:${userId}:${leagueId}`;
+const statusSessionCacheKey = (userId: string, leagueId: string, sessionKey: string): string =>
+  `${ONBOARDING_STATUS_SESSION_CACHE_PREFIX}:${userId}:${leagueId}:${sessionKey}`;
+
+const buildSessionKey = (accessToken: string, expiresAt?: string): string => {
+  const token = accessToken.trim();
+  if (!token) {
+    return "";
+  }
+
+  const suffix = token.slice(-16);
+  return `${suffix}:${expiresAt?.trim() ?? ""}`;
+};
 
 const readCompletedMarker = (userId: string, leagueId: string): boolean => {
   if (!userId || !leagueId) {
@@ -51,54 +60,44 @@ const clearCompletedMarker = (userId: string, leagueId: string): void => {
   localStorage.removeItem(onboardingStorageKey(userId, leagueId));
 };
 
-const readStatusCache = (userId: string, leagueId: string): OnboardingStatusCache | null => {
-  if (!userId || !leagueId) {
+const readStatusCache = (userId: string, leagueId: string, sessionKey: string): OnboardingStatusCache | null => {
+  if (!userId || !leagueId || !sessionKey) {
     return null;
   }
 
   try {
-    const raw = localStorage.getItem(statusCacheKey(userId, leagueId));
+    const raw = sessionStorage.getItem(statusSessionCacheKey(userId, leagueId, sessionKey));
     if (!raw) {
       return null;
     }
 
     const parsed = JSON.parse(raw) as Partial<OnboardingStatusCache>;
-    if (
-      (parsed.status !== "required" && parsed.status !== "completed") ||
-      typeof parsed.checkedAt !== "number" ||
-      !Number.isFinite(parsed.checkedAt)
-    ) {
+    if (parsed.status !== "required" && parsed.status !== "completed") {
       return null;
     }
 
     return {
-      status: parsed.status,
-      checkedAt: parsed.checkedAt
+      status: parsed.status
     };
   } catch {
     return null;
   }
 };
 
-const writeStatusCache = (userId: string, leagueId: string, status: CacheStatus): void => {
-  if (!userId || !leagueId) {
+const writeStatusCache = (userId: string, leagueId: string, sessionKey: string, status: CacheStatus): void => {
+  if (!userId || !leagueId || !sessionKey) {
     return;
   }
 
   const payload: OnboardingStatusCache = {
-    status,
-    checkedAt: Date.now()
+    status
   };
 
-  localStorage.setItem(statusCacheKey(userId, leagueId), JSON.stringify(payload));
-};
-
-const isStatusCacheFresh = (entry: OnboardingStatusCache | null): boolean => {
-  if (!entry) {
-    return false;
+  try {
+    sessionStorage.setItem(statusSessionCacheKey(userId, leagueId, sessionKey), JSON.stringify(payload));
+  } catch {
+    // Ignore fallback storage failures.
   }
-
-  return Date.now() - entry.checkedAt <= ONBOARDING_STATUS_CACHE_TTL_MS;
 };
 
 export const markOnboardingCompleted = (userId: string, leagueId: string): void => {
@@ -109,7 +108,6 @@ export const markOnboardingCompleted = (userId: string, leagueId: string): void 
   }
 
   writeCompletedMarker(id, selectedLeagueId);
-  writeStatusCache(id, selectedLeagueId, "completed");
 };
 
 export const useOnboardingStatus = () => {
@@ -121,9 +119,15 @@ export const useOnboardingStatus = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
   const processedRevisionRef = useRef(0);
+  const skipOnboardingInDev =
+    process.env.NODE_ENV !== "production" && appEnv.skipOnboardingInDev;
 
   const userId = session?.user.id?.trim() ?? "";
   const accessToken = session?.accessToken?.trim() ?? "";
+  const sessionKey = useMemo(
+    () => buildSessionKey(accessToken, session?.expiresAt),
+    [accessToken, session?.expiresAt]
+  );
   const activeLeagueId = useMemo(() => {
     const preferred = selectedLeagueId.trim();
     if (preferred) {
@@ -164,13 +168,20 @@ export const useOnboardingStatus = () => {
       return;
     }
 
+    if (skipOnboardingInDev) {
+      writeCompletedMarker(userId, activeLeagueId);
+      writeStatusCache(userId, activeLeagueId, sessionKey, "completed");
+      setStatus("completed");
+      setErrorMessage(null);
+      return;
+    }
+
     const forceRefresh = revision !== processedRevisionRef.current;
     processedRevisionRef.current = revision;
 
-    const cachedStatus = readStatusCache(userId, activeLeagueId);
-    const hasFreshCache = !forceRefresh && isStatusCacheFresh(cachedStatus);
+    const cachedStatus = readStatusCache(userId, activeLeagueId, sessionKey);
 
-    if (hasFreshCache && cachedStatus) {
+    if (!forceRefresh && cachedStatus) {
       setStatus(cachedStatus.status);
       setErrorMessage(null);
       return;
@@ -179,7 +190,7 @@ export const useOnboardingStatus = () => {
     if (!forceRefresh && readCompletedMarker(userId, activeLeagueId)) {
       setStatus("completed");
       setErrorMessage(null);
-      writeStatusCache(userId, activeLeagueId, "completed");
+      writeStatusCache(userId, activeLeagueId, sessionKey, "completed");
       return;
     }
 
@@ -195,14 +206,14 @@ export const useOnboardingStatus = () => {
 
         if (squad) {
           writeCompletedMarker(userId, activeLeagueId);
-          writeStatusCache(userId, activeLeagueId, "completed");
+          writeStatusCache(userId, activeLeagueId, sessionKey, "completed");
           setStatus("completed");
           setErrorMessage(null);
           return;
         }
 
         clearCompletedMarker(userId, activeLeagueId);
-        writeStatusCache(userId, activeLeagueId, "required");
+        writeStatusCache(userId, activeLeagueId, sessionKey, "required");
         setStatus("required");
         setErrorMessage(null);
       } catch {
@@ -210,7 +221,7 @@ export const useOnboardingStatus = () => {
           return;
         }
 
-        const staleCache = readStatusCache(userId, activeLeagueId);
+        const staleCache = readStatusCache(userId, activeLeagueId, sessionKey);
         if (staleCache) {
           setStatus(staleCache.status);
           setErrorMessage(null);
@@ -227,7 +238,7 @@ export const useOnboardingStatus = () => {
     return () => {
       mounted = false;
     };
-  }, [accessToken, activeLeagueId, getMySquad, isLeaguesLoading, revision, userId]);
+  }, [accessToken, activeLeagueId, getMySquad, isLeaguesLoading, revision, sessionKey, skipOnboardingInDev, userId]);
 
   return useMemo(
     () => ({

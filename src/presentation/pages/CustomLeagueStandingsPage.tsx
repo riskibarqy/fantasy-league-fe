@@ -7,6 +7,7 @@ import type { CustomLeague, CustomLeagueStanding } from "../../domain/fantasy/en
 import { LoadingState } from "../components/LoadingState";
 import { RankMovementBadge } from "../components/RankMovementBadge";
 import { useSession } from "../hooks/useSession";
+import { useI18n } from "../hooks/useI18n";
 import { appAlert } from "../lib/appAlert";
 
 const shortValue = (value: string): string => {
@@ -32,6 +33,7 @@ type StandingsPayload = {
 };
 
 export const CustomLeagueStandingsPage = () => {
+  const { t, dateLocale } = useI18n();
   const { groupId = "" } = useParams();
   const { getCustomLeague, getCustomLeagueStandings } = useContainer();
   const { session } = useSession();
@@ -62,8 +64,8 @@ export const CustomLeagueStandingsPage = () => {
       return;
     }
 
-    void appAlert.error("Standings Load Failed", standingsQuery.error.message);
-  }, [standingsQuery.error]);
+    void appAlert.error(t("customLeagueStandings.errorTitle"), standingsQuery.error.message);
+  }, [standingsQuery.error, t]);
 
   const group = standingsQuery.data?.group ?? null;
   const standings = standingsQuery.data?.standings ?? [];
@@ -74,39 +76,39 @@ export const CustomLeagueStandingsPage = () => {
       return "-";
     }
 
-    return new Date(latest.lastCalculatedAt).toLocaleString("id-ID", {
+    return new Date(latest.lastCalculatedAt).toLocaleString(dateLocale, {
       day: "2-digit",
       month: "short",
       hour: "2-digit",
       minute: "2-digit"
     });
-  }, [standings]);
+  }, [dateLocale, standings]);
 
   const columns = useMemo<ColumnDef<CustomLeagueStanding>[]>(
     () => [
       {
         id: "rank",
         accessorKey: "rank",
-        header: "Rank",
+        header: t("customLeagueStandings.table.rank"),
         cell: ({ row }) => `#${row.original.rank}`
       },
       {
         id: "teamName",
-        header: "Team Name",
+        header: t("customLeagueStandings.table.teamName"),
         cell: ({ row }) => resolveTeamName(row.original)
       },
       {
         id: "rankMovement",
-        header: "Rank Movement",
+        header: t("customLeagueStandings.table.rankMovement"),
         cell: ({ row }) => <RankMovementBadge value={row.original.rankMovement} />
       },
       {
         id: "points",
         accessorKey: "points",
-        header: "Fantasy Squad Point"
+        header: t("customLeagueStandings.table.points")
       }
     ],
-    []
+    [t]
   );
 
   const table = useReactTable({
@@ -123,24 +125,26 @@ export const CustomLeagueStandingsPage = () => {
       <section className="card page-section">
         <div className="home-section-head">
           <div className="section-title">
-            <h2>{group?.name ?? "Custom League"}</h2>
+            <h2>{group?.name ?? t("customLeagueStandings.titleFallback")}</h2>
             <p className="muted">
-              Invite Code: {group?.inviteCode ?? "-"} • Last Calculated: {calculatedAt}
+              {t("customLeagueStandings.meta", { code: group?.inviteCode ?? "-", calculatedAt })}
             </p>
           </div>
           <Link to="/custom-leagues" className="secondary-button home-news-more">
-            Back
+            {t("customLeagueStandings.back")}
           </Link>
         </div>
       </section>
 
       <section className="card page-section">
-        {!hasSession ? <p className="muted">Session expired. Please login again.</p> : null}
-        {hasSession && !isGroupProvided ? <p className="muted">Group id is missing.</p> : null}
+        {!hasSession ? <p className="muted">{t("customLeagueStandings.sessionExpired")}</p> : null}
+        {hasSession && !isGroupProvided ? <p className="muted">{t("customLeagueStandings.groupMissing")}</p> : null}
 
-        {hasSession && isGroupProvided && standingsQuery.isPending ? <LoadingState label="Loading standings" /> : null}
+        {hasSession && isGroupProvided && standingsQuery.isPending ? (
+          <LoadingState label={t("customLeagueStandings.loading")} />
+        ) : null}
         {hasSession && isGroupProvided && !standingsQuery.isPending && standings.length === 0 ? (
-          <p className="muted">No standings data yet.</p>
+          <p className="muted">{t("customLeagueStandings.empty")}</p>
         ) : null}
 
         {hasSession && isGroupProvided && !standingsQuery.isPending && standings.length > 0 ? (

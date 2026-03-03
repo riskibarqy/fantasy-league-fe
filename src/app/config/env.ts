@@ -8,6 +8,7 @@ const toBool = (value: string | undefined, fallback: boolean): boolean => {
 
 export const appEnv = {
   useMocks: toBool(process.env.NEXT_PUBLIC_USE_MOCKS, true),
+  skipOnboardingInDev: toBool(process.env.NEXT_PUBLIC_SKIP_ONBOARDING_DEV, false),
   anubisBaseUrl: process.env.NEXT_PUBLIC_ANUBIS_BASE_URL ?? "http://localhost:8081",
   anubisAppId: process.env.NEXT_PUBLIC_ANUBIS_APP_ID ?? "",
   googleClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "",

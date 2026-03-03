@@ -13,6 +13,8 @@ import type { Player } from "../../domain/fantasy/entities/Player";
 import type { PlayerDetails, PlayerExtraInfo, PlayerMatchHistory, PlayerProfile, PlayerStatistics } from "../../domain/fantasy/entities/PlayerDetails";
 import type { Club } from "../../domain/fantasy/entities/Club";
 import type { PickSquadInput, Squad } from "../../domain/fantasy/entities/Squad";
+import type { SeasonPointsSummary } from "../../domain/fantasy/entities/SeasonPointsSummary";
+import type { UserGameweekPoints, UserPlayerPoint } from "../../domain/fantasy/entities/UserGameweekPoints";
 import type {
   CompleteOnboardingInput,
   CompleteOnboardingResult,
@@ -53,12 +55,75 @@ export class HttpFantasyRepository implements FantasyRepository {
     return mapFixtures(payload);
   }
 
+  async getSeasonPointsSummary(
+    leagueId: string,
+    accessToken: string
+  ): Promise<SeasonPointsSummary> {
+    const payload = await this.httpClient.get<unknown>(
+      `/v1/fantasy/points/summary?league_id=${encodeURIComponent(leagueId)}`,
+      this.authHeader(accessToken)
+    );
+    return mapSeasonPointsSummary(payload, leagueId);
+  }
+
+  async getMyPlayerPointsByGameweek(
+    leagueId: string,
+    accessToken: string,
+    gameweek?: number
+  ): Promise<UserGameweekPoints[]> {
+    const query = new URLSearchParams({
+      league_id: leagueId
+    });
+    if (gameweek && gameweek > 0) {
+      query.set("gameweek", String(gameweek));
+    }
+
+    const payload = await this.httpClient.get<unknown>(
+      `/v1/fantasy/points/players?${query.toString()}`,
+      this.authHeader(accessToken)
+    );
+    return mapUserGameweekPoints(payload, leagueId);
+  }
+
+  async getHighestPlayerPointsByGameweek(
+    leagueId: string,
+    accessToken: string,
+    gameweek?: number
+  ): Promise<UserGameweekPoints | null> {
+    const query = new URLSearchParams({
+      league_id: leagueId
+    });
+    if (gameweek && gameweek > 0) {
+      query.set("gameweek", String(gameweek));
+    }
+
+    const payload = await this.httpClient.get<unknown>(
+      `/v1/fantasy/points/players/highest?${query.toString()}`,
+      this.authHeader(accessToken)
+    );
+    return mapHighestUserGameweekPoints(payload, leagueId);
+  }
+
   async getLeagueStandings(leagueId: string, live = false): Promise<LeagueStanding[]> {
-    const path = live
-      ? `/v1/leagues/${encodeURIComponent(leagueId)}/standings/live`
-      : `/v1/leagues/${encodeURIComponent(leagueId)}/standings`;
-    const payload = await this.httpClient.get<unknown>(path);
-    return mapLeagueStandings(payload);
+    const normalizedLeagueId = encodeURIComponent(leagueId);
+    const primaryPath = live
+      ? `/v1/leagues/${normalizedLeagueId}/standings/live`
+      : `/v1/leagues/${normalizedLeagueId}/standings`;
+
+    try {
+      const payload = await this.httpClient.get<unknown>(primaryPath);
+      return mapLeagueStandings(payload);
+    } catch (error) {
+      if (!live || !(error instanceof HttpError) || error.statusCode !== 404) {
+        throw error;
+      }
+
+      // Compatibility with deployments exposing live standings via query param.
+      const fallbackPayload = await this.httpClient.get<unknown>(
+        `/v1/leagues/${normalizedLeagueId}/standings?live=true`
+      );
+      return mapLeagueStandings(fallbackPayload);
+    }
   }
 
   async getFixtureDetails(leagueId: string, fixtureId: string): Promise<FixtureDetails> {
@@ -506,6 +571,25 @@ const readBoolean = (record: Record<string, unknown>, ...keys: string[]): boolea
     if (typeof value === "boolean") {
       return value;
     }
+
+    if (typeof value === "number") {
+      if (value === 1) {
+        return true;
+      }
+      if (value === 0) {
+        return false;
+      }
+    }
+
+    if (typeof value === "string") {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === "true" || normalized === "1" || normalized === "yes") {
+        return true;
+      }
+      if (normalized === "false" || normalized === "0" || normalized === "no") {
+        return false;
+      }
+    }
   }
 
   return false;
@@ -676,6 +760,33 @@ const toArrayFromPayload = (payload: unknown, keys: string[] = []): unknown[] =>
 
 const mapDashboard = (payload: unknown): Dashboard => {
   const record = asRecord(payload) ?? {};
+  const myGwPoints = readNumber(
+    record,
+    "myGwPoints",
+    "my_gw_points",
+    "myFantasyGwPoints",
+    "my_fantasy_gw_points",
+    "pointsThisGw",
+    "points_this_gw"
+  );
+  const averageGwPoints = readNumber(
+    record,
+    "averageGwPoints",
+    "average_gw_points",
+    "averagePointsThisGw",
+    "average_points_this_gw",
+    "gwAveragePoints",
+    "gw_average_points"
+  );
+  const highestGwPoints = readNumber(
+    record,
+    "highestGwPoints",
+    "highest_gw_points",
+    "highestPointsThisGw",
+    "highest_points_this_gw",
+    "gwHighestPoints",
+    "gw_highest_points"
+  );
 
   return {
     gameweek: readNumber(record, "gameweek"),
@@ -683,8 +794,103 @@ const mapDashboard = (payload: unknown): Dashboard => {
     teamValue: readNumber(record, "teamValue", "team_value"),
     totalPoints: readNumber(record, "totalPoints", "total_points"),
     rank: readNumber(record, "rank"),
-    selectedLeagueId: readString(record, "selectedLeagueId", "selected_league_id")
+    selectedLeagueId: readString(record, "selectedLeagueId", "selected_league_id"),
+    averageGwPoints,
+    myGwPoints: myGwPoints || readNumber(record, "totalPoints", "total_points"),
+    highestGwPoints
   };
+};
+
+const mapSeasonPointsSummary = (payload: unknown, fallbackLeagueID: string): SeasonPointsSummary => {
+  const record = asRecord(payload) ?? {};
+
+  return {
+    leagueId: readString(record, "league_id", "leagueId") || fallbackLeagueID,
+    userId: readString(record, "user_id", "userId"),
+    totalPoints: readNumber(record, "total_points", "totalPoints"),
+    averagePoints: readNumber(record, "average_points", "averagePoints"),
+    highestPoints: readNumber(record, "highest_points", "highestPoints"),
+    gameweeks: readNumber(record, "gameweeks")
+  };
+};
+
+const mapUserPlayerPoint = (payload: unknown): UserPlayerPoint | null => {
+  const record = asRecord(payload);
+  if (!record) {
+    return null;
+  }
+
+  const playerId = readString(record, "player_id", "playerId");
+  if (!playerId) {
+    return null;
+  }
+
+  return {
+    playerId,
+    playerName: readString(record, "player_name", "playerName") || undefined,
+    position: readString(record, "position"),
+    isStarter: readBoolean(record, "is_starter", "isStarter"),
+    isCaptain: readBoolean(record, "is_captain", "isCaptain"),
+    isViceCaptain: readBoolean(record, "is_vice_captain", "isViceCaptain"),
+    multiplier: readNumber(record, "multiplier"),
+    basePoints: readNumber(record, "base_points", "basePoints"),
+    countedPoints: readNumber(record, "counted_points", "countedPoints")
+  };
+};
+
+const mapUserGameweekPoints = (payload: unknown, fallbackLeagueID: string): UserGameweekPoints[] => {
+  const record = asRecord(payload);
+  const rows = toArrayFromPayload(payload, ["items", "results", "rows"]);
+  const leagueIdFallback =
+    readString(record ?? {}, "league_id", "leagueId") || fallbackLeagueID;
+  const userIdFallback = readString(record ?? {}, "user_id", "userId");
+
+  return rows
+    .map((item) => {
+      const row = asRecord(item);
+      if (!row) {
+        return null;
+      }
+
+      const gameweek = readNumber(row, "gameweek");
+      if (gameweek <= 0) {
+        return null;
+      }
+
+      const players = toArrayFromValue(row.players)
+        .map((playerItem) => mapUserPlayerPoint(playerItem))
+        .filter((player): player is UserPlayerPoint => Boolean(player));
+
+      return {
+        leagueId: readString(row, "league_id", "leagueId") || leagueIdFallback,
+        userId: readString(row, "user_id", "userId") || userIdFallback,
+        gameweek,
+        totalPoints: readNumber(row, "total_points", "totalPoints"),
+        players
+      } satisfies UserGameweekPoints;
+    })
+    .filter((item): item is UserGameweekPoints => Boolean(item))
+    .sort((left, right) => left.gameweek - right.gameweek);
+};
+
+const mapHighestUserGameweekPoints = (
+  payload: unknown,
+  fallbackLeagueID: string
+): UserGameweekPoints | null => {
+  const record = asRecord(payload);
+  const item = record?.item;
+  if (item) {
+    const rows = mapUserGameweekPoints(
+      {
+        league_id: readString(record ?? {}, "league_id", "leagueId") || fallbackLeagueID,
+        items: [item]
+      },
+      fallbackLeagueID
+    );
+    return rows[0] ?? null;
+  }
+
+  return mapUserGameweekPoints(payload, fallbackLeagueID)[0] ?? null;
 };
 
 const mapLeagues = (payload: unknown): League[] => {
@@ -770,42 +976,51 @@ const mapLeagueStandings = (payload: unknown): LeagueStanding[] => {
 };
 
 const mapLeagueStandingFromRecord = (record: Record<string, unknown>): LeagueStanding | null => {
-  const teamID = readString(record, "teamId", "team_id");
+  const teamID = readString(record, "teamId", "team_id", "team_public_id", "club_id");
   if (!teamID) {
     return null;
   }
 
-  const position = readNumber(record, "position");
+  const position = readNumber(record, "position", "rank", "place");
   if (position <= 0) {
     return null;
   }
+  const gameweek = readNumber(record, "gameweek", "snapshot_gameweek", "gw");
+  const played = readNumber(record, "played", "matches_played", "games_played", "mp");
 
   const output: LeagueStanding = {
     leagueId: readString(record, "leagueId", "league_id", "league_public_id"),
+    gameweek: gameweek > 0 ? gameweek : played,
     teamId: teamID,
     position,
-    played: readNumber(record, "played"),
-    won: readNumber(record, "won"),
-    draw: readNumber(record, "draw"),
-    lost: readNumber(record, "lost"),
-    goalsFor: readNumber(record, "goalsFor", "goals_for"),
-    goalsAgainst: readNumber(record, "goalsAgainst", "goals_against"),
-    goalDifference: readNumber(record, "goalDifference", "goal_difference"),
-    points: readNumber(record, "points"),
-    isLive: readBoolean(record, "isLive", "is_live")
+    played,
+    won: readNumber(record, "won", "wins", "w"),
+    draw: readNumber(record, "draw", "draws", "d"),
+    lost: readNumber(record, "lost", "losses", "l"),
+    goalsFor: readNumber(record, "goalsFor", "goals_for", "goals_scored", "gf"),
+    goalsAgainst: readNumber(record, "goalsAgainst", "goals_against", "goals_conceded", "ga"),
+    goalDifference: readNumber(record, "goalDifference", "goal_difference", "goal_diff", "gd"),
+    points: readNumber(record, "points", "pts"),
+    isLive: readBoolean(record, "isLive", "is_live", "live")
   };
 
-  const teamName = readString(record, "teamName", "team_name");
+  const teamName = readString(record, "teamName", "team_name", "name", "team");
   if (teamName) {
     output.teamName = teamName;
   }
 
-  const teamLogoURL = readString(record, "teamLogoUrl", "team_logo_url");
+  const teamLogoURL = readString(record, "teamLogoUrl", "team_logo_url", "logoUrl", "logo_url");
   if (teamLogoURL) {
     output.teamLogoUrl = teamLogoURL;
   }
 
-  const form = readString(record, "form");
+  let form = readString(record, "form");
+  if (!form && Array.isArray(record.form)) {
+    form = record.form
+      .map((value) => (typeof value === "string" ? value.trim().toUpperCase() : ""))
+      .filter(Boolean)
+      .join("");
+  }
   if (form) {
     output.form = form;
   }
@@ -818,7 +1033,7 @@ const mapFixtureFromRecord = (
   fallbackLeagueId = "",
   fallbackFixtureId = ""
 ): Fixture | null => {
-  const id = readString(record, "id", "public_id") || fallbackFixtureId;
+  const id = readString(record, "id", "public_id", "fixture_id") || fallbackFixtureId;
   if (!id) {
     return null;
   }
@@ -826,19 +1041,31 @@ const mapFixtureFromRecord = (
   const fixture: Fixture = {
     id,
     leagueId: readString(record, "leagueId", "league_id", "league_public_id") || fallbackLeagueId,
-    gameweek: readNumber(record, "gameweek"),
-    homeTeam: readString(record, "homeTeam", "home_team"),
-    awayTeam: readString(record, "awayTeam", "away_team"),
-    kickoffAt: readString(record, "kickoffAt", "kickoff_at"),
+    gameweek: readNumber(record, "gameweek", "gw", "matchday"),
+    homeTeam: readString(record, "homeTeam", "home_team", "homeTeamName", "home_team_name"),
+    awayTeam: readString(record, "awayTeam", "away_team", "awayTeamName", "away_team_name"),
+    kickoffAt: readString(record, "kickoffAt", "kickoff_at", "starting_at", "start_time"),
     venue: readString(record, "venue")
   };
 
-  const homeTeamLogoUrl = readString(record, "homeTeamLogoUrl", "home_team_logo_url");
+  const homeTeamLogoUrl = readString(
+    record,
+    "homeTeamLogoUrl",
+    "home_team_logo_url",
+    "home_logo_url",
+    "homeTeamLogo"
+  );
   if (homeTeamLogoUrl) {
     fixture.homeTeamLogoUrl = homeTeamLogoUrl;
   }
 
-  const awayTeamLogoUrl = readString(record, "awayTeamLogoUrl", "away_team_logo_url");
+  const awayTeamLogoUrl = readString(
+    record,
+    "awayTeamLogoUrl",
+    "away_team_logo_url",
+    "away_logo_url",
+    "awayTeamLogo"
+  );
   if (awayTeamLogoUrl) {
     fixture.awayTeamLogoUrl = awayTeamLogoUrl;
   }
@@ -853,7 +1080,7 @@ const mapFixtureFromRecord = (
     fixture.awayScore = awayScore;
   }
 
-  const status = readString(record, "status");
+  const status = readString(record, "status", "state");
   if (status) {
     fixture.status = status;
   }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { useNavigate } from "react-router-dom";
-import { ArrowLeftRight, Clock3, Pickaxe, Sparkles, Trophy } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import { cacheKeys, cacheTtlMs, getOrLoadCached, peekCached } from "../../app/cache/requestCache";
 import type { Club } from "../../domain/fantasy/entities/Club";
@@ -8,6 +8,7 @@ import type { Player } from "../../domain/fantasy/entities/Player";
 import type { PlayerDetails } from "../../domain/fantasy/entities/PlayerDetails";
 import type { TeamLineup } from "../../domain/fantasy/entities/Team";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
+import type { UserGameweekPoints } from "../../domain/fantasy/entities/UserGameweekPoints";
 import {
   BENCH_SLOT_POSITIONS,
   FORMATION_LIMITS,
@@ -18,6 +19,7 @@ import {
 import { buildLineupFromPlayers } from "../../domain/fantasy/services/squadBuilder";
 import { LoadingState } from "../components/LoadingState";
 import { LazyImage } from "../components/LazyImage";
+import { useI18n } from "../hooks/useI18n";
 import { useSession } from "../hooks/useSession";
 import { useLeagueSelection } from "../hooks/useLeagueSelection";
 import { appAlert } from "../lib/appAlert";
@@ -33,6 +35,7 @@ import {
 } from "./teamPickerStorage";
 
 type TeamMode = "PAT" | "TRF";
+type PointsMetric = "average" | "my" | "highest";
 type Position = Player["position"];
 type OutfieldPosition = Exclude<Position, "GK">;
 
@@ -43,6 +46,9 @@ type PitchRow = {
 };
 
 type CardVisualState = "source" | "target" | null;
+type TeamBuilderPageProps = {
+  forcedMode?: TeamMode;
+};
 
 const PAT_MIN_SLOTS = {
   DEF: FORMATION_LIMITS.DEF.min,
@@ -68,6 +74,19 @@ const SUBSTITUTION_MIN_STARTERS = {
   FWD: 1
 } as const;
 const DEFAULT_TEAM_COLOR_PAIR: [string, string] = ["#3A4250", "#A3ACBA"];
+
+const parseTeamMode = (value: string | null): TeamMode => {
+  return value?.trim().toUpperCase() === "TRF" ? "TRF" : "PAT";
+};
+
+const parsePointsMetric = (value: string | null): PointsMetric => {
+  const normalized = value?.trim().toLowerCase();
+  if (normalized === "average" || normalized === "highest") {
+    return normalized;
+  }
+
+  return "my";
+};
 
 const sanitizeStarterIds = (ids: string[], max: number): string[] => {
   return ids.filter(Boolean).slice(0, max);
@@ -355,20 +374,6 @@ const jerseyNumberFromPlayer = (playerId: string): string => {
   return String((hashString(playerId) % 99) + 1);
 };
 
-const formatDeadline = (date: string | null): string => {
-  if (!date) {
-    return "-";
-  }
-
-  return new Date(date).toLocaleString("id-ID", {
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-};
-
 const sortByProjectedDesc = (players: Player[]): Player[] => {
   return [...players].sort((left, right) => right.projectedPoints - left.projectedPoints);
 };
@@ -450,23 +455,39 @@ async function withRetry<T>(run: () => Promise<T>, retries: number): Promise<T> 
   throw lastError instanceof Error ? lastError : new Error("Request failed.");
 }
 
-export const TeamBuilderPage = () => {
+export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
+  const { t } = useI18n();
+  const reduceMotion = useReducedMotion();
   const navigate = useNavigate();
-  const { getPlayers, getTeams, getPlayerDetails, getLineup, getDashboard, getFixtures, getMySquad, pickSquad, logout, saveLineup } =
+  const [searchParams] = useSearchParams();
+  const {
+    getPlayers,
+    getTeams,
+    getPlayerDetails,
+    getLineup,
+    getDashboard,
+    getFixtures,
+    getMySquad,
+    getHighestPlayerPointsByGameweek,
+    getMyPlayerPointsByGameweek,
+    pickSquad,
+    logout,
+    saveLineup
+  } =
     useContainer();
-  const { leagues, selectedLeagueId } = useLeagueSelection();
+  const { selectedLeagueId } = useLeagueSelection();
   const { session, setSession } = useSession();
   const userScope = session?.user.id ?? "";
   const logoutInProgressRef = useRef(false);
   const pitchBoardRef = useRef<HTMLDivElement | null>(null);
+  const pointsViewCenteredKeyRef = useRef("");
 
-  const [mode, setMode] = useState<TeamMode>("PAT");
+  const [mode, setMode] = useState<TeamMode>(() => forcedMode ?? parseTeamMode(searchParams.get("mode")));
   const [players, setPlayers] = useState<Player[]>([]);
   const [teams, setTeams] = useState<Club[]>([]);
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [lineup, setLineup] = useState<TeamLineup | null>(null);
   const [gameweek, setGameweek] = useState<number | null>(null);
-  const [deadlineAt, setDeadlineAt] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [isLeagueDataLoading, setIsLeagueDataLoading] = useState(false);
@@ -478,6 +499,25 @@ export const TeamBuilderPage = () => {
   const [hasSubstitutionDraftChanges, setHasSubstitutionDraftChanges] = useState(false);
   const [lastSavedLineup, setLastSavedLineup] = useState<TeamLineup | null>(null);
   const [isSavingLineup, setIsSavingLineup] = useState(false);
+  const [pointsByPlayerId, setPointsByPlayerId] = useState<Record<string, number>>({});
+  const [pointsViewGameweek, setPointsViewGameweek] = useState<number | null>(null);
+  const [pointsViewTotal, setPointsViewTotal] = useState<number | null>(null);
+  const [pointsViewTopUserId, setPointsViewTopUserId] = useState<string | null>(null);
+  const [isPointsViewLoading, setIsPointsViewLoading] = useState(false);
+  const [pointsViewNotice, setPointsViewNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (forcedMode) {
+      setMode((current) => (current === forcedMode ? current : forcedMode));
+      return;
+    }
+
+    const queryMode = parseTeamMode(searchParams.get("mode"));
+    setMode((current) => (current === queryMode ? current : queryMode));
+  }, [forcedMode, searchParams]);
+
+  const isPointsView = searchParams.get("view")?.trim().toLowerCase() === "points";
+  const pointsMetric = parsePointsMetric(searchParams.get("metric"));
 
   const recenterToPitch = useCallback(() => {
     if (!pitchBoardRef.current) {
@@ -510,6 +550,153 @@ export const TeamBuilderPage = () => {
     },
     [logout, navigate, session?.accessToken, setSession]
   );
+
+  useEffect(() => {
+    if (!isPointsView) {
+      setPointsByPlayerId({});
+      setPointsViewGameweek(null);
+      setPointsViewTotal(null);
+      setPointsViewTopUserId(null);
+      setPointsViewNotice(null);
+      setIsPointsViewLoading(false);
+      return;
+    }
+
+    const leagueId = selectedLeagueId.trim();
+    const accessToken = session?.accessToken?.trim() ?? "";
+    if (!leagueId || !accessToken) {
+      setPointsByPlayerId({});
+      setPointsViewGameweek(null);
+      setPointsViewTotal(null);
+      setPointsViewTopUserId(null);
+      return;
+    }
+
+    let mounted = true;
+    setIsPointsViewLoading(true);
+
+    const pickPreferredRow = (rows: UserGameweekPoints[]): UserGameweekPoints | null => {
+      if (rows.length === 0) {
+        return null;
+      }
+
+      if (pointsMetric === "highest") {
+        return [...rows].sort((left, right) => {
+          if (left.totalPoints !== right.totalPoints) {
+            return right.totalPoints - left.totalPoints;
+          }
+
+          return right.gameweek - left.gameweek;
+        })[0];
+      }
+
+      if (gameweek) {
+        const gwRow = rows.find((item) => item.gameweek === gameweek);
+        if (gwRow) {
+          return gwRow;
+        }
+      }
+
+      return [...rows].sort((left, right) => right.gameweek - left.gameweek)[0];
+    };
+
+    const loadPointsView = async () => {
+      try {
+        if (pointsMetric === "highest") {
+          const highestRow = await getHighestPlayerPointsByGameweek.execute(
+            leagueId,
+            accessToken,
+            gameweek ?? undefined
+          );
+          if (!mounted) {
+            return;
+          }
+
+          if (!highestRow) {
+            setPointsByPlayerId({});
+            setPointsViewGameweek(null);
+            setPointsViewTotal(null);
+            setPointsViewTopUserId(null);
+            setPointsViewNotice("No highest lineup points available for this gameweek yet.");
+            return;
+          }
+
+          const nextPoints: Record<string, number> = {};
+          for (const item of highestRow.players) {
+            nextPoints[item.playerId] = item.countedPoints;
+          }
+
+          setPointsByPlayerId(nextPoints);
+          setPointsViewGameweek(highestRow.gameweek);
+          setPointsViewTotal(highestRow.totalPoints);
+          setPointsViewTopUserId(highestRow.userId || null);
+          setPointsViewNotice(null);
+          return;
+        }
+
+        const rows = await getMyPlayerPointsByGameweek.execute(leagueId, accessToken);
+        if (!mounted) {
+          return;
+        }
+
+        const selectedRow = pickPreferredRow(rows);
+        if (!selectedRow) {
+          setPointsByPlayerId({});
+          setPointsViewGameweek(null);
+          setPointsViewTotal(null);
+          setPointsViewTopUserId(null);
+          setPointsViewNotice("No player points available for this league yet.");
+          return;
+        }
+
+        const nextPoints: Record<string, number> = {};
+        for (const item of selectedRow.players) {
+          nextPoints[item.playerId] = item.countedPoints;
+        }
+
+        setPointsByPlayerId(nextPoints);
+        setPointsViewGameweek(selectedRow.gameweek);
+        setPointsViewTotal(selectedRow.totalPoints);
+        setPointsViewTopUserId(null);
+        setPointsViewNotice(null);
+      } catch (error) {
+        if (!mounted) {
+          return;
+        }
+
+        if (isUnauthorizedError(error)) {
+          await forceLogout("Your session has expired. Please sign in again.");
+          return;
+        }
+
+        setPointsByPlayerId({});
+        setPointsViewGameweek(null);
+        setPointsViewTotal(null);
+        setPointsViewTopUserId(null);
+        setPointsViewNotice(null);
+        void appAlert.error("Points View", error instanceof Error ? error.message : "Failed to load player points.");
+      } finally {
+        if (mounted) {
+          setIsPointsViewLoading(false);
+        }
+      }
+    };
+
+    void loadPointsView();
+
+    return () => {
+      mounted = false;
+    };
+  }, [
+    forceLogout,
+    getHighestPlayerPointsByGameweek,
+    gameweek,
+    getMyPlayerPointsByGameweek,
+    isPointsView,
+    pointsMetric,
+    selectedLeagueId,
+    session?.accessToken
+  ]);
 
   const syncSquadFromLineup = useCallback(
     async (draftLineup: TeamLineup, forceUpsert = false): Promise<boolean> => {
@@ -825,10 +1012,6 @@ export const TeamBuilderPage = () => {
           recenterToPitch();
         }
 
-        const nearestKickoff = [...fixturesResult]
-          .sort((left, right) => new Date(left.kickoffAt).getTime() - new Date(right.kickoffAt).getTime())[0]?.kickoffAt ?? null;
-
-        setDeadlineAt(nearestKickoff);
         if (fixturesResult[0]?.gameweek) {
           setGameweek(fixturesResult[0].gameweek);
         }
@@ -1044,7 +1227,8 @@ export const TeamBuilderPage = () => {
       {
         leagueId: selectedLeagueId,
         target,
-        lineup
+        lineup,
+        returnPath: mode === "TRF" ? "/transfers" : "/pick-team"
       },
       userScope
     );
@@ -1055,7 +1239,7 @@ export const TeamBuilderPage = () => {
       index: String(target.index)
     });
 
-    navigate(`/team/pick?${params.toString()}`);
+    navigate(`/pick-team/pick?${params.toString()}`);
   };
 
   const selectedPlayerIsStarter = useMemo(() => {
@@ -1620,6 +1804,7 @@ export const TeamBuilderPage = () => {
       isDisabled?: boolean;
       visualState?: CardVisualState;
       disableEmpty?: boolean;
+      pointsLabel?: string;
     }
   ) => {
     if (!player) {
@@ -1671,10 +1856,15 @@ export const TeamBuilderPage = () => {
         <div className="player-info-chip">
           <div className="player-name-chip">{shortName(player.name)}</div>
           <div className="player-fixture-chip">{fixtureLabel}</div>
+          {options?.pointsLabel !== undefined ? (
+            <div className="player-total-chip">{options.pointsLabel}</div>
+          ) : null}
         </div>
       </button>
     );
   };
+
+  const isTransferMode = mode === "TRF";
 
   const renderPitch = (
     rows: PitchRow[],
@@ -1682,13 +1872,13 @@ export const TeamBuilderPage = () => {
     allowSlotPicking: boolean
   ) => {
     return (
-      <div className="fpl-pitch-stage">
+      <div className={`fpl-pitch-stage${isTransferMode ? " fpl-pitch-stage--trf" : ""}`}>
         <div className="pitch-top-boards">
           <div>Fantasy</div>
           <div>Fantasy</div>
         </div>
 
-        <div className="fpl-pitch">
+        <div className={`fpl-pitch${isTransferMode ? " fpl-pitch--trf" : ""}`}>
           <div className="pitch-lines">
             <div className="penalty-box" />
             <div className="center-circle" />
@@ -1696,7 +1886,11 @@ export const TeamBuilderPage = () => {
           </div>
 
           {rows.map((row) => (
-            <div key={row.label} className="fpl-line" style={{ "--slot-count": row.slots } as CSSProperties}>
+            <div
+              key={row.label}
+              className={`fpl-line${isTransferMode ? " fpl-line--trf" : ""}`}
+              style={{ "--slot-count": row.slots } as CSSProperties}
+            >
               {Array.from({ length: row.slots }).map((_, index) => {
                 const playerId = row.ids[index];
                 const player = playerId ? playersById.get(playerId) ?? null : null;
@@ -1715,14 +1909,16 @@ export const TeamBuilderPage = () => {
                 const isViceCaptain =
                   showLeadershipBadges && Boolean(lineup && player && lineup.viceCaptainId === player.id);
                 const interaction = player ? resolveCardInteraction(player.id) : null;
+                const pointsLabel = player && isReadOnlyPointsView ? resolvePlayerPointsLabel(player.id) : undefined;
 
                 return (
                   <div key={`${row.label}-${index}`}>
                     {renderPitchCard(player, isCaptain, isViceCaptain, row.label, onEmptyClick, {
-                      onPlayerClick: interaction?.onClick,
-                      isDisabled: interaction?.disabled,
+                      onPlayerClick: isReadOnlyPointsView ? undefined : interaction?.onClick,
+                      isDisabled: isReadOnlyPointsView || interaction?.disabled,
                       visualState: interaction?.visualState ?? null,
-                      disableEmpty: Boolean(substitutionSourcePlayerId)
+                      disableEmpty: isReadOnlyPointsView || Boolean(substitutionSourcePlayerId),
+                      pointsLabel
                     })}
                   </div>
                 );
@@ -1734,7 +1930,48 @@ export const TeamBuilderPage = () => {
     );
   };
 
-  const selectedLeagueName = leagues.find((league) => league.id === selectedLeagueId)?.name ?? "-";
+  const pointsViewTitle =
+    pointsMetric === "average"
+      ? t("team.pointsView.average")
+      : pointsMetric === "highest"
+        ? t("team.pointsView.highest")
+        : t("team.pointsView.squad");
+  const isReadOnlyPointsView = isPointsView && mode === "PAT";
+
+  useEffect(() => {
+    if (!isReadOnlyPointsView) {
+      pointsViewCenteredKeyRef.current = "";
+      return;
+    }
+
+    if (!lineup || isLeagueDataLoading || isPointsViewLoading) {
+      return;
+    }
+
+    const viewKey = `${pointsMetric}:${pointsViewGameweek ?? "latest"}`;
+    if (pointsViewCenteredKeyRef.current === viewKey) {
+      return;
+    }
+
+    pointsViewCenteredKeyRef.current = viewKey;
+    recenterToPitch();
+  }, [
+    isLeagueDataLoading,
+    isPointsViewLoading,
+    isReadOnlyPointsView,
+    lineup,
+    pointsMetric,
+    pointsViewGameweek,
+    recenterToPitch
+  ]);
+
+  const resolvePlayerPointsLabel = useCallback(
+    (playerId: string): string => {
+      const value = pointsByPlayerId[playerId];
+      return Number.isFinite(value) ? `${value} pts` : "-";
+    },
+    [pointsByPlayerId]
+  );
   const captainChecked = Boolean(selectedPlayer && lineup && lineup.captainId === selectedPlayer.id);
   const viceCaptainChecked = Boolean(selectedPlayer && lineup && lineup.viceCaptainId === selectedPlayer.id);
 
@@ -1822,14 +2059,13 @@ export const TeamBuilderPage = () => {
     recenterToPitch();
   };
 
-  const cancelSubstitutionMode = () => {
-    setSubstitutionSourcePlayerId(null);
-  };
-
   const substitutionSourceName = substitutionSourcePlayerId
     ? playersById.get(substitutionSourcePlayerId)?.name ?? "selected player"
     : null;
-  const substitutionTargetLabel = substitutionSourceTarget?.zone === "BENCH" ? "starter on the field" : "bench player";
+  const substitutionTargetLabel =
+    substitutionSourceTarget?.zone === "BENCH"
+      ? t("team.substitution.target.starter")
+      : t("team.substitution.target.bench");
 
   const hasPendingChanges = useMemo(() => {
     return JSON.stringify(toComparableLineup(lineup)) !== JSON.stringify(toComparableLineup(lastSavedLineup));
@@ -1841,7 +2077,8 @@ export const TeamBuilderPage = () => {
     }
   }, [hasPendingChanges]);
 
-  const shouldShowBulkActions = mode === "PAT" && (Boolean(substitutionSourcePlayerId) || hasSubstitutionDraftChanges);
+  const shouldShowBulkActions =
+    mode === "PAT" && !isReadOnlyPointsView && (Boolean(substitutionSourcePlayerId) || hasSubstitutionDraftChanges);
 
   const onCancelBulkChanges = () => {
     if (!lastSavedLineup) {
@@ -1921,172 +2158,127 @@ export const TeamBuilderPage = () => {
   };
 
   return (
-    <div className="page-grid team-builder-page">
-      <section className="section-title">
-        <h2 className="section-icon-title">
-          <Trophy className="inline-icon" aria-hidden="true" />
-          Team Builder
-        </h2>
-        <p className="muted">Choose mode: Pick Team or Transfers.</p>
-      </section>
-
-      <Card className="card team-header-box">
-        <div className="mode-switch">
-          <Button
-            type="button"
-            variant={mode === "PAT" ? "default" : "secondary"}
-            className={`mode-button ${mode === "PAT" ? "active" : ""}`}
-            onClick={() => setMode("PAT")}
-          >
-            <Pickaxe className="mode-icon" aria-hidden="true" />
-            Pick Team
-          </Button>
-          <Button
-            type="button"
-            variant={mode === "TRF" ? "default" : "secondary"}
-            className={`mode-button ${mode === "TRF" ? "active" : ""}`}
-            onClick={() => setMode("TRF")}
-          >
-            <ArrowLeftRight className="mode-icon" aria-hidden="true" />
-            Transfers
-          </Button>
-        </div>
-
-        <div className="team-meta-grid">
-          <article className="team-meta-item">
-            <p className="small-label">League</p>
-            <strong>{selectedLeagueName}</strong>
-          </article>
-          <article className="team-meta-item">
-            <p className="small-label">Gameweek</p>
-            <strong>{gameweek ?? "-"}</strong>
-          </article>
-          <article className="team-meta-item">
-            <p className="small-label">Deadline Transfers</p>
-            <strong>{formatDeadline(deadlineAt)}</strong>
-          </article>
-        </div>
-
-        {isLeagueDataLoading ? <LoadingState label="Loading latest team data" inline compact /> : null}
-      </Card>
-
-      <Card className="card team-chip-box">
-        {mode === "PAT" ? (
-          <div className="chips-grid chips-grid-4">
-            <article className="chip-card">
-              <p className="chip-card-label">
-                <Sparkles className="inline-icon" aria-hidden="true" />
-                Wildcard
+    <div className={`page-grid team-builder-page${isReadOnlyPointsView ? " team-builder-page--points-view" : ""}`}>
+      {mode === "PAT" && isReadOnlyPointsView ? (
+        <Card className="card">
+          <div className="team-points-view-banner">
+            <div>
+              <strong>
+                {pointsViewTitle}
+                {pointsViewGameweek ? ` • GW ${pointsViewGameweek}` : ""}
+              </strong>
+              <p>
+                {t("team.pointsView.total", { points: pointsViewTotal ?? "-" })}
+                {isPointsViewLoading ? ` • ${t("team.pointsView.loading")}` : ""}
               </p>
-              <strong>Available</strong>
-            </article>
-            <article className="chip-card">
-              <p className="chip-card-label">
-                <Sparkles className="inline-icon" aria-hidden="true" />
-                Triple Captain
-              </p>
-              <strong>Available</strong>
-            </article>
-            <article className="chip-card">
-              <p className="chip-card-label">
-                <Sparkles className="inline-icon" aria-hidden="true" />
-                Free Hit
-              </p>
-              <strong>Available</strong>
-            </article>
-            <article className="chip-card">
-              <p className="chip-card-label">
-                <Sparkles className="inline-icon" aria-hidden="true" />
-                Bench Boost
-              </p>
-              <strong>Available</strong>
-            </article>
+              {pointsMetric === "highest" && pointsViewTopUserId ? (
+                <p>{t("team.pointsView.topUser", { user: pointsViewTopUserId })}</p>
+              ) : null}
+              {pointsViewNotice ? <p>{pointsViewNotice}</p> : null}
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => navigate("/pick-team", { replace: true })}
+            >
+              {t("team.pointsView.back")}
+            </Button>
           </div>
-        ) : (
-          <div className="chips-grid chips-grid-6">
-            <article className="chip-card">
-              <p className="chip-card-label">
-                <Sparkles className="inline-icon" aria-hidden="true" />
-                Budget
-              </p>
-              <strong>£{Math.max(0, 100 - squadCost).toFixed(1)}</strong>
-            </article>
-            <article className="chip-card">
-              <p className="chip-card-label">
-                <Clock3 className="inline-icon" aria-hidden="true" />
-                Point Cost
-              </p>
-              <strong>0 pts</strong>
-            </article>
-            <article className="chip-card">
-              <p className="chip-card-label">
-                <Sparkles className="inline-icon" aria-hidden="true" />
-                Wildcard
-              </p>
-              <strong>Available</strong>
-            </article>
-            <article className="chip-card">
-              <p className="chip-card-label">
-                <Sparkles className="inline-icon" aria-hidden="true" />
-                Triple Captain
-              </p>
-              <strong>Available</strong>
-            </article>
-            <article className="chip-card">
-              <p className="chip-card-label">
-                <Sparkles className="inline-icon" aria-hidden="true" />
-                Free Hit
-              </p>
-              <strong>Available</strong>
-            </article>
-            <article className="chip-card">
-              <p className="chip-card-label">
-                <Sparkles className="inline-icon" aria-hidden="true" />
-                Bench Boost
-              </p>
-              <strong>Available</strong>
-            </article>
-          </div>
-        )}
-      </Card>
+        </Card>
+      ) : null}
 
-      <Card ref={pitchBoardRef} className="fpl-board card">
+      {!isReadOnlyPointsView ? (
+        <Card className="card team-chip-box">
+          {mode === "PAT" ? (
+            <div className="team-pat-inline" aria-label={t("team.chips.pickTeamAria")}>
+              <div className="team-pat-inline-item">
+                <p className="small-label">{t("team.chips.wildcard")}</p>
+                <strong>{t("team.chips.available")}</strong>
+              </div>
+              <div className="team-pat-inline-item">
+                <p className="small-label">{t("team.chips.tripleCaptain")}</p>
+                <strong>{t("team.chips.available")}</strong>
+              </div>
+              <div className="team-pat-inline-item">
+                <p className="small-label">{t("team.chips.freeHit")}</p>
+                <strong>{t("team.chips.available")}</strong>
+              </div>
+              <div className="team-pat-inline-item">
+                <p className="small-label">{t("team.chips.benchBoost")}</p>
+                <strong>{t("team.chips.available")}</strong>
+              </div>
+            </div>
+          ) : (
+            <div className="team-trf-inline" aria-label={t("team.chips.transfersAria")}>
+              <div className="team-trf-inline-item">
+                <p className="small-label">{t("team.chips.freeTrf")}</p>
+                <strong>1</strong>
+              </div>
+              <div className="team-trf-inline-item">
+                <p className="small-label">{t("team.chips.pointCost")}</p>
+                <strong>0 pts</strong>
+              </div>
+              <div className="team-trf-inline-item">
+                <p className="small-label">{t("team.chips.budget")}</p>
+                <strong>£{Math.max(0, 100 - squadCost).toFixed(1)}</strong>
+              </div>
+              <div className="team-trf-inline-item">
+                <p className="small-label">{t("team.chips.wildcard")}</p>
+                <strong>{t("team.chips.available")}</strong>
+              </div>
+              <div className="team-trf-inline-item">
+                <p className="small-label">{t("team.chips.freeHit")}</p>
+                <strong>{t("team.chips.available")}</strong>
+              </div>
+            </div>
+          )}
+        </Card>
+      ) : null}
+
+      <Card ref={pitchBoardRef} className={`fpl-board card${isTransferMode ? " fpl-board--trf" : ""}`}>
         {shouldShowBulkActions ? (
           <div className="pick-team-bulk-actions">
             <Button
               type="button"
+              size="sm"
               variant="secondary"
+              className="pick-team-bulk-btn"
               onClick={onCancelBulkChanges}
               disabled={!lastSavedLineup || !hasPendingChanges || isSavingLineup}
             >
-              Cancel
+              {t("team.bulk.cancel")}
             </Button>
             <Button
               type="button"
+              size="sm"
+              className="pick-team-bulk-btn"
               onClick={() => void onSaveBulkChanges()}
               disabled={!lastSavedLineup || !hasPendingChanges || isSavingLineup || isLeagueDataLoading}
             >
-              {isSavingLineup ? "Saving..." : "Save"}
+              {isSavingLineup ? t("team.bulk.saving") : t("team.bulk.save")}
             </Button>
           </div>
         ) : null}
 
-        {substitutionSourcePlayerId && mode === "PAT" ? (
+        {substitutionSourcePlayerId && mode === "PAT" && !isReadOnlyPointsView ? (
           <div className="substitution-banner">
             <p>
-              Swapping <strong>{substitutionSourceName}</strong>. Select a highlighted {substitutionTargetLabel} to continue.
+              {t("team.substitution.banner", {
+                source: substitutionSourceName ?? "-",
+                target: substitutionTargetLabel
+              })}
             </p>
-            <Button type="button" variant="secondary" size="sm" onClick={cancelSubstitutionMode}>
-              Cancel
-            </Button>
           </div>
         ) : null}
 
-        {mode === "PAT" ? renderPitch(patRows, true, true) : renderPitch(trfRows, false, false)}
+        {mode === "PAT"
+          ? renderPitch(patRows, true, !isReadOnlyPointsView)
+          : renderPitch(trfRows, false, false)}
 
         {mode === "PAT" ? (
           <div className="fpl-bench">
-            <p className="small-label">Substitutes</p>
+            <p className="small-label">{t("team.bench.title")}</p>
             <div className="bench-grid">
               {Array.from({ length: SUBSTITUTE_SIZE }).map((_, index) => {
                 const playerId = lineup?.substituteIds[index];
@@ -2100,10 +2292,13 @@ export const TeamBuilderPage = () => {
                       key={`bench-${index}`}
                       type="button"
                       className={`bench-card empty-slot player-card-button pick-slot-button ${
-                        substitutionSourcePlayerId ? "empty-slot-disabled" : ""
+                        substitutionSourcePlayerId || isReadOnlyPointsView ? "empty-slot-disabled" : ""
                       }`}
-                      disabled={Boolean(substitutionSourcePlayerId)}
+                      disabled={Boolean(substitutionSourcePlayerId) || isReadOnlyPointsView}
                       onClick={() => {
+                        if (isReadOnlyPointsView) {
+                          return;
+                        }
                         setSelectedPlayerId(null);
                         openPlayerPicker({
                           zone: "BENCH",
@@ -2111,7 +2306,7 @@ export const TeamBuilderPage = () => {
                         });
                       }}
                     >
-                      {`Pick ${benchPosition}`}
+                      {t("team.pickSlot", { slot: benchPosition })}
                     </button>
                   );
                 }
@@ -2123,10 +2318,10 @@ export const TeamBuilderPage = () => {
                     className={`bench-card player-card-button ${
                       interaction?.visualState === "source" ? "player-card-source" : ""
                     } ${interaction?.visualState === "target" ? "player-card-target" : ""} ${
-                      interaction?.disabled ? "player-card-disabled" : ""
+                      interaction?.disabled || isReadOnlyPointsView ? "player-card-disabled" : ""
                     }`}
-                    onClick={interaction?.onClick}
-                    disabled={interaction?.disabled}
+                    onClick={isReadOnlyPointsView ? undefined : interaction?.onClick}
+                    disabled={interaction?.disabled || isReadOnlyPointsView}
 	                  >
 	                    <div className="player-price-chip">£{player.price.toFixed(1)}m</div>
 	                    <div className="shirt-holder">
@@ -2141,7 +2336,10 @@ export const TeamBuilderPage = () => {
 	                    </div>
 	                    <div className="player-info-chip">
 	                      <div className="player-name-chip">{shortName(player.name)}</div>
-                      <div className="player-fixture-chip">{`Bench ${player.position}`}</div>
+                      <div className="player-fixture-chip">{t("team.bench.position", { position: player.position })}</div>
+                      {isReadOnlyPointsView ? (
+                        <div className="player-total-chip">{resolvePlayerPointsLabel(player.id)}</div>
+                      ) : null}
                     </div>
                   </button>
                 );
@@ -2151,9 +2349,28 @@ export const TeamBuilderPage = () => {
         ) : null}
       </Card>
 
-      {selectedPlayer ? (
-        <div className="player-modal-overlay" onClick={() => setSelectedPlayerId(null)}>
-          <Card className="player-modal card" onClick={(event) => event.stopPropagation()}>
+      <AnimatePresence>
+        {selectedPlayer ? (
+          <motion.div
+            className="player-modal-overlay"
+            onClick={() => setSelectedPlayerId(null)}
+            initial={reduceMotion ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={reduceMotion ? { duration: 0 } : { duration: 0.16, ease: "easeOut" }}
+          >
+            <motion.div
+              onClick={(event) => event.stopPropagation()}
+              initial={reduceMotion ? false : { opacity: 0, y: 10, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 6, scale: 0.985 }}
+              transition={
+                reduceMotion
+                  ? { duration: 0 }
+                  : { type: "spring", stiffness: 360, damping: 32, mass: 0.9 }
+              }
+            >
+              <Card className="player-modal card">
             <Button
               type="button"
               variant="secondary"
@@ -2161,8 +2378,8 @@ export const TeamBuilderPage = () => {
               className="player-modal-close"
               onClick={() => setSelectedPlayerId(null)}
             >
-              Close
-            </Button>
+	              {t("team.modal.close")}
+	            </Button>
 
             <div className="player-modal-hero">
               <div className="player-portrait">
@@ -2256,32 +2473,32 @@ export const TeamBuilderPage = () => {
             </div>
 
             {isSelectedPlayerDetailsLoading ? (
-              <LoadingState label="Loading backend player details" inline compact />
-            ) : null}
+	              <LoadingState label={t("team.modal.loadingDetails")} inline compact />
+	            ) : null}
 
             <div className="player-modal-stats">
               <article className="modal-stat-card">
-                <p>Price</p>
-                <strong>£{selectedPlayerStats?.price ?? "-"}</strong>
-              </article>
-              <article className="modal-stat-card">
-                <p>Point / Match</p>
-                <strong>{selectedPlayerStats?.pointPerMatch ?? "-"}</strong>
-              </article>
-              <article className="modal-stat-card">
-                <p>Form</p>
-                <strong>{selectedPlayerStats?.form ?? "-"}</strong>
-              </article>
-              <article className="modal-stat-card">
-                <p>Selected %</p>
-                <strong>{selectedPlayerStats?.selectedPercentage ?? "-"}</strong>
-              </article>
+	                <p>{t("team.modal.price")}</p>
+	                <strong>£{selectedPlayerStats?.price ?? "-"}</strong>
+	              </article>
+	              <article className="modal-stat-card">
+	                <p>{t("team.modal.pointPerMatch")}</p>
+	                <strong>{selectedPlayerStats?.pointPerMatch ?? "-"}</strong>
+	              </article>
+	              <article className="modal-stat-card">
+	                <p>{t("team.modal.form")}</p>
+	                <strong>{selectedPlayerStats?.form ?? "-"}</strong>
+	              </article>
+	              <article className="modal-stat-card">
+	                <p>{t("team.modal.selected")}</p>
+	                <strong>{selectedPlayerStats?.selectedPercentage ?? "-"}</strong>
+	              </article>
             </div>
 
             {isFullProfileVisible ? (
               <>
                 <div className="player-modal-fixtures">
-                  <h4>Player Profile (Backend)</h4>
+	                  <h4>{t("team.modal.backendProfile")}</h4>
                   <div className="player-modal-profile-grid">
                     {selectedPlayerProfileItems.map((item) => (
                       <article key={`profile-${item.label}`} className="modal-stat-card">
@@ -2294,7 +2511,7 @@ export const TeamBuilderPage = () => {
 
                 {selectedPlayerSeasonStats.length > 0 ? (
                   <div className="player-modal-fixtures">
-                    <h4>Season Stats (Backend)</h4>
+	                    <h4>{t("team.modal.backendSeasonStats")}</h4>
                     <div className="player-modal-profile-grid">
                       {selectedPlayerSeasonStats.map((item) => (
                         <article key={`season-${item.label}`} className="modal-stat-card">
@@ -2308,34 +2525,34 @@ export const TeamBuilderPage = () => {
 
                 {selectedPlayerDetails?.history && selectedPlayerDetails.history.length > 0 ? (
                   <div className="player-modal-fixtures">
-                    <h4>Recent Matches (Backend)</h4>
+	                    <h4>{t("team.modal.backendRecentMatches")}</h4>
                     <div className="fixture-strip">
                       {selectedPlayerDetails.history.slice(0, 5).map((item) => (
                         <article key={`history-${item.fixtureId}-${item.gameweek}`} className="fixture-pill">
-                          <p>GW {item.gameweek}</p>
-                          <strong>
-                            {item.opponent} ({item.homeAway === "home" ? "H" : "A"})
-                          </strong>
-                          <span>{item.points} pts</span>
-                        </article>
+	                          <p>{t("dashboard.gwLabel", { gameweek: item.gameweek })}</p>
+	                          <strong>
+	                            {item.opponent} ({item.homeAway === "home" ? t("team.modal.homeShort") : t("team.modal.awayShort")})
+	                          </strong>
+	                          <span>{item.points} pts</span>
+	                        </article>
                       ))}
                     </div>
                   </div>
                 ) : null}
               </>
             ) : (
-              <p className="muted">Tap Full Profile to view extended backend profile and season history.</p>
-            )}
+	              <p className="muted">{t("team.modal.profileHint")}</p>
+	            )}
 
-            <div className="player-modal-fixtures">
-              <h4>Incoming Fixtures</h4>
+	            <div className="player-modal-fixtures">
+	              <h4>{t("team.modal.incomingFixtures")}</h4>
               <div className="fixture-strip">
                 {fixtureStrip.map((item) => (
                   <article
                     key={`gw-${item.gw}`}
                     className={`fixture-pill ${item.isCurrent ? "current" : ""}`}
                   >
-                    <p>GW {item.gw}</p>
+	                    <p>{t("dashboard.gwLabel", { gameweek: item.gw })}</p>
                     <strong>{item.label}</strong>
                     <span>
                       {item.points !== null ? `${item.points.toFixed(1)} pts` : "-"}
@@ -2353,8 +2570,8 @@ export const TeamBuilderPage = () => {
                   disabled={!selectedPlayerIsStarter}
                   onChange={(event) => onCaptainChange(event.target.checked)}
                 />
-                Captain
-              </label>
+	                {t("team.modal.captain")}
+	              </label>
 
               <label>
                 <input
@@ -2363,13 +2580,13 @@ export const TeamBuilderPage = () => {
                   disabled={!selectedPlayerIsStarter}
                   onChange={(event) => onViceCaptainChange(event.target.checked)}
                 />
-                Vice Captain
-              </label>
+	                {t("team.modal.viceCaptain")}
+	              </label>
             </div>
 
             {selectedPlayerIsBench ? (
-              <p className="muted">Captain and vice captain can only be assigned to starting players.</p>
-            ) : null}
+	              <p className="muted">{t("team.modal.captainNotice")}</p>
+	            ) : null}
 
             <div className="player-modal-actions">
               <Button
@@ -2377,19 +2594,21 @@ export const TeamBuilderPage = () => {
                 variant="secondary"
                 onClick={() => setIsFullProfileVisible((previous) => !previous)}
               >
-                {isFullProfileVisible ? "Hide Full Profile" : "Full Profile"}
-              </Button>
+	                {isFullProfileVisible ? t("team.modal.hideFullProfile") : t("team.modal.fullProfile")}
+	              </Button>
               <Button
                 type="button"
                 onClick={startSubstitutionFromSelectedPlayer}
                 disabled={!selectedPlayerCanSubstitute}
               >
-                {selectedPlayerIsSubstitutionSource ? "Substitution Active" : "Substitutes"}
-              </Button>
+	                {selectedPlayerIsSubstitutionSource ? t("team.modal.substitutionActive") : t("team.modal.substitutes")}
+	              </Button>
             </div>
-          </Card>
-        </div>
-      ) : null}
+              </Card>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
     </div>
   );
 };

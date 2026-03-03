@@ -1,48 +1,16 @@
 import { useMemo } from "react";
-import { useAppSettings } from "./useAppSettings";
+import { useAppSettings, type AppLanguage } from "./useAppSettings";
 
-type TranslationKey =
-  | "nav.home"
-  | "nav.team"
-  | "nav.fixtures"
-  | "nav.leagues"
-  | "nav.settings"
-  | "settings.title"
-  | "settings.subtitle"
-  | "settings.appearance.title"
-  | "settings.appearance.subtitle"
-  | "settings.appearance.system"
-  | "settings.appearance.light"
-  | "settings.appearance.dark"
-  | "settings.language.title"
-  | "settings.language.subtitle"
-  | "settings.language.en"
-  | "settings.language.id"
-  | "settings.experience.title"
-  | "settings.experience.subtitle"
-  | "settings.experience.notifications.title"
-  | "settings.experience.notifications.subtitle"
-  | "settings.experience.deadline.title"
-  | "settings.experience.deadline.subtitle"
-  | "settings.account.title"
-  | "settings.account.subtitle"
-  | "settings.account.fallbackName"
-  | "settings.account.logout"
-  | "alert.notifications.title"
-  | "alert.notifications.unsupported"
-  | "alert.notifications.denied"
-  | "alert.notifications.enabled"
-  | "alert.notifications.disabled"
-  | "alert.logout.title"
-  | "alert.logout.failed";
+type TranslationParams = Record<string, string | number>;
 
-const MESSAGES: Record<"en" | "id", Record<TranslationKey, string>> = {
+const MESSAGES: Record<AppLanguage, Record<string, string>> = {
   en: {
     "nav.home": "Home",
     "nav.team": "Team",
     "nav.fixtures": "Fixtures",
     "nav.leagues": "Leagues",
     "nav.settings": "Settings",
+
     "settings.title": "App Settings",
     "settings.subtitle": "Personalize the app for speed, focus, and comfort.",
     "settings.appearance.title": "Appearance",
@@ -64,13 +32,189 @@ const MESSAGES: Record<"en" | "id", Record<TranslationKey, string>> = {
     "settings.account.subtitle": "Manage your active session.",
     "settings.account.fallbackName": "Fantasy Manager",
     "settings.account.logout": "Logout",
+
     "alert.notifications.title": "Notifications",
     "alert.notifications.unsupported": "Browser notifications are not supported on this device.",
     "alert.notifications.denied": "Notification permission denied by browser.",
     "alert.notifications.enabled": "Notifications enabled for this browser.",
     "alert.notifications.disabled": "Notifications disabled.",
     "alert.logout.title": "Logout Failed",
-    "alert.logout.failed": "Logout failed."
+    "alert.logout.failed": "Logout failed.",
+
+    "movement.up": "Up",
+    "movement.down": "Down",
+    "movement.same": "Same",
+    "movement.new": "New",
+    "movement.unknown": "Unknown",
+
+    "dashboard.alert.failed.title": "Dashboard Failed",
+    "dashboard.signInRequired": "Please sign in to view your dashboard.",
+    "dashboard.loadFailed": "Failed to load dashboard.",
+    "dashboard.unavailable": "Unable to load dashboard right now. Please refresh and try again.",
+    "dashboard.preparing": "Preparing dashboard data",
+    "dashboard.appName": "Fantasy Nusantara",
+    "dashboard.myTeam": "My Team",
+    "dashboard.leagueFallback": "League",
+    "dashboard.rank": "Rank",
+    "dashboard.points.aria": "Average, squad points, and highest points",
+    "dashboard.points.average": "Average",
+    "dashboard.points.squad": "Squad Points",
+    "dashboard.points.highest": "Highest",
+    "dashboard.actions.pickTeam.title": "Pick Team",
+    "dashboard.actions.pickTeam.subtitle": "Build your squad",
+    "dashboard.actions.transfers.title": "Transfers",
+    "dashboard.actions.transfers.subtitle": "Make changes",
+    "dashboard.customLeagues.title": "Custom Leagues",
+    "dashboard.customLeagues.subtitle": "Your private leagues overview.",
+    "dashboard.customLeagues.seeMore": "See more",
+    "dashboard.customLeagues.empty": "No custom leagues yet.",
+    "dashboard.customLeagues.rankMovement": "Rank #{rank} • Movement {movement}",
+    "dashboard.customLeagues.code": "Code: {code}",
+    "dashboard.news.title": "Latest News",
+    "dashboard.news.subtitle": "Top 2 highlights from the global news feed.",
+    "dashboard.news.seeMore": "See more",
+    "dashboard.fixtures.title.upcoming": "Upcoming Fixtures",
+    "dashboard.fixtures.title.recent": "Recent Fixtures",
+    "dashboard.fixtures.subtitle": "{gw} • {count} matches shown",
+    "dashboard.fixtures.seeMore": "See more",
+    "dashboard.fixtures.empty": "No fixtures found.",
+    "dashboard.gwLabel": "GW {gameweek}",
+    "dashboard.deadline.live": "Live",
+    "dashboard.deadline.daysHoursLeft": "{days}d {hours}h left",
+    "dashboard.deadline.hoursMinutesLeft": "{hours}h {minutes}m left",
+    "dashboard.deadline.minutesLeft": "{minutes}m left",
+    "dashboard.deadline.prefix": "Deadline {timeLeft}",
+
+    "fixtures.alert.title": "Fixtures",
+    "fixtures.alert.standingsTitle": "Standings",
+    "fixtures.defaultLeague": "Liga 1 Indonesia",
+    "fixtures.season": "Season",
+    "fixtures.tab.matches": "Matches",
+    "fixtures.tab.table": "Table",
+    "fixtures.tab.stats": "Stats",
+    "fixtures.matchweek": "Matchweek {gameweek}",
+    "fixtures.filter.allClubs": "All Clubs",
+    "fixtures.filter.reset": "Reset",
+    "fixtures.loading.fixtures": "Loading fixtures",
+    "fixtures.loading.standings": "Loading standings",
+    "fixtures.empty.fixtures": "No fixtures found.",
+    "fixtures.empty.standings": "No standings found.",
+    "fixtures.mode.live": "Live",
+    "fixtures.mode.provisional": "Provisional",
+    "fixtures.mode.official": "Official",
+    "fixtures.snapshot.gw": "Snapshot GW {gameweek}",
+    "fixtures.snapshot.latest": "Snapshot latest",
+    "fixtures.table.club": "Club",
+    "fixtures.table.lastFive": "Last 5",
+    "fixtures.form.aria": "Last five form",
+    "fixtures.form.win": "Win",
+    "fixtures.form.draw": "Draw",
+    "fixtures.form.loss": "Loss",
+    "fixtures.form.noData": "No data",
+    "fixtures.stats.title": "Stats",
+    "fixtures.stats.subtitle": "Advanced match stats and trends will appear here.",
+
+    "fixture.center.vs": "vs",
+    "fixture.status.live": "LIVE",
+    "fixture.status.notStarted": "NOT STARTED",
+
+    "team.pointsView.average": "Average Points View",
+    "team.pointsView.highest": "Highest Points View",
+    "team.pointsView.squad": "Squad Points View",
+    "team.pointsView.total": "Total: {points} pts",
+    "team.pointsView.loading": "loading...",
+    "team.pointsView.topUser": "Top user: {user}",
+    "team.pointsView.back": "Back to Team",
+    "team.chips.pickTeamAria": "Pick Team chips",
+    "team.chips.transfersAria": "Transfers metrics",
+    "team.chips.wildcard": "Wildcard",
+    "team.chips.tripleCaptain": "Triple Captain",
+    "team.chips.freeHit": "Free Hit",
+    "team.chips.benchBoost": "Bench Boost",
+    "team.chips.available": "Available",
+    "team.chips.freeTrf": "Free TRF",
+    "team.chips.pointCost": "Point Cost",
+    "team.chips.budget": "Budget",
+    "team.bulk.cancel": "Cancel",
+    "team.bulk.save": "Save",
+    "team.bulk.saving": "Saving...",
+    "team.substitution.banner": "Swapping {source}. Select a highlighted {target} to continue.",
+    "team.substitution.target.starter": "starter on the field",
+    "team.substitution.target.bench": "bench player",
+    "team.bench.title": "Substitutes",
+    "team.pickSlot": "Pick {slot}",
+    "team.bench.position": "Bench {position}",
+    "team.modal.close": "Close",
+    "team.modal.loadingDetails": "Loading backend player details",
+    "team.modal.price": "Price",
+    "team.modal.pointPerMatch": "Point / Match",
+    "team.modal.form": "Form",
+    "team.modal.selected": "Selected %",
+    "team.modal.backendProfile": "Player Profile (Backend)",
+    "team.modal.backendSeasonStats": "Season Stats (Backend)",
+    "team.modal.backendRecentMatches": "Recent Matches (Backend)",
+    "team.modal.profileHint": "Tap Full Profile to view extended backend profile and season history.",
+    "team.modal.incomingFixtures": "Incoming Fixtures",
+    "team.modal.captain": "Captain",
+    "team.modal.viceCaptain": "Vice Captain",
+    "team.modal.captainNotice": "Captain and vice captain can only be assigned to starting players.",
+    "team.modal.fullProfile": "Full Profile",
+    "team.modal.hideFullProfile": "Hide Full Profile",
+    "team.modal.substitutes": "Substitutes",
+    "team.modal.substitutionActive": "Substitution Active",
+    "team.modal.homeShort": "H",
+    "team.modal.awayShort": "A",
+
+    "customLeagues.title": "Custom Leagues",
+    "customLeagues.subtitle": "All your custom leagues with rank and movement.",
+    "customLeagues.count": "{count} leagues",
+    "customLeagues.create.title": "Create Custom League",
+    "customLeagues.create.subtitle": "Create a private league and share invite code/link.",
+    "customLeagues.create.league": "League: {league}",
+    "customLeagues.create.nameLabel": "League Name",
+    "customLeagues.create.namePlaceholder": "e.g. Bandung Weekend League",
+    "customLeagues.create.button": "Create",
+    "customLeagues.create.creating": "Creating...",
+    "customLeagues.join.title": "Join By Invite",
+    "customLeagues.join.subtitle": "Paste invite code or invite link.",
+    "customLeagues.join.inputLabel": "Invite Code / Link",
+    "customLeagues.join.placeholder": "e.g. WARRIOR8 or https://.../custom-leagues?invite=WARRIOR8",
+    "customLeagues.join.button": "Join",
+    "customLeagues.join.joining": "Joining...",
+    "customLeagues.loading": "Loading custom leagues",
+    "customLeagues.empty": "No custom leagues found.",
+    "customLeagues.league": "League: {league}",
+    "customLeagues.rank": "My Rank: {rank}",
+    "customLeagues.inviteCode": "Invite Code: {code}",
+    "customLeagues.open": "Open",
+    "customLeagues.copyCode": "Copy Code",
+    "customLeagues.copyLink": "Copy Link",
+    "customLeagues.copy.success": "{label} copied.",
+    "customLeagues.copy.failed": "Failed to copy {label}.",
+    "customLeagues.alert.error": "Custom League Error",
+    "customLeagues.alert.info": "Custom Leagues",
+    "customLeagues.error.sessionExpired": "Session expired. Please login again.",
+    "customLeagues.error.loadFailed": "Failed to load custom leagues.",
+    "customLeagues.validation.leagueNotReady": "League is not ready yet. Please wait.",
+    "customLeagues.validation.nameRequired": "Custom league name is required.",
+    "customLeagues.validation.inviteRequired": "Invite code is required.",
+    "customLeagues.action.created": "Custom league created. Invite code: {code}",
+    "customLeagues.action.joined": "Joined \"{name}\".",
+    "customLeagues.error.createFailed": "Failed to create custom league.",
+    "customLeagues.error.joinFailed": "Failed to join custom league.",
+
+    "customLeagueStandings.errorTitle": "Standings Load Failed",
+    "customLeagueStandings.titleFallback": "Custom League",
+    "customLeagueStandings.meta": "Invite Code: {code} • Last Calculated: {calculatedAt}",
+    "customLeagueStandings.back": "Back",
+    "customLeagueStandings.sessionExpired": "Session expired. Please login again.",
+    "customLeagueStandings.groupMissing": "Group id is missing.",
+    "customLeagueStandings.loading": "Loading standings",
+    "customLeagueStandings.empty": "No standings data yet.",
+    "customLeagueStandings.table.rank": "Rank",
+    "customLeagueStandings.table.teamName": "Team Name",
+    "customLeagueStandings.table.rankMovement": "Rank Movement",
+    "customLeagueStandings.table.points": "Fantasy Squad Point"
   },
   id: {
     "nav.home": "Beranda",
@@ -78,6 +222,7 @@ const MESSAGES: Record<"en" | "id", Record<TranslationKey, string>> = {
     "nav.fixtures": "Jadwal",
     "nav.leagues": "Liga",
     "nav.settings": "Pengaturan",
+
     "settings.title": "Pengaturan Aplikasi",
     "settings.subtitle": "Atur aplikasi agar lebih cepat, fokus, dan nyaman dipakai.",
     "settings.appearance.title": "Tampilan",
@@ -99,14 +244,204 @@ const MESSAGES: Record<"en" | "id", Record<TranslationKey, string>> = {
     "settings.account.subtitle": "Kelola sesi akun aktif.",
     "settings.account.fallbackName": "Fantasy Manager",
     "settings.account.logout": "Keluar",
+
     "alert.notifications.title": "Notifikasi",
     "alert.notifications.unsupported": "Notifikasi browser tidak didukung di perangkat ini.",
     "alert.notifications.denied": "Izin notifikasi ditolak oleh browser.",
     "alert.notifications.enabled": "Notifikasi berhasil diaktifkan untuk browser ini.",
     "alert.notifications.disabled": "Notifikasi dinonaktifkan.",
     "alert.logout.title": "Keluar Gagal",
-    "alert.logout.failed": "Gagal keluar."
+    "alert.logout.failed": "Gagal keluar.",
+
+    "movement.up": "Naik",
+    "movement.down": "Turun",
+    "movement.same": "Tetap",
+    "movement.new": "Baru",
+    "movement.unknown": "Tidak diketahui",
+
+    "dashboard.alert.failed.title": "Dashboard Gagal",
+    "dashboard.signInRequired": "Silakan login untuk melihat dashboard.",
+    "dashboard.loadFailed": "Gagal memuat dashboard.",
+    "dashboard.unavailable": "Dashboard belum bisa dimuat. Silakan refresh lalu coba lagi.",
+    "dashboard.preparing": "Menyiapkan data dashboard",
+    "dashboard.appName": "Fantasy Nusantara",
+    "dashboard.myTeam": "Tim Saya",
+    "dashboard.leagueFallback": "Liga",
+    "dashboard.rank": "Peringkat",
+    "dashboard.points.aria": "Rata-rata, poin skuad, dan poin tertinggi",
+    "dashboard.points.average": "Rata-rata",
+    "dashboard.points.squad": "Poin Skuad",
+    "dashboard.points.highest": "Tertinggi",
+    "dashboard.actions.pickTeam.title": "Pick Team",
+    "dashboard.actions.pickTeam.subtitle": "Susun skuad kamu",
+    "dashboard.actions.transfers.title": "Transfers",
+    "dashboard.actions.transfers.subtitle": "Lakukan perubahan",
+    "dashboard.customLeagues.title": "Liga Kustom",
+    "dashboard.customLeagues.subtitle": "Ringkasan liga privat kamu.",
+    "dashboard.customLeagues.seeMore": "Lihat semua",
+    "dashboard.customLeagues.empty": "Belum ada liga kustom.",
+    "dashboard.customLeagues.rankMovement": "Peringkat #{rank} • Pergerakan {movement}",
+    "dashboard.customLeagues.code": "Kode: {code}",
+    "dashboard.news.title": "Berita Terbaru",
+    "dashboard.news.subtitle": "2 sorotan utama dari berita global.",
+    "dashboard.news.seeMore": "Lihat semua",
+    "dashboard.fixtures.title.upcoming": "Jadwal Mendatang",
+    "dashboard.fixtures.title.recent": "Jadwal Terakhir",
+    "dashboard.fixtures.subtitle": "{gw} • {count} pertandingan tampil",
+    "dashboard.fixtures.seeMore": "Lihat semua",
+    "dashboard.fixtures.empty": "Tidak ada jadwal.",
+    "dashboard.gwLabel": "GW {gameweek}",
+    "dashboard.deadline.live": "Live",
+    "dashboard.deadline.daysHoursLeft": "{days}h {hours}j tersisa",
+    "dashboard.deadline.hoursMinutesLeft": "{hours}j {minutes}m tersisa",
+    "dashboard.deadline.minutesLeft": "{minutes}m tersisa",
+    "dashboard.deadline.prefix": "Deadline {timeLeft}",
+
+    "fixtures.alert.title": "Jadwal",
+    "fixtures.alert.standingsTitle": "Klasemen",
+    "fixtures.defaultLeague": "Liga 1 Indonesia",
+    "fixtures.season": "Musim",
+    "fixtures.tab.matches": "Pertandingan",
+    "fixtures.tab.table": "Klasemen",
+    "fixtures.tab.stats": "Statistik",
+    "fixtures.matchweek": "Pekan {gameweek}",
+    "fixtures.filter.allClubs": "Semua Klub",
+    "fixtures.filter.reset": "Reset",
+    "fixtures.loading.fixtures": "Memuat jadwal",
+    "fixtures.loading.standings": "Memuat klasemen",
+    "fixtures.empty.fixtures": "Tidak ada jadwal.",
+    "fixtures.empty.standings": "Tidak ada data klasemen.",
+    "fixtures.mode.live": "Live",
+    "fixtures.mode.provisional": "Sementara",
+    "fixtures.mode.official": "Resmi",
+    "fixtures.snapshot.gw": "Snapshot GW {gameweek}",
+    "fixtures.snapshot.latest": "Snapshot terbaru",
+    "fixtures.table.club": "Klub",
+    "fixtures.table.lastFive": "5 Terakhir",
+    "fixtures.form.aria": "Form lima pertandingan terakhir",
+    "fixtures.form.win": "Menang",
+    "fixtures.form.draw": "Imbang",
+    "fixtures.form.loss": "Kalah",
+    "fixtures.form.noData": "Tidak ada data",
+    "fixtures.stats.title": "Statistik",
+    "fixtures.stats.subtitle": "Statistik lanjutan dan tren pertandingan akan muncul di sini.",
+
+    "fixture.center.vs": "vs",
+    "fixture.status.live": "LIVE",
+    "fixture.status.notStarted": "BELUM MULAI",
+
+    "team.pointsView.average": "Tampilan Poin Rata-rata",
+    "team.pointsView.highest": "Tampilan Poin Tertinggi",
+    "team.pointsView.squad": "Tampilan Poin Skuad",
+    "team.pointsView.total": "Total: {points} poin",
+    "team.pointsView.loading": "memuat...",
+    "team.pointsView.topUser": "Pengguna teratas: {user}",
+    "team.pointsView.back": "Kembali ke Tim",
+    "team.chips.pickTeamAria": "Chip Pick Team",
+    "team.chips.transfersAria": "Metrik transfer",
+    "team.chips.wildcard": "Wildcard",
+    "team.chips.tripleCaptain": "Triple Captain",
+    "team.chips.freeHit": "Free Hit",
+    "team.chips.benchBoost": "Bench Boost",
+    "team.chips.available": "Tersedia",
+    "team.chips.freeTrf": "TRF Gratis",
+    "team.chips.pointCost": "Biaya Poin",
+    "team.chips.budget": "Budget",
+    "team.bulk.cancel": "Batal",
+    "team.bulk.save": "Simpan",
+    "team.bulk.saving": "Menyimpan...",
+    "team.substitution.banner": "Menukar {source}. Pilih {target} yang disorot untuk melanjutkan.",
+    "team.substitution.target.starter": "starter di lapangan",
+    "team.substitution.target.bench": "pemain bench",
+    "team.bench.title": "Pemain Cadangan",
+    "team.pickSlot": "Pilih {slot}",
+    "team.bench.position": "Cadangan {position}",
+    "team.modal.close": "Tutup",
+    "team.modal.loadingDetails": "Memuat detail pemain dari backend",
+    "team.modal.price": "Harga",
+    "team.modal.pointPerMatch": "Poin / Laga",
+    "team.modal.form": "Form",
+    "team.modal.selected": "Dipilih %",
+    "team.modal.backendProfile": "Profil Pemain (Backend)",
+    "team.modal.backendSeasonStats": "Statistik Musim (Backend)",
+    "team.modal.backendRecentMatches": "Laga Terakhir (Backend)",
+    "team.modal.profileHint": "Tekan Profil Lengkap untuk melihat profil backend dan riwayat musim.",
+    "team.modal.incomingFixtures": "Jadwal Mendatang",
+    "team.modal.captain": "Kapten",
+    "team.modal.viceCaptain": "Wakil Kapten",
+    "team.modal.captainNotice": "Kapten dan wakil kapten hanya bisa untuk pemain starter.",
+    "team.modal.fullProfile": "Profil Lengkap",
+    "team.modal.hideFullProfile": "Sembunyikan Profil",
+    "team.modal.substitutes": "Substitusi",
+    "team.modal.substitutionActive": "Mode Substitusi Aktif",
+    "team.modal.homeShort": "K",
+    "team.modal.awayShort": "T",
+
+    "customLeagues.title": "Liga Kustom",
+    "customLeagues.subtitle": "Semua liga kustom kamu dengan peringkat dan pergerakan.",
+    "customLeagues.count": "{count} liga",
+    "customLeagues.create.title": "Buat Liga Kustom",
+    "customLeagues.create.subtitle": "Buat liga privat dan bagikan kode/link undangan.",
+    "customLeagues.create.league": "Liga: {league}",
+    "customLeagues.create.nameLabel": "Nama Liga",
+    "customLeagues.create.namePlaceholder": "contoh: Bandung Weekend League",
+    "customLeagues.create.button": "Buat",
+    "customLeagues.create.creating": "Membuat...",
+    "customLeagues.join.title": "Gabung via Undangan",
+    "customLeagues.join.subtitle": "Tempel kode undangan atau link undangan.",
+    "customLeagues.join.inputLabel": "Kode / Link Undangan",
+    "customLeagues.join.placeholder": "contoh: WARRIOR8 atau https://.../custom-leagues?invite=WARRIOR8",
+    "customLeagues.join.button": "Gabung",
+    "customLeagues.join.joining": "Menggabungkan...",
+    "customLeagues.loading": "Memuat liga kustom",
+    "customLeagues.empty": "Belum ada liga kustom.",
+    "customLeagues.league": "Liga: {league}",
+    "customLeagues.rank": "Peringkat Saya: {rank}",
+    "customLeagues.inviteCode": "Kode Undangan: {code}",
+    "customLeagues.open": "Buka",
+    "customLeagues.copyCode": "Salin Kode",
+    "customLeagues.copyLink": "Salin Link",
+    "customLeagues.copy.success": "{label} berhasil disalin.",
+    "customLeagues.copy.failed": "Gagal menyalin {label}.",
+    "customLeagues.alert.error": "Error Liga Kustom",
+    "customLeagues.alert.info": "Liga Kustom",
+    "customLeagues.error.sessionExpired": "Sesi habis. Silakan login kembali.",
+    "customLeagues.error.loadFailed": "Gagal memuat liga kustom.",
+    "customLeagues.validation.leagueNotReady": "Liga belum siap. Silakan tunggu.",
+    "customLeagues.validation.nameRequired": "Nama liga kustom wajib diisi.",
+    "customLeagues.validation.inviteRequired": "Kode undangan wajib diisi.",
+    "customLeagues.action.created": "Liga kustom berhasil dibuat. Kode undangan: {code}",
+    "customLeagues.action.joined": "Berhasil bergabung ke \"{name}\".",
+    "customLeagues.error.createFailed": "Gagal membuat liga kustom.",
+    "customLeagues.error.joinFailed": "Gagal bergabung ke liga kustom.",
+
+    "customLeagueStandings.errorTitle": "Gagal Memuat Klasemen",
+    "customLeagueStandings.titleFallback": "Liga Kustom",
+    "customLeagueStandings.meta": "Kode Undangan: {code} • Hitung Terakhir: {calculatedAt}",
+    "customLeagueStandings.back": "Kembali",
+    "customLeagueStandings.sessionExpired": "Sesi habis. Silakan login kembali.",
+    "customLeagueStandings.groupMissing": "ID grup tidak ditemukan.",
+    "customLeagueStandings.loading": "Memuat klasemen",
+    "customLeagueStandings.empty": "Belum ada data klasemen.",
+    "customLeagueStandings.table.rank": "Peringkat",
+    "customLeagueStandings.table.teamName": "Nama Tim",
+    "customLeagueStandings.table.rankMovement": "Pergerakan Peringkat",
+    "customLeagueStandings.table.points": "Poin Skuad Fantasy"
   }
+};
+
+const replaceParams = (template: string, params?: TranslationParams): string => {
+  if (!params) {
+    return template;
+  }
+
+  return template.replace(/\{([a-zA-Z0-9_]+)\}/g, (_, key: string) => {
+    if (!(key in params)) {
+      return `{${key}}`;
+    }
+
+    return String(params[key]);
+  });
 };
 
 export const useI18n = () => {
@@ -115,13 +450,19 @@ export const useI18n = () => {
   } = useAppSettings();
 
   const t = useMemo(() => {
-    return (key: TranslationKey): string => {
-      return MESSAGES[language][key] ?? MESSAGES.en[key] ?? key;
+    return (key: string, params?: TranslationParams): string => {
+      const template = MESSAGES[language][key] ?? MESSAGES.en[key] ?? key;
+      return replaceParams(template, params);
     };
   }, [language]);
 
+  const locale = language === "id" ? "id-ID" : "en-US";
+  const dateLocale = language === "id" ? "id-ID" : "en-GB";
+
   return {
     language,
+    locale,
+    dateLocale,
     t
   };
 };

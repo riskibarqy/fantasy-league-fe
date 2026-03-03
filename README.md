@@ -63,6 +63,7 @@ Copy `.env.example` to `.env` and adjust:
 
 - `NEXT_PUBLIC_USE_MOCKS=true` to use mock repositories (default, backend not required)
 - `NEXT_PUBLIC_USE_MOCKS=false` to call real services
+- `NEXT_PUBLIC_SKIP_ONBOARDING_DEV=true` to bypass onboarding checks during local development only
 - `NEXT_PUBLIC_ANUBIS_BASE_URL` points to `../../rust/anubis` runtime URL
 - `NEXT_PUBLIC_ANUBIS_APP_ID` Anubis app UUID used for session endpoints
 - `NEXT_PUBLIC_GOOGLE_CLIENT_ID` Google Identity Services client ID
@@ -78,6 +79,7 @@ Copy `.env.example` to `.env` and adjust:
 Set these Environment Variables in Vercel Project Settings:
 
 - `NEXT_PUBLIC_USE_MOCKS`
+- `NEXT_PUBLIC_SKIP_ONBOARDING_DEV` (optional, recommended `false` in production)
 - `NEXT_PUBLIC_ANUBIS_BASE_URL`
 - `NEXT_PUBLIC_ANUBIS_APP_ID`
 - `NEXT_PUBLIC_GOOGLE_CLIENT_ID`

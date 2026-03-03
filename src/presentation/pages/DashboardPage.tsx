@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, CalendarDays, Newspaper, Shield, Trophy, Users } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, CalendarDays, Newspaper, Pickaxe, Users } from "lucide-react";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import { cacheKeys, cacheTtlMs, getOrLoadCached } from "../../app/cache/requestCache";
 import type { Dashboard } from "../../domain/fantasy/entities/Team";
 import type { CustomLeague } from "../../domain/fantasy/entities/CustomLeague";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
+import type { SeasonPointsSummary } from "../../domain/fantasy/entities/SeasonPointsSummary";
 import { FixtureMatchRow } from "../components/FixtureMatchRow";
 import { LazyImage } from "../components/LazyImage";
 import { LoadingState } from "../components/LoadingState";
@@ -13,14 +14,15 @@ import { formatRankMovement, RankMovementBadge } from "../components/RankMovemen
 import { getGlobalNewsItems } from "./newsFeed";
 import { useLeagueSelection } from "../hooks/useLeagueSelection";
 import { useSession } from "../hooks/useSession";
+import { useI18n } from "../hooks/useI18n";
 import { appAlert } from "../lib/appAlert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
-const formatDeadlineWindow = (kickoffAt: string): string => {
+const formatDeadlineWindow = (kickoffAt: string, t: (key: string, params?: Record<string, string | number>) => string): string => {
   const diffMs = new Date(kickoffAt).getTime() - Date.now();
   if (diffMs <= 0) {
-    return "Live";
+    return t("dashboard.deadline.live");
   }
 
   const totalMinutes = Math.floor(diffMs / (1000 * 60));
@@ -29,14 +31,14 @@ const formatDeadlineWindow = (kickoffAt: string): string => {
   const minutes = totalMinutes % 60;
 
   if (days > 0) {
-    return `${days}d ${hours}h left`;
+    return t("dashboard.deadline.daysHoursLeft", { days, hours });
   }
 
   if (hours > 0) {
-    return `${hours}h ${minutes}m left`;
+    return t("dashboard.deadline.hoursMinutesLeft", { hours, minutes });
   }
 
-  return `${Math.max(1, minutes)}m left`;
+  return t("dashboard.deadline.minutesLeft", { minutes: Math.max(1, minutes) });
 };
 
 const parseKickoffMs = (kickoffAt: string): number => {
@@ -44,21 +46,31 @@ const parseKickoffMs = (kickoffAt: string): number => {
   return Number.isFinite(value) ? value : Number.POSITIVE_INFINITY;
 };
 
+const formatFantasyPoints = (value: number, fractionDigits = 1): string => {
+  if (!Number.isFinite(value)) {
+    return "-";
+  }
+
+  return value.toFixed(Math.max(0, fractionDigits));
+};
+
 export const DashboardPage = () => {
-  const { getDashboard, getFixtures, getMyCustomLeagues } = useContainer();
+  const { t, locale } = useI18n();
+  const { getDashboard, getFixtures, getMyCustomLeagues, getSeasonPointsSummary } = useContainer();
   const { leagues, selectedLeagueId } = useLeagueSelection();
   const { session } = useSession();
 
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
+  const [seasonPointsSummary, setSeasonPointsSummary] = useState<SeasonPointsSummary | null>(null);
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [customLeagues, setCustomLeagues] = useState<CustomLeague[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (errorMessage) {
-      void appAlert.error("Dashboard Failed", errorMessage);
+      void appAlert.error(t("dashboard.alert.failed.title"), errorMessage);
     }
-  }, [errorMessage]);
+  }, [errorMessage, t]);
 
   useEffect(() => {
     let mounted = true;
@@ -68,46 +80,74 @@ export const DashboardPage = () => {
         const accessToken = session?.accessToken?.trim() ?? "";
         const userId = session?.user.id?.trim() ?? "";
         if (!accessToken || !userId) {
-          throw new Error("Please sign in to view your dashboard.");
+          throw new Error(t("dashboard.signInRequired"));
         }
 
         const dashboardResult = await getOrLoadCached({
           key: cacheKeys.dashboard(userId),
           ttlMs: cacheTtlMs.dashboard,
-          loader: () => getDashboard.execute(accessToken)
+          loader: () => getDashboard.execute(accessToken),
+          allowStaleOnError: true
         });
-        const leagueIdForFixtures = selectedLeagueId || dashboardResult.selectedLeagueId;
-        const fixtureResult = leagueIdForFixtures
-          ? await getOrLoadCached({
-              key: cacheKeys.fixtures(leagueIdForFixtures),
+        if (mounted) {
+          setDashboard(dashboardResult);
+        }
+
+        const leagueIDForHome = selectedLeagueId || dashboardResult.selectedLeagueId;
+        const fixturePromise = leagueIDForHome
+          ? getOrLoadCached({
+              key: cacheKeys.fixtures(leagueIDForHome),
               ttlMs: cacheTtlMs.fixtures,
-              loader: () => getFixtures.execute(leagueIdForFixtures),
+              loader: () => getFixtures.execute(leagueIDForHome),
               allowStaleOnError: true
             })
-          : [];
-        const customLeagueResult =
+          : Promise.resolve<Fixture[]>([]);
+        const summaryPromise = leagueIDForHome
+          ? getOrLoadCached({
+              key: cacheKeys.seasonPointsSummary(userId, leagueIDForHome),
+              ttlMs: cacheTtlMs.seasonPointsSummary,
+              loader: () => getSeasonPointsSummary.execute(leagueIDForHome, accessToken),
+              storage: "memory",
+              allowStaleOnError: false
+            })
+          : Promise.resolve<SeasonPointsSummary | null>(null);
+        const customLeaguePromise =
           accessToken && userId
-            ? await getOrLoadCached({
+            ? getOrLoadCached({
                 key: cacheKeys.customLeagues(userId),
                 ttlMs: cacheTtlMs.customLeagues,
                 loader: () => getMyCustomLeagues.execute(accessToken),
                 allowStaleOnError: true
               })
-            : [];
+            : Promise.resolve<CustomLeague[]>([]);
+
+        const [fixtureResultRaw, summaryResultRaw, customLeagueResultRaw] = await Promise.allSettled([
+          fixturePromise,
+          summaryPromise,
+          customLeaguePromise
+        ]);
 
         if (!mounted) {
           return;
         }
 
-        setDashboard(dashboardResult);
+        const fixtureResult =
+          fixtureResultRaw.status === "fulfilled" ? fixtureResultRaw.value : [];
+        const summaryResult =
+          summaryResultRaw.status === "fulfilled" ? summaryResultRaw.value : null;
+        const customLeagueResult =
+          customLeagueResultRaw.status === "fulfilled" ? customLeagueResultRaw.value : [];
+
+        setSeasonPointsSummary(summaryResult);
         setFixtures(fixtureResult);
         setCustomLeagues(customLeagueResult.slice(0, 3));
+        setErrorMessage(null);
       } catch (error) {
         if (!mounted) {
           return;
         }
 
-        setErrorMessage(error instanceof Error ? error.message : "Failed to load dashboard.");
+        setErrorMessage(error instanceof Error ? error.message : t("dashboard.loadFailed"));
       }
     };
 
@@ -116,7 +156,16 @@ export const DashboardPage = () => {
     return () => {
       mounted = false;
     };
-  }, [getDashboard, getFixtures, getMyCustomLeagues, selectedLeagueId, session?.accessToken, session?.user.id]);
+  }, [
+    getDashboard,
+    getFixtures,
+    getMyCustomLeagues,
+    getSeasonPointsSummary,
+    selectedLeagueId,
+    session?.accessToken,
+    session?.user.id,
+    t
+  ]);
 
   const selectedLeague = useMemo(() => {
     const targetLeagueId = selectedLeagueId || dashboard?.selectedLeagueId;
@@ -163,21 +212,39 @@ export const DashboardPage = () => {
   }, [featuredGameweek, sortedFixtures]);
 
   const headerFixture = nextUpcomingFixture ?? featuredFixtures[0] ?? null;
-  const fixtureSectionLabel = featuredGameweek !== null ? `GW ${featuredGameweek}` : "-";
+  const fixtureSectionLabel = featuredGameweek !== null ? t("dashboard.gwLabel", { gameweek: featuredGameweek }) : "-";
   const fixtureSectionTitle =
-    nextUpcomingFixture || featuredFixtures.length === 0 ? "Upcoming Fixtures" : "Recent Fixtures";
+    nextUpcomingFixture || featuredFixtures.length === 0
+      ? t("dashboard.fixtures.title.upcoming")
+      : t("dashboard.fixtures.title.recent");
   const fixturesLeagueId = selectedLeagueId || dashboard?.selectedLeagueId || "";
 
   const leaguesById = useMemo(() => new Map(leagues.map((league) => [league.id, league])), [leagues]);
 
   const newsItems = useMemo(() => getGlobalNewsItems(2), []);
+  const averagePointsValue = seasonPointsSummary
+    ? formatFantasyPoints(seasonPointsSummary.averagePoints)
+    : dashboard
+      ? formatFantasyPoints(dashboard.averageGwPoints)
+      : "-";
+  const totalPointsValue = seasonPointsSummary
+    ? formatFantasyPoints(seasonPointsSummary.totalPoints, 0)
+    : dashboard
+      ? formatFantasyPoints(dashboard.myGwPoints || dashboard.totalPoints, 0)
+      : "-";
+  const highestPointsValue = seasonPointsSummary
+    ? formatFantasyPoints(seasonPointsSummary.highestPoints, 0)
+    : dashboard
+      ? formatFantasyPoints(dashboard.highestGwPoints, 0)
+      : "-";
+  const rankLabel = dashboard && dashboard.rank > 0 ? `#${dashboard.rank.toLocaleString(locale)}` : "-";
 
   if (!dashboard) {
     if (errorMessage) {
       return (
         <div className="page-grid">
           <Card className="card home-hero">
-            <p className="muted">Unable to load dashboard right now. Please refresh and try again.</p>
+            <p className="muted">{t("dashboard.unavailable")}</p>
           </Card>
         </div>
       );
@@ -186,7 +253,7 @@ export const DashboardPage = () => {
     return (
       <div className="page-grid">
         <Card className="card home-hero">
-          <LoadingState label="Preparing dashboard data" />
+          <LoadingState label={t("dashboard.preparing")} />
           <div className="home-quick-grid">
             <div className="skeleton-card" />
             <div className="skeleton-card" />
@@ -207,54 +274,80 @@ export const DashboardPage = () => {
 
   return (
     <div className="page-grid dashboard-page">
-      <Card className="card home-hero">
-        <div>
-          <h2 className="section-icon-title">
-            <Trophy className="inline-icon" aria-hidden="true" />
-            Home Overview • {selectedLeague?.name ?? "League"}
-          </h2>
-          <p className="muted">
-            Gameweek {dashboard.gameweek}
-            {headerFixture ? ` • Deadline ${formatDeadlineWindow(headerFixture.kickoffAt)}` : ""}
-          </p>
+      <Card className="card menu-home-hero">
+        <div className="menu-home-hero-head">
+          <div>
+            <p className="menu-home-kicker">{t("dashboard.appName")}</p>
+            <h2>{t("dashboard.myTeam")}</h2>
+            <p className="menu-home-subtitle">
+              {t("dashboard.gwLabel", { gameweek: dashboard.gameweek })} • {selectedLeague?.name ?? t("dashboard.leagueFallback")}
+              {headerFixture
+                ? ` • ${t("dashboard.deadline.prefix", { timeLeft: formatDeadlineWindow(headerFixture.kickoffAt, t) })}`
+                : ""}
+            </p>
+          </div>
+          <div className="menu-home-rank-badge">
+            <span>{t("dashboard.rank")}</span>
+            <strong>{rankLabel}</strong>
+          </div>
         </div>
 
-        <div className="home-quick-grid">
-          <Link to="/team" className="home-quick-link">
-            <strong className="quick-link-title">
-              <Shield className="inline-icon" aria-hidden="true" />
-              Manage Team
-            </strong>
-            <small>Edit lineup and transfers</small>
+        <div className="menu-home-points-inline" aria-label={t("dashboard.points.aria")}>
+          <Link to="/pick-team?view=points&metric=average" className="menu-home-point-inline-item menu-home-point-link">
+            <p className="small-label">{t("dashboard.points.average")}</p>
+            <strong>{averagePointsValue}</strong>
           </Link>
-          <Link to="/fixtures" className="home-quick-link">
-            <strong className="quick-link-title">
-              <CalendarDays className="inline-icon" aria-hidden="true" />
-              Fixtures
-            </strong>
-            <small>See match schedule</small>
+          <Link to="/pick-team?view=points&metric=my" className="menu-home-point-inline-item menu-home-point-link">
+            <p className="small-label">{t("dashboard.points.squad")}</p>
+            <strong>{totalPointsValue}</strong>
+          </Link>
+          <Link to="/pick-team?view=points&metric=highest" className="menu-home-point-inline-item menu-home-point-link">
+            <p className="small-label">{t("dashboard.points.highest")}</p>
+            <strong>{highestPointsValue}</strong>
           </Link>
         </div>
+
       </Card>
+
+      <div className="menu-home-actions">
+        <Link to="/pick-team" className="menu-home-action-card">
+          <span className="menu-home-action-icon">
+            <Pickaxe className="inline-icon" aria-hidden="true" />
+          </span>
+          <span className="menu-home-action-copy">
+            <strong>{t("dashboard.actions.pickTeam.title")}</strong>
+            <small>{t("dashboard.actions.pickTeam.subtitle")}</small>
+          </span>
+        </Link>
+        <Link to="/transfers" className="menu-home-action-card">
+          <span className="menu-home-action-icon">
+            <ArrowLeftRight className="inline-icon" aria-hidden="true" />
+          </span>
+          <span className="menu-home-action-copy">
+            <strong>{t("dashboard.actions.transfers.title")}</strong>
+            <small>{t("dashboard.actions.transfers.subtitle")}</small>
+          </span>
+        </Link>
+      </div>
 
       <Card className="card home-news home-fixtures">
         <div className="home-section-head">
           <div className="section-title">
             <h3 className="section-icon-title">
               <Users className="inline-icon" aria-hidden="true" />
-              Custom Leagues
+              {t("dashboard.customLeagues.title")}
             </h3>
-            <p className="muted">Your private leagues overview.</p>
+            <p className="muted">{t("dashboard.customLeagues.subtitle")}</p>
           </div>
           <Button asChild size="sm" variant="secondary" className="home-news-more">
             <Link to="/custom-leagues">
-              See more
+              {t("dashboard.customLeagues.seeMore")}
               <ArrowRight className="inline-icon" aria-hidden="true" />
             </Link>
           </Button>
         </div>
         <div className="home-news-list">
-          {customLeagues.length === 0 ? <p className="muted">No custom leagues yet.</p> : null}
+          {customLeagues.length === 0 ? <p className="muted">{t("dashboard.customLeagues.empty")}</p> : null}
           {customLeagues.map((group) => (
             <article key={group.id} className="home-news-item">
               <strong>{group.name}</strong>
@@ -277,10 +370,13 @@ export const DashboardPage = () => {
                 )}
               </div>
               <p className="muted">
-                Rank #{group.myRank > 0 ? group.myRank : "-"} • Movement {formatRankMovement(group.rankMovement)}
+                {t("dashboard.customLeagues.rankMovement", {
+                  rank: group.myRank > 0 ? group.myRank : "-",
+                  movement: formatRankMovement(group.rankMovement, (key) => t(key))
+                })}
               </p>
               <RankMovementBadge value={group.rankMovement} />
-              <span className="small-label">Code: {group.inviteCode}</span>
+              <span className="small-label">{t("dashboard.customLeagues.code", { code: group.inviteCode })}</span>
             </article>
           ))}
         </div>
@@ -291,13 +387,13 @@ export const DashboardPage = () => {
           <div className="section-title">
             <h3 className="section-icon-title">
               <Newspaper className="inline-icon" aria-hidden="true" />
-              Latest News
+              {t("dashboard.news.title")}
             </h3>
-            <p className="muted">Top 2 highlights from the global news feed.</p>
+            <p className="muted">{t("dashboard.news.subtitle")}</p>
           </div>
           <Button asChild size="sm" variant="secondary" className="home-news-more">
             <Link to="/news">
-              See more
+              {t("dashboard.news.seeMore")}
               <ArrowRight className="inline-icon" aria-hidden="true" />
             </Link>
           </Button>
@@ -320,17 +416,17 @@ export const DashboardPage = () => {
               <CalendarDays className="inline-icon" aria-hidden="true" />
               {fixtureSectionTitle}
             </h3>
-            <p className="muted">{fixtureSectionLabel} • {featuredFixtures.length} matches shown</p>
+            <p className="muted">{t("dashboard.fixtures.subtitle", { gw: fixtureSectionLabel, count: featuredFixtures.length })}</p>
           </div>
           <Button asChild size="sm" variant="secondary" className="home-news-more">
             <Link to="/fixtures">
-              See more
+              {t("dashboard.fixtures.seeMore")}
               <ArrowRight className="inline-icon" aria-hidden="true" />
             </Link>
           </Button>
         </div>
         <div className="home-news-list home-fixtures-list">
-          {featuredFixtures.length === 0 ? <p className="muted">No fixtures found.</p> : null}
+          {featuredFixtures.length === 0 ? <p className="muted">{t("dashboard.fixtures.empty")}</p> : null}
           {featuredFixtures.length > 0 ? (
             <section className="fixtures-v2-day-card home-fixtures-day-card">
               <h4>{fixtureSectionLabel}</h4>

@@ -1,9 +1,23 @@
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
 
-const LIVE_STATUSES = new Set(["LIVE", "IN_PLAY", "HT", "1H", "2H", "ET"]);
+const LIVE_STATUSES = new Set([
+  "LIVE",
+  "IN_PLAY",
+  "INPLAY",
+  "HT",
+  "HALF_TIME",
+  "HALFTIME",
+  "1H",
+  "2H",
+  "ET",
+  "EXTRA_TIME",
+  "BREAK",
+  "INT",
+  "PAUSED"
+]);
 
-const formatMatchTime = (kickoffAt: string): string => {
-  return new Intl.DateTimeFormat("en-GB", {
+const formatMatchTime = (kickoffAt: string, locale = "en-GB"): string => {
+  return new Intl.DateTimeFormat(locale, {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
@@ -13,18 +27,30 @@ const formatMatchTime = (kickoffAt: string): string => {
 
 export const isLiveFixture = (fixture: Fixture): boolean => {
   const status = fixture.status?.trim().toUpperCase() ?? "";
-  return LIVE_STATUSES.has(status) || status.includes("LIVE");
+  return (
+    LIVE_STATUSES.has(status) ||
+    status.includes("LIVE") ||
+    status.includes("IN PLAY") ||
+    status.includes("1ST") ||
+    status.includes("2ND")
+  );
 };
 
-export const formatFixtureCenterLabel = (fixture: Fixture): string => {
+export const formatFixtureCenterLabel = (
+  fixture: Fixture,
+  options?: {
+    locale?: string;
+    liveLabel?: string;
+  }
+): string => {
   const hasScore = typeof fixture.homeScore === "number" && typeof fixture.awayScore === "number";
   if (hasScore) {
     return `${fixture.homeScore} - ${fixture.awayScore}`;
   }
 
   if (isLiveFixture(fixture)) {
-    return fixture.status?.trim() || "LIVE";
+    return fixture.status?.trim() || options?.liveLabel || "LIVE";
   }
 
-  return formatMatchTime(fixture.kickoffAt);
+  return formatMatchTime(fixture.kickoffAt, options?.locale);
 };

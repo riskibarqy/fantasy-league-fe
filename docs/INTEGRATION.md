@@ -13,6 +13,7 @@ Set in `.env`:
 
 ```bash
 NEXT_PUBLIC_USE_MOCKS=false
+NEXT_PUBLIC_SKIP_ONBOARDING_DEV=false
 NEXT_PUBLIC_ANUBIS_BASE_URL=http://localhost:8081
 NEXT_PUBLIC_ANUBIS_APP_ID=00000000-0000-0000-0000-000000000000
 NEXT_PUBLIC_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
@@ -20,6 +21,7 @@ NEXT_PUBLIC_FANTASY_API_BASE_URL=http://localhost:8080
 ```
 
 For Vercel, set the same `NEXT_PUBLIC_*` variables in Project Settings -> Environment Variables.
+`NEXT_PUBLIC_SKIP_ONBOARDING_DEV` is intended for local/dev iteration and should stay `false` in production.
 
 ## Expected Auth Endpoints (Anubis)
 

@@ -1,32 +1,35 @@
-import { appEnv } from "../config/env";
-import { LoginWithPassword } from "../../application/auth/usecases/LoginWithPassword";
+import { GetTopScore } from "@/application/fantasy/usecases/GetTopScore";
 import { LoginWithGoogleIdToken } from "../../application/auth/usecases/LoginWithGoogleIdToken";
+import { LoginWithPassword } from "../../application/auth/usecases/LoginWithPassword";
 import { Logout } from "../../application/auth/usecases/Logout";
-import { CreateCustomLeague } from "../../application/fantasy/usecases/CreateCustomLeague";
 import { CompleteOnboarding } from "../../application/fantasy/usecases/CompleteOnboarding";
+import { CreateCustomLeague } from "../../application/fantasy/usecases/CreateCustomLeague";
+import { GetCustomLeague } from "../../application/fantasy/usecases/GetCustomLeague";
+import { GetCustomLeagueStandings } from "../../application/fantasy/usecases/GetCustomLeagueStandings";
 import { GetDashboard } from "../../application/fantasy/usecases/GetDashboard";
 import { GetFixtureDetails } from "../../application/fantasy/usecases/GetFixtureDetails";
 import { GetFixtures } from "../../application/fantasy/usecases/GetFixtures";
-import { GetLeagueStandings } from "../../application/fantasy/usecases/GetLeagueStandings";
-import { GetCustomLeague } from "../../application/fantasy/usecases/GetCustomLeague";
-import { GetCustomLeagueStandings } from "../../application/fantasy/usecases/GetCustomLeagueStandings";
+import { GetHighestPlayerPointsByGameweek } from "../../application/fantasy/usecases/GetHighestPlayerPointsByGameweek";
 import { GetLeagues } from "../../application/fantasy/usecases/GetLeagues";
+import { GetLeagueStandings } from "../../application/fantasy/usecases/GetLeagueStandings";
 import { GetLineup } from "../../application/fantasy/usecases/GetLineup";
 import { GetMyCustomLeagues } from "../../application/fantasy/usecases/GetMyCustomLeagues";
+import { GetMyPlayerPointsByGameweek } from "../../application/fantasy/usecases/GetMyPlayerPointsByGameweek";
 import { GetMySquad } from "../../application/fantasy/usecases/GetMySquad";
 import { GetPlayerDetails } from "../../application/fantasy/usecases/GetPlayerDetails";
 import { GetPlayers } from "../../application/fantasy/usecases/GetPlayers";
+import { GetSeasonPointsSummary } from "../../application/fantasy/usecases/GetSeasonPointsSummary";
 import { GetTeams } from "../../application/fantasy/usecases/GetTeams";
 import { JoinCustomLeagueByInvite } from "../../application/fantasy/usecases/JoinCustomLeagueByInvite";
 import { PickSquad } from "../../application/fantasy/usecases/PickSquad";
-import { SaveOnboardingFavoriteClub } from "../../application/fantasy/usecases/SaveOnboardingFavoriteClub";
 import { SaveLineup } from "../../application/fantasy/usecases/SaveLineup";
+import { SaveOnboardingFavoriteClub } from "../../application/fantasy/usecases/SaveOnboardingFavoriteClub";
 import { HttpAuthRepository } from "../../infrastructure/auth/HttpAuthRepository";
 import { MockAuthRepository } from "../../infrastructure/auth/MockAuthRepository";
 import { HttpFantasyRepository } from "../../infrastructure/fantasy/HttpFantasyRepository";
 import { MockFantasyRepository } from "../../infrastructure/fantasy/MockFantasyRepository";
 import { HttpClient } from "../../infrastructure/http/httpClient";
-import {GetTopScore} from "@/application/fantasy/usecases/GetTopScore";
+import { appEnv } from "../config/env";
 
 const buildRepositories = () => {
   if (appEnv.useMocks) {
@@ -57,6 +60,9 @@ export const buildContainer = () => {
     getTeams: new GetTeams(repositories.fantasyRepository),
     getFixtures: new GetFixtures(repositories.fantasyRepository),
     getTopScoreDetails: new GetTopScore(repositories.fantasyRepository),
+    getSeasonPointsSummary: new GetSeasonPointsSummary(repositories.fantasyRepository),
+    getMyPlayerPointsByGameweek: new GetMyPlayerPointsByGameweek(repositories.fantasyRepository),
+    getHighestPlayerPointsByGameweek: new GetHighestPlayerPointsByGameweek(repositories.fantasyRepository),
     getLeagueStandings: new GetLeagueStandings(repositories.fantasyRepository),
     getFixtureDetails: new GetFixtureDetails(repositories.fantasyRepository),
     getMyCustomLeagues: new GetMyCustomLeagues(repositories.fantasyRepository),

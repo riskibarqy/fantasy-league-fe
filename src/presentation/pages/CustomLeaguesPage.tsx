@@ -13,6 +13,7 @@ import { LoadingState } from "../components/LoadingState";
 import { RankMovementBadge } from "../components/RankMovementBadge";
 import { useLeagueSelection } from "../hooks/useLeagueSelection";
 import { useSession } from "../hooks/useSession";
+import { useI18n } from "../hooks/useI18n";
 import { appAlert } from "../lib/appAlert";
 
 const sortCustomLeagues = (items: CustomLeague[]): CustomLeague[] => {
@@ -28,6 +29,7 @@ const sortCustomLeagues = (items: CustomLeague[]): CustomLeague[] => {
 };
 
 export const CustomLeaguesPage = () => {
+  const { t } = useI18n();
   const [searchParams] = useSearchParams();
   const { getMyCustomLeagues, createCustomLeague, joinCustomLeagueByInvite } = useContainer();
   const { leagues, selectedLeagueId } = useLeagueSelection();
@@ -50,7 +52,7 @@ export const CustomLeaguesPage = () => {
     async (forceRefresh: boolean) => {
       if (!accessToken || !userId) {
         setGroups([]);
-        setErrorMessage("Session expired. Please login again.");
+        setErrorMessage(t("customLeagues.error.sessionExpired"));
         return;
       }
 
@@ -67,12 +69,12 @@ export const CustomLeaguesPage = () => {
         setGroups(sortCustomLeagues(result));
         setErrorMessage(null);
       } catch (error) {
-        setErrorMessage(error instanceof Error ? error.message : "Failed to load custom leagues.");
+        setErrorMessage(error instanceof Error ? error.message : t("customLeagues.error.loadFailed"));
       } finally {
         setIsLoading(false);
       }
     },
-    [accessToken, getMyCustomLeagues, userId]
+    [accessToken, getMyCustomLeagues, t, userId]
   );
 
   useEffect(() => {
@@ -81,15 +83,15 @@ export const CustomLeaguesPage = () => {
 
   useEffect(() => {
     if (errorMessage) {
-      void appAlert.error("Custom League Error", errorMessage);
+      void appAlert.error(t("customLeagues.alert.error"), errorMessage);
     }
-  }, [errorMessage]);
+  }, [errorMessage, t]);
 
   useEffect(() => {
     if (actionMessage) {
-      void appAlert.info("Custom Leagues", actionMessage);
+      void appAlert.info(t("customLeagues.alert.info"), actionMessage);
     }
-  }, [actionMessage]);
+  }, [actionMessage, t]);
 
   useEffect(() => {
     if (createLeagueId) {
@@ -148,9 +150,9 @@ export const CustomLeaguesPage = () => {
   const copyText = async (value: string, label: string) => {
     try {
       await navigator.clipboard.writeText(value);
-      setActionMessage(`${label} copied.`);
+      setActionMessage(t("customLeagues.copy.success", { label }));
     } catch {
-      setActionMessage(`Failed to copy ${label.toLowerCase()}.`);
+      setActionMessage(t("customLeagues.copy.failed", { label }));
     }
   };
 
@@ -158,15 +160,15 @@ export const CustomLeaguesPage = () => {
     const leagueId = createLeagueId.trim();
     const name = createName.trim();
     if (!leagueId) {
-      setActionMessage("League is not ready yet. Please wait.");
+      setActionMessage(t("customLeagues.validation.leagueNotReady"));
       return;
     }
     if (!name) {
-      setActionMessage("Custom league name is required.");
+      setActionMessage(t("customLeagues.validation.nameRequired"));
       return;
     }
     if (!accessToken || !userId) {
-      setActionMessage("Session expired. Please login again.");
+      setActionMessage(t("customLeagues.error.sessionExpired"));
       return;
     }
 
@@ -183,9 +185,9 @@ export const CustomLeaguesPage = () => {
       invalidateCached(cacheKeys.customLeagues(userId));
       await loadGroups(true);
       setCreateName("");
-      setActionMessage(`Custom league created. Invite code: ${created.inviteCode}`);
+      setActionMessage(t("customLeagues.action.created", { code: created.inviteCode }));
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to create custom league.";
+      const message = error instanceof Error ? error.message : t("customLeagues.error.createFailed");
       setActionMessage(message);
     } finally {
       setIsCreateLoading(false);
@@ -195,11 +197,11 @@ export const CustomLeaguesPage = () => {
   const onJoin = async () => {
     const inviteCode = extractInviteCode(joinValue);
     if (!inviteCode) {
-      setActionMessage("Invite code is required.");
+      setActionMessage(t("customLeagues.validation.inviteRequired"));
       return;
     }
     if (!accessToken || !userId) {
-      setActionMessage("Session expired. Please login again.");
+      setActionMessage(t("customLeagues.error.sessionExpired"));
       return;
     }
 
@@ -213,9 +215,9 @@ export const CustomLeaguesPage = () => {
 
       await loadGroups(true);
       setJoinValue(inviteCode);
-      setActionMessage(`Joined "${joined.name}".`);
+      setActionMessage(t("customLeagues.action.joined", { name: joined.name }));
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to join custom league.";
+      const message = error instanceof Error ? error.message : t("customLeagues.error.joinFailed");
       setActionMessage(message);
     } finally {
       setIsJoinLoading(false);
@@ -227,27 +229,29 @@ export const CustomLeaguesPage = () => {
       <section className="card page-section">
         <div className="home-section-head">
           <div className="section-title">
-            <h2>Custom Leagues</h2>
-            <p className="muted">All your custom leagues with rank and movement.</p>
+            <h2>{t("customLeagues.title")}</h2>
+            <p className="muted">{t("customLeagues.subtitle")}</p>
           </div>
-          <span className="small-label">{leagueCount} leagues</span>
+          <span className="small-label">{t("customLeagues.count", { count: leagueCount })}</span>
         </div>
       </section>
 
       <section className="card page-section">
         <div className="custom-league-actions-grid">
           <article className="custom-league-action-card">
-            <h3>Create Custom League</h3>
-            <p className="muted">Create a private league and share invite code/link.</p>
-            <p className="small-label">League: {(leaguesById.get(createLeagueId)?.name ?? createLeagueId) || "-"}</p>
+            <h3>{t("customLeagues.create.title")}</h3>
+            <p className="muted">{t("customLeagues.create.subtitle")}</p>
+            <p className="small-label">
+              {t("customLeagues.create.league", { league: (leaguesById.get(createLeagueId)?.name ?? createLeagueId) || "-" })}
+            </p>
             <div className="page-filter-grid">
               <label>
-                League Name
+                {t("customLeagues.create.nameLabel")}
                 <input
                   type="text"
                   value={createName}
                   onChange={(event) => setCreateName(event.target.value)}
-                  placeholder="e.g. Bandung Weekend League"
+                  placeholder={t("customLeagues.create.namePlaceholder")}
                   maxLength={120}
                 />
               </label>
@@ -259,21 +263,21 @@ export const CustomLeaguesPage = () => {
                 onClick={() => void onCreate()}
                 disabled={isCreateLoading}
               >
-                {isCreateLoading ? "Creating..." : "Create"}
+                {isCreateLoading ? t("customLeagues.create.creating") : t("customLeagues.create.button")}
               </button>
             </div>
           </article>
 
           <article className="custom-league-action-card">
-            <h3>Join By Invite</h3>
-            <p className="muted">Paste invite code or invite link.</p>
+            <h3>{t("customLeagues.join.title")}</h3>
+            <p className="muted">{t("customLeagues.join.subtitle")}</p>
             <label>
-              Invite Code / Link
+              {t("customLeagues.join.inputLabel")}
               <input
                 type="text"
                 value={joinValue}
                 onChange={(event) => setJoinValue(event.target.value)}
-                placeholder="e.g. WARRIOR8 or https://.../custom-leagues?invite=WARRIOR8"
+                placeholder={t("customLeagues.join.placeholder")}
               />
             </label>
             <div className="team-picker-actions">
@@ -283,7 +287,7 @@ export const CustomLeaguesPage = () => {
                 onClick={() => void onJoin()}
                 disabled={isJoinLoading}
               >
-                {isJoinLoading ? "Joining..." : "Join"}
+                {isJoinLoading ? t("customLeagues.join.joining") : t("customLeagues.join.button")}
               </button>
             </div>
           </article>
@@ -292,9 +296,9 @@ export const CustomLeaguesPage = () => {
       </section>
 
       <section className="card page-section">
-        {isLoading ? <LoadingState label="Loading custom leagues" /> : null}
+        {isLoading ? <LoadingState label={t("customLeagues.loading")} /> : null}
 
-        {!isLoading && groups.length === 0 ? <p className="muted">No custom leagues found.</p> : null}
+        {!isLoading && groups.length === 0 ? <p className="muted">{t("customLeagues.empty")}</p> : null}
 
         <div className="custom-leagues-grid">
           {groups.map((group) => (
@@ -321,28 +325,30 @@ export const CustomLeaguesPage = () => {
                   </span>
                 )}
                 <div className="media-copy">
-                  <p className="muted">League: {leaguesById.get(group.leagueId)?.name ?? group.leagueId}</p>
+                  <p className="muted">
+                    {t("customLeagues.league", { league: leaguesById.get(group.leagueId)?.name ?? group.leagueId })}
+                  </p>
                 </div>
               </div>
-              <p className="muted">My Rank: {group.myRank > 0 ? `#${group.myRank}` : "-"}</p>
-              <p className="small-label">Invite Code: {group.inviteCode}</p>
+              <p className="muted">{t("customLeagues.rank", { rank: group.myRank > 0 ? `#${group.myRank}` : "-" })}</p>
+              <p className="small-label">{t("customLeagues.inviteCode", { code: group.inviteCode })}</p>
               <div className="custom-league-item-actions">
                 <Link to={`/custom-leagues/${group.id}`} className="secondary-button home-news-more">
-                  Open
+                  {t("customLeagues.open")}
                 </Link>
                 <button
                   type="button"
                   className="ghost-button"
-                  onClick={() => void copyText(group.inviteCode, "Invite code")}
+                  onClick={() => void copyText(group.inviteCode, t("customLeagues.copyCode"))}
                 >
-                  Copy Code
+                  {t("customLeagues.copyCode")}
                 </button>
                 <button
                   type="button"
                   className="ghost-button"
-                  onClick={() => void copyText(buildInviteLink(group.inviteCode), "Invite link")}
+                  onClick={() => void copyText(buildInviteLink(group.inviteCode), t("customLeagues.copyLink"))}
                 >
-                  Copy Link
+                  {t("customLeagues.copyLink")}
                 </button>
               </div>
             </article>

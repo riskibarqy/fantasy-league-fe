@@ -17,4 +17,7 @@ export type Dashboard = {
   totalPoints: number;
   rank: number;
   selectedLeagueId: string;
+  averageGwPoints: number;
+  myGwPoints: number;
+  highestGwPoints: number;
 };

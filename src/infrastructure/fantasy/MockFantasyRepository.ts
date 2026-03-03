@@ -14,6 +14,8 @@ import type {
   SaveFavoriteClubInput
 } from "../../domain/fantasy/entities/Onboarding";
 import type { PickSquadInput, Squad } from "../../domain/fantasy/entities/Squad";
+import type { SeasonPointsSummary } from "../../domain/fantasy/entities/SeasonPointsSummary";
+import type { UserGameweekPoints } from "../../domain/fantasy/entities/UserGameweekPoints";
 import type {
   CreateCustomLeagueInput,
   CustomLeague,
@@ -57,27 +59,95 @@ export class MockFantasyRepository implements FantasyRepository {
     return mockFixtures.filter((fixture) => fixture.leagueId === leagueId);
   }
 
+  async getSeasonPointsSummary(
+    leagueId: string,
+    _accessToken: string
+  ): Promise<SeasonPointsSummary> {
+    await delay(160);
+    return {
+      leagueId,
+      userId: "mock-user",
+      totalPoints: mockDashboard.totalPoints,
+      averagePoints: Number(mockDashboard.averageGwPoints.toFixed(2)),
+      highestPoints: Math.round(mockDashboard.highestGwPoints),
+      gameweeks: Math.max(1, mockDashboard.gameweek)
+    };
+  }
+
+  async getMyPlayerPointsByGameweek(
+    leagueId: string,
+    _accessToken: string,
+    gameweek?: number
+  ): Promise<UserGameweekPoints[]> {
+    await delay(170);
+
+    const lineup = (await this.getLineup(leagueId)) ?? (defaultLineup.leagueId === leagueId ? defaultLineup : null);
+    if (!lineup) {
+      return [];
+    }
+
+    const latestGameweek = Math.max(1, mockDashboard.gameweek);
+    const gameweeks = (() => {
+      if (gameweek && gameweek > 0) {
+        return [gameweek];
+      }
+
+      const start = Math.max(1, latestGameweek - 4);
+      const rows: number[] = [];
+      for (let gw = start; gw <= latestGameweek; gw += 1) {
+        rows.push(gw);
+      }
+      return rows;
+    })();
+
+    return gameweeks.map((gw) => buildMockUserGameweekPoints(leagueId, lineup, gw));
+  }
+
+  async getHighestPlayerPointsByGameweek(
+    leagueId: string,
+    accessToken: string,
+    gameweek?: number
+  ): Promise<UserGameweekPoints | null> {
+    const rows = await this.getMyPlayerPointsByGameweek(leagueId, accessToken, gameweek);
+    const target = rows[rows.length - 1];
+    if (!target) {
+      return null;
+    }
+
+    return {
+      ...target,
+      userId: "mock-top-user",
+      totalPoints: target.totalPoints + 8,
+      players: target.players.map((item) => ({
+        ...item,
+        countedPoints: item.countedPoints + (item.isStarter ? 1 : 0)
+      }))
+    };
+  }
+
   async getLeagueStandings(leagueId: string, live = false): Promise<LeagueStanding[]> {
     await delay(240);
     const teams = mockTeams
       .filter((item) => item.leagueId === leagueId)
       .sort((left, right) => left.name.localeCompare(right.name, "id-ID"));
+    const forms = ["WWWWW", "WWDWW", "WDLWW", "WDLWD", "DDLWW", "LLWDD"];
 
     return teams.map((team, idx) => ({
       leagueId,
+      gameweek: 23,
       teamId: team.id,
       teamName: team.name,
       teamLogoUrl: team.logoUrl,
       position: idx + 1,
-      played: 26,
-      won: Math.max(0, 20 - idx),
-      draw: Math.max(0, 4 + (idx % 3)),
-      lost: Math.max(0, idx),
-      goalsFor: 42 - idx,
-      goalsAgainst: 18 + idx,
-      goalDifference: (42 - idx) - (18 + idx),
-      points: 60 - idx * 2,
-      form: "WWDWL",
+      played: 23,
+      won: Math.max(0, 15 - idx),
+      draw: Math.max(0, 5 - (idx % 3)),
+      lost: Math.max(0, 3 + idx),
+      goalsFor: Math.max(12, 37 - idx * 2),
+      goalsAgainst: Math.max(8, 15 + idx),
+      goalDifference: Math.max(-20, (37 - idx * 2) - (15 + idx)),
+      points: Math.max(10, 50 - idx * 3),
+      form: forms[idx % forms.length],
       isLive: live
     }));
   }
@@ -773,3 +843,68 @@ const generateInviteCode = (items: CustomLeague[]): string => {
 };
 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+const mockPointSeed = (value: string): number => {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) % 1000003;
+  }
+  return hash;
+};
+
+const buildMockUserGameweekPoints = (
+  leagueId: string,
+  lineup: TeamLineup,
+  gameweek: number
+): UserGameweekPoints => {
+  const playersById = new Map(
+    mockPlayers
+      .filter((player) => player.leagueId === leagueId)
+      .map((player) => [player.id, player])
+  );
+
+  const starterIds = [
+    lineup.goalkeeperId,
+    ...lineup.defenderIds,
+    ...lineup.midfielderIds,
+    ...lineup.forwardIds
+  ].filter(Boolean);
+  const benchIds = lineup.substituteIds.filter(Boolean);
+  const orderedIds = [...starterIds, ...benchIds];
+
+  const players = orderedIds
+    .map((playerId) => {
+      const player = playersById.get(playerId);
+      if (!player) {
+        return null;
+      }
+
+      const seed = mockPointSeed(`${playerId}:${gameweek}`);
+      const basePoints = Math.max(0, Math.round(player.projectedPoints * 0.62 + player.form * 0.36 + (seed % 4) - 1));
+      const multiplier = lineup.captainId === playerId ? 2 : 1;
+      const countedPoints = basePoints * multiplier;
+
+      return {
+        playerId,
+        playerName: player.name,
+        position: player.position,
+        isStarter: starterIds.includes(playerId),
+        isCaptain: lineup.captainId === playerId,
+        isViceCaptain: lineup.viceCaptainId === playerId,
+        multiplier,
+        basePoints,
+        countedPoints
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+  const totalPoints = players.reduce((sum, item) => sum + item.countedPoints, 0);
+
+  return {
+    leagueId,
+    userId: "mock-user",
+    gameweek,
+    totalPoints,
+    players
+  };
+};

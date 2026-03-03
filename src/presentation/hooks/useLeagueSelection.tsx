@@ -13,6 +13,7 @@ import type { League } from "../../domain/fantasy/entities/League";
 import { useSession } from "./useSession";
 
 const STORAGE_KEY = "fantasy-selected-league-id";
+const DEFAULT_LEAGUE_ID = "idn-liga-1-2025";
 
 type LeagueSelectionContextValue = {
   leagues: League[];
@@ -33,12 +34,16 @@ export const LeagueSelectionProvider = ({ children }: PropsWithChildren) => {
   const { session } = useSession();
 
   const [leagues, setLeagues] = useState<League[]>([]);
-  const [selectedLeagueId, setSelectedLeagueIdState] = useState<string>("");
+  const [selectedLeagueId, setSelectedLeagueIdState] = useState<string>(() => {
+    const stored = typeof window === "undefined" ? "" : readStoredLeagueId();
+    return stored || DEFAULT_LEAGUE_ID;
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    setSelectedLeagueIdState(readStoredLeagueId());
+    const storedLeagueId = readStoredLeagueId();
+    setSelectedLeagueIdState(storedLeagueId || DEFAULT_LEAGUE_ID);
   }, []);
 
   useEffect(() => {
@@ -87,7 +92,10 @@ export const LeagueSelectionProvider = ({ children }: PropsWithChildren) => {
         const storedLeagueId = readStoredLeagueId();
 
         const fallbackLeagueId =
-          loadedLeagues.find((league) => league.id === dashboardLeagueId)?.id ?? loadedLeagues[0]?.id ?? "";
+          loadedLeagues.find((league) => league.id === dashboardLeagueId)?.id ??
+          loadedLeagues.find((league) => league.id === DEFAULT_LEAGUE_ID)?.id ??
+          loadedLeagues[0]?.id ??
+          DEFAULT_LEAGUE_ID;
 
         setSelectedLeagueIdState((current) => {
           const next = [current, storedLeagueId, dashboardLeagueId, fallbackLeagueId].find(
@@ -103,6 +111,7 @@ export const LeagueSelectionProvider = ({ children }: PropsWithChildren) => {
           return;
         }
 
+        setSelectedLeagueIdState((current) => current || DEFAULT_LEAGUE_ID);
         setErrorMessage(error instanceof Error ? error.message : "Failed to load leagues.");
       } finally {
         if (mounted) {
