@@ -18,6 +18,7 @@ import type {
   CustomLeague,
   CustomLeagueStanding
 } from "../entities/CustomLeague";
+import {TopScoresDetail, TopScoreType} from "@/domain/fantasy/entities/TopScore";
 
 export interface FantasyRepository {
   getDashboard(accessToken: string): Promise<Dashboard>;
@@ -26,6 +27,11 @@ export interface FantasyRepository {
   getFixtures(leagueId: string): Promise<Fixture[]>;
   getLeagueStandings(leagueId: string, live?: boolean): Promise<LeagueStanding[]>;
   getFixtureDetails(leagueId: string, fixtureId: string): Promise<FixtureDetails>;
+  getTopScoreDetails(
+      leagueId: string,
+      season: string,
+      type: TopScoreType
+  ): Promise<TopScoresDetail[]>;
   getPlayers(leagueId: string): Promise<Player[]>;
   getPlayerDetails(leagueId: string, playerId: string): Promise<PlayerDetails>;
   getLineup(leagueId: string, accessToken?: string): Promise<TeamLineup | null>;

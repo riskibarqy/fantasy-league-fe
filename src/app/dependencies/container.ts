@@ -26,6 +26,7 @@ import { MockAuthRepository } from "../../infrastructure/auth/MockAuthRepository
 import { HttpFantasyRepository } from "../../infrastructure/fantasy/HttpFantasyRepository";
 import { MockFantasyRepository } from "../../infrastructure/fantasy/MockFantasyRepository";
 import { HttpClient } from "../../infrastructure/http/httpClient";
+import {GetTopScore} from "@/application/fantasy/usecases/GetTopScore";
 
 const buildRepositories = () => {
   if (appEnv.useMocks) {
@@ -55,6 +56,7 @@ export const buildContainer = () => {
     getLeagues: new GetLeagues(repositories.fantasyRepository),
     getTeams: new GetTeams(repositories.fantasyRepository),
     getFixtures: new GetFixtures(repositories.fantasyRepository),
+    getTopScoreDetails: new GetTopScore(repositories.fantasyRepository),
     getLeagueStandings: new GetLeagueStandings(repositories.fantasyRepository),
     getFixtureDetails: new GetFixtureDetails(repositories.fantasyRepository),
     getMyCustomLeagues: new GetMyCustomLeagues(repositories.fantasyRepository),

@@ -3,6 +3,7 @@ import type { Fixture } from "../../domain/fantasy/entities/Fixture";
 import type { League } from "../../domain/fantasy/entities/League";
 import type { Player } from "../../domain/fantasy/entities/Player";
 import type { Club } from "../../domain/fantasy/entities/Club";
+import {TopScoresDetail,TopScoreType,TopScoreStatsApiResponse} from "../../domain/fantasy/entities/TopScore";
 
 export const mockLeagues: League[] = [
   {
@@ -505,4 +506,88 @@ export const defaultLineup: TeamLineup = {
   captainId: "idn-fwd-1",
   viceCaptainId: "idn-mid-1",
   updatedAt: "2026-02-10T06:00:00.000Z"
+};
+
+export const mockTopScoreStatsApiDetail: TopScoreStatsApiResponse = {
+  apiVersion: "2.0",
+  data: {
+    GOAL_TOPSCORER: [
+      {
+        typeId: 208,
+        typeName: "Goal Topscorer",
+        rank: 1,
+        total: 13,
+        leagueID: "idn-liga-1-2025",
+        playerID: 223205,
+        season: "2025/2026",
+        participantID: 6733,
+        playerName: "E. Souza de Lima",
+        imagePlayer: "https://cdn.sportmonks.com/images/soccer/players/5/223205.png",
+        nationality: "Brazil",
+        imageNationality: "https://cdn.sportmonks.com/images/countries/png/short/br.png",
+        participantName: "Persija",
+        imageParticipant: "https://cdn.sportmonks.com/images/soccer/teams/13/6733.png",
+        positionName: "Attacker"
+      }
+    ],
+    ASSIST_TOPSCORER: [
+      {
+        typeId: 209,
+        typeName: "Assist Topscorer",
+        rank: 1,
+        total: 9,
+        leagueID: "idn-liga-1-2025",
+        playerID: 37396580,
+        season: "2025/2026",
+        participantID: 3157,
+        playerName: "M. Peralta Bauer",
+        imagePlayer: "https://cdn.sportmonks.com/images/soccer/placeholder.png",
+        nationality: "Argentina",
+        imageNationality: "https://cdn.sportmonks.com/images/countries/png/short/ar.png",
+        participantName: "Borneo",
+        imageParticipant: "https://cdn.sportmonks.com/images/soccer/teams/21/3157.png",
+        positionName: "Attacker"
+      }
+    ],
+    REDCARDS: [
+      {
+        typeId: 83,
+        typeName: "Redcards",
+        rank: 1,
+        total: 2,
+        leagueID: "idn-liga-1-2025",
+        playerID: 201609,
+        season: "2025/2026",
+        participantID: 10211,
+        playerName: "L. Guaycochea",
+        imagePlayer: "https://cdn.sportmonks.com/images/soccer/players/9/201609.png",
+        nationality: "Argentina",
+        imageNationality: "https://cdn.sportmonks.com/images/countries/png/short/ar.png",
+        participantName: "Persib",
+        imageParticipant: "https://cdn.sportmonks.com/images/soccer/teams/3/10211.png",
+        positionName: "Midfielder"
+      }
+      // ...
+    ],
+    YELLOWCARDS: [
+      {
+        typeId: 84,
+        typeName: "Yellowcards",
+        rank: 1,
+        total: 10,
+        leagueID: "idn-liga-1-2025",
+        playerID: 161379,
+        season: "2025/2026",
+        participantID: 6733,
+        playerName: "A. de Souza Lima",
+        imagePlayer: "https://cdn.sportmonks.com/images/soccer/players/3/161379.png",
+        nationality: "Brazil",
+        imageNationality: "https://cdn.sportmonks.com/images/countries/png/short/br.png",
+        participantName: "Persija",
+        imageParticipant: "https://cdn.sportmonks.com/images/soccer/teams/13/6733.png",
+        positionName: "Attacker"
+      }
+      // ...
+    ]
+  }
 };

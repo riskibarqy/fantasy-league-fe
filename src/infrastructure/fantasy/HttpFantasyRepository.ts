@@ -26,6 +26,7 @@ import type {
   RankMovement
 } from "../../domain/fantasy/entities/CustomLeague";
 import { HttpClient, HttpError } from "../http/httpClient";
+import {TopScoresDetail, TopScoreStatsApiResponse, TopScoreType} from "@/domain/fantasy/entities/TopScore";
 
 export class HttpFantasyRepository implements FantasyRepository {
   constructor(private readonly httpClient: HttpClient) {}
@@ -65,6 +66,12 @@ export class HttpFantasyRepository implements FantasyRepository {
       `/v1/leagues/${encodeURIComponent(leagueId)}/fixtures/${encodeURIComponent(fixtureId)}`
     );
     return mapFixtureDetails(payload, leagueId, fixtureId);
+  }
+  async getTopScoreDetails(leagueId: string, season: string,type: TopScoreType): Promise<TopScoresDetail[]> {
+    const payload = await this.httpClient.get<unknown>(
+      `/v1/leagues/${encodeURIComponent(leagueId)}/topscorers/season/${encodeURIComponent(season)}`
+    );
+    return mapTopScoreDetails(payload, leagueId, season,type);
   }
 
   async getPlayers(leagueId: string): Promise<Player[]> {
@@ -905,6 +912,27 @@ const mapFixtureDetails = (
   };
 };
 
+const mapTopScoreDetails = (
+    payload: unknown,
+    fallbackLeagueId: string,
+    fallbackSeason: string,
+    fallbackType: TopScoreType
+): TopScoresDetail[] => {
+  const root = asRecord(payload);
+  if (!root) {
+    throw new Error("Invalid top scorers payload.");
+  }
+
+  const api = root as TopScoreStatsApiResponse;
+  const data = api.data;
+
+  const bucket = data?.[fallbackType];
+  if (!Array.isArray(bucket)) {
+    return [];
+  }
+
+  return bucket;
+};
 const mapFixtureTeamStats = (payload: unknown): FixtureTeamStats | null => {
   const record = asRecord(payload);
   if (!record) {
