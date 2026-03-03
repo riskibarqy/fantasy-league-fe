@@ -660,6 +660,8 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
 
     let mounted = true;
     setIsPointsViewLoading(true);
+    const summaryTargetGameweek =
+      gameweek && Number.isFinite(gameweek) ? Math.max(1, gameweek - 1) : undefined;
 
     const pickPreferredRow = (rows: UserGameweekPoints[]): UserGameweekPoints | null => {
       if (rows.length === 0) {
@@ -676,10 +678,17 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         })[0];
       }
 
-      if (gameweek) {
-        const gwRow = rows.find((item) => item.gameweek === gameweek);
+      if (summaryTargetGameweek) {
+        const gwRow = rows.find((item) => item.gameweek === summaryTargetGameweek);
         if (gwRow) {
           return gwRow;
+        }
+
+        const nearestPreviousRow = [...rows]
+          .filter((item) => item.gameweek <= summaryTargetGameweek)
+          .sort((left, right) => right.gameweek - left.gameweek)[0];
+        if (nearestPreviousRow) {
+          return nearestPreviousRow;
         }
       }
 
@@ -692,7 +701,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
           const highestRow = await getHighestPlayerPointsByGameweek.execute(
             leagueId,
             accessToken,
-            gameweek ?? undefined
+            summaryTargetGameweek
           );
           if (!mounted) {
             return;
@@ -703,7 +712,11 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
             setPointsViewGameweek(null);
             setPointsViewTotal(null);
             setPointsViewTopUserId(null);
-            setPointsViewNotice("No highest lineup points available for this gameweek yet.");
+            if (summaryTargetGameweek) {
+              setPointsViewNotice(`No highest lineup points available for GW ${summaryTargetGameweek} yet.`);
+            } else {
+              setPointsViewNotice("No highest lineup points available for previous gameweek yet.");
+            }
             return;
           }
 

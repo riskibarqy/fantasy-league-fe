@@ -96,11 +96,19 @@ export class HttpFantasyRepository implements FantasyRepository {
       query.set("gameweek", String(gameweek));
     }
 
-    const payload = await this.httpClient.get<unknown>(
-      `/v1/fantasy/points/players/highest?${query.toString()}`,
-      this.authHeader(accessToken)
-    );
-    return mapHighestUserGameweekPoints(payload, leagueId);
+    try {
+      const payload = await this.httpClient.get<unknown>(
+        `/v1/fantasy/points/players/highest?${query.toString()}`,
+        this.authHeader(accessToken)
+      );
+      return mapHighestUserGameweekPoints(payload, leagueId);
+    } catch (error) {
+      if (error instanceof HttpError && error.statusCode === 404) {
+        return null;
+      }
+
+      throw error;
+    }
   }
 
   async getLeagueStandings(leagueId: string, live = false): Promise<LeagueStanding[]> {
