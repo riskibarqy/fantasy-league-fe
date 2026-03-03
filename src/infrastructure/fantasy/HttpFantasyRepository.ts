@@ -1302,6 +1302,16 @@ const mapPlayerFromRecord = (
     leagueId:
       readString(record, "leagueId", "league_id", "league_public_id") || fallbackLeagueId,
     name: readString(record, "name"),
+    commonName: readString(
+      record,
+      "commonName",
+      "common_name",
+      "shortName",
+      "short_name",
+      "displayName",
+      "display_name",
+      "nickname"
+    ),
     club: readString(record, "club", "teamName", "team_name", "teamId", "team_id"),
     position: normalizePosition(positionRaw),
     price: normalizePrice(readNumber(record, "price")),

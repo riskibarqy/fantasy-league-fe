@@ -402,13 +402,23 @@ const toComparableLineup = (lineup: TeamLineup | null) => {
 };
 
 const shortName = (name: string): string => {
-  const words = name.trim().split(" ");
+  const normalized = name.trim().replace(/\s+/g, " ");
+  const words = normalized.split(" ");
   if (words.length <= 1) {
-    return name;
+    return normalized;
   }
 
   const last = words[words.length - 1];
   return last.length > 12 ? `${words[0]} ${last.slice(0, 1)}.` : `${words[0]} ${last}`;
+};
+
+const pitchDisplayName = (player: Player): string => {
+  const preferred = player.commonName?.trim();
+  if (preferred) {
+    return preferred;
+  }
+
+  return shortName(player.name);
 };
 
 const hashString = (value: string): number => {
@@ -1236,13 +1246,34 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     return squadPlayers.reduce((sum, player) => sum + player.price, 0);
   }, [squadPlayers]);
 
+  const activeFixtureGameweek = useMemo(() => {
+    return resolveActiveGameweekFromFixtures(fixtures, Date.now());
+  }, [fixtures]);
+
+  const planningGameweek = useMemo(() => {
+    if (activeFixtureGameweek && activeFixtureGameweek > 0) {
+      return activeFixtureGameweek + 1;
+    }
+
+    if (gameweek && gameweek > 0) {
+      return gameweek + 1;
+    }
+
+    return null;
+  }, [activeFixtureGameweek, gameweek]);
+
   const fixtureByTeam = useMemo(() => {
     const map = new Map<string, Fixture>();
-    const sorted = [...fixtures].sort(
-      (left, right) => new Date(left.kickoffAt).getTime() - new Date(right.kickoffAt).getTime()
-    );
+    const sorted = [...fixtures].sort((left, right) => parseFixtureKickoffMs(left) - parseFixtureKickoffMs(right));
+    const nowMs = Date.now();
 
-    for (const fixture of sorted) {
+    const preferred = planningGameweek
+      ? sorted.filter((fixture) => fixture.gameweek === planningGameweek)
+      : sorted.filter((fixture) => parseFixtureKickoffMs(fixture) >= nowMs);
+    const fallback = sorted.filter((fixture) => parseFixtureKickoffMs(fixture) >= nowMs);
+    const source = preferred.length > 0 ? preferred : fallback.length > 0 ? fallback : sorted;
+
+    for (const fixture of source) {
       if (!map.has(fixture.homeTeam)) {
         map.set(fixture.homeTeam, fixture);
       }
@@ -1253,11 +1284,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     }
 
     return map;
-  }, [fixtures]);
-
-  const activeFixtureGameweek = useMemo(() => {
-    return resolveActiveGameweekFromFixtures(fixtures, Date.now());
-  }, [fixtures]);
+  }, [fixtures, planningGameweek]);
 
   const lockState = useMemo(() => {
     if (!activeFixtureGameweek) {
@@ -1725,6 +1752,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     }
 
     const baseGameweek =
+      planningGameweek ??
       gameweek ??
       fixtures
         .map((fixture) => fixture.gameweek)
@@ -1749,7 +1777,12 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
 
     return [-2, -1, 0, 1, 2].map((offset) => {
       const gw = baseGameweek + offset;
-      const fixture = fixtures.find((item) => item.gameweek === gw);
+      const fixture =
+        fixtures.find(
+          (item) =>
+            item.gameweek === gw &&
+            (item.homeTeam === selectedPlayer.club || item.awayTeam === selectedPlayer.club)
+        ) ?? fixtures.find((item) => item.gameweek === gw);
       const isDone = gw < baseGameweek;
 
       return {
@@ -1759,7 +1792,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         points: isDone ? simulatePastPoints(selectedPlayer, gw) : null
       };
     });
-  }, [fixtures, gameweek, selectedPlayer]);
+  }, [fixtures, gameweek, planningGameweek, selectedPlayer]);
 
   const patRows = useMemo<PitchRow[]>(() => {
     const lineupOutfieldCount = lineup
@@ -1953,7 +1986,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       ? fixture.homeTeam === player.club
         ? `${fixture.awayTeam} (H)`
         : `${fixture.homeTeam} (A)`
-      : `GW ${gameweek ?? "-"}`;
+      : `GW ${planningGameweek ?? gameweek ?? "-"}`;
     const jerseyBackground = jerseyBackgroundFromColors(resolveJerseyColorPair(player, teamColorIndex));
     const jerseyNumber = jerseyNumberFromPlayer(player.id);
 
@@ -1975,7 +2008,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
           {isViceCaptain ? <span className="armband vice">V</span> : null}
         </div>
         <div className="player-info-chip">
-          <div className="player-name-chip">{shortName(player.name)}</div>
+          <div className="player-name-chip" title={player.name}>{pitchDisplayName(player)}</div>
           <div className="player-fixture-chip">{fixtureLabel}</div>
           {options?.pointsLabel !== undefined ? (
             <div className="player-total-chip">{options.pointsLabel}</div>
@@ -2481,7 +2514,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
 	                      </div>
 	                    </div>
 	                    <div className="player-info-chip">
-	                      <div className="player-name-chip">{shortName(player.name)}</div>
+	                      <div className="player-name-chip" title={player.name}>{pitchDisplayName(player)}</div>
                       <div className="player-fixture-chip">{t("team.bench.position", { position: player.position })}</div>
                       {isReadOnlyPointsView ? (
                         <div className="player-total-chip">{resolvePlayerPointsLabel(player.id)}</div>

@@ -2848,6 +2848,7 @@ button:disabled {
 
 .fpl-player-card,
 .bench-card {
+  --player-card-pad-x: 0.24rem;
   display: grid;
   gap: 0.2rem;
   justify-items: center;
@@ -2858,7 +2859,7 @@ button:disabled {
   background: linear-gradient(180deg, rgba(17, 78, 67, 0.84) 0%, rgba(22, 64, 77, 0.84) 100%);
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 6px;
-  padding: 0.2rem 0.24rem 0.26rem;
+  padding: 0.2rem var(--player-card-pad-x) 0.26rem;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
 }
 
@@ -2989,9 +2990,12 @@ button:disabled {
 }
 
 .player-info-chip {
-  width: 100%;
+  width: calc(100% + (var(--player-card-pad-x) * 2));
+  margin-inline: calc(var(--player-card-pad-x) * -1);
   border-radius: 4px;
   overflow: hidden;
+  display: grid;
+  gap: 0.08rem;
 }
 
 .player-name-chip,
@@ -4042,8 +4046,9 @@ button:disabled {
 
   .fpl-player-card,
   .bench-card {
+    --player-card-pad-x: 0.14rem;
     border-radius: 5px;
-    padding: 0.14rem 0.14rem 0.2rem;
+    padding: 0.14rem var(--player-card-pad-x) 0.2rem;
   }
 
   .shirt-holder {
@@ -5708,6 +5713,14 @@ body {
 
 .fpl-board--trf .fpl-line--trf {
   gap: clamp(0.45rem, 1.2vw, 0.72rem);
+}
+
+.fpl-board--trf .player-name-chip {
+  font-size: clamp(0.5rem, 1.55vw, 0.62rem);
+}
+
+.fpl-board--trf .player-fixture-chip {
+  font-size: clamp(0.46rem, 1.35vw, 0.58rem);
 }
 
 @media (max-width: 640px) {

@@ -48,13 +48,23 @@ const API_READY_MAX_DELAY_MS = 4_000;
 const DEFAULT_TEAM_COLOR_PAIR: [string, string] = ["#3A4250", "#A3ACBA"];
 
 const shortName = (name: string): string => {
-  const words = name.trim().split(" ");
+  const normalized = name.trim().replace(/\s+/g, " ");
+  const words = normalized.split(" ");
   if (words.length <= 1) {
-    return name;
+    return normalized;
   }
 
   const last = words[words.length - 1];
   return last.length > 12 ? `${words[0]} ${last.slice(0, 1)}.` : `${words[0]} ${last}`;
+};
+
+const pitchDisplayName = (player: Player): string => {
+  const preferred = player.commonName?.trim();
+  if (preferred) {
+    return preferred;
+  }
+
+  return shortName(player.name);
 };
 
 const hashString = (value: string): number => {
@@ -1017,7 +1027,7 @@ export const OnboardingPage = () => {
           </div>
         </div>
         <div className="player-info-chip">
-          <div className="player-name-chip">{shortName(player.name)}</div>
+          <div className="player-name-chip" title={player.name}>{pitchDisplayName(player)}</div>
           <div className="player-fixture-chip">{player.club}</div>
         </div>
       </div>
