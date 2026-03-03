@@ -136,7 +136,7 @@ export class HttpFantasyRepository implements FantasyRepository {
     const payload = await this.httpClient.get<unknown>(
       `/v1/leagues/${encodeURIComponent(leagueId)}/topscorers/season/${encodeURIComponent(season)}`
     );
-    return mapTopScoreDetails(payload, leagueId, season,type);
+    return mapTopScoreDetails(payload,type);
   }
 
   async getPlayers(leagueId: string): Promise<Player[]> {
@@ -1141,8 +1141,6 @@ const mapFixtureDetails = (
 
 const mapTopScoreDetails = (
     payload: unknown,
-    fallbackLeagueId: string,
-    fallbackSeason: string,
     fallbackType: TopScoreType
 ): TopScoresDetail[] => {
   const root = asRecord(payload);
