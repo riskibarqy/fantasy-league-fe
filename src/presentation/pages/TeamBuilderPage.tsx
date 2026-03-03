@@ -23,6 +23,7 @@ import { useI18n } from "../hooks/useI18n";
 import { useSession } from "../hooks/useSession";
 import { useLeagueSelection } from "../hooks/useLeagueSelection";
 import { appAlert } from "../lib/appAlert";
+import { isLiveFixture } from "../lib/fixtureDisplay";
 import { HttpError } from "../../infrastructure/http/httpClient";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -74,6 +75,16 @@ const SUBSTITUTION_MIN_STARTERS = {
   FWD: 1
 } as const;
 const DEFAULT_TEAM_COLOR_PAIR: [string, string] = ["#3A4250", "#A3ACBA"];
+const PICK_TEAM_DEADLINE_LEAD_MS = 2 * 60 * 60 * 1000;
+const FINISHED_OR_CANCELLED_STATUSES = new Set([
+  "FT",
+  "FINISHED",
+  "AET",
+  "PEN",
+  "CANCELLED",
+  "POSTPONED",
+  "ABANDONED"
+]);
 
 const parseTeamMode = (value: string | null): TeamMode => {
   return value?.trim().toUpperCase() === "TRF" ? "TRF" : "PAT";
@@ -86,6 +97,81 @@ const parsePointsMetric = (value: string | null): PointsMetric => {
   }
 
   return "my";
+};
+
+const parseFixtureKickoffMs = (fixture: Fixture): number => {
+  const value = new Date(fixture.kickoffAt).getTime();
+  return Number.isFinite(value) ? value : Number.POSITIVE_INFINITY;
+};
+
+const isFinishedOrCancelledFixture = (fixture: Fixture): boolean => {
+  const status = fixture.status?.trim().toUpperCase() ?? "";
+  return FINISHED_OR_CANCELLED_STATUSES.has(status);
+};
+
+const resolveActiveGameweekFromFixtures = (fixtures: Fixture[], nowMs: number): number | null => {
+  let liveMin = 0;
+  let upcomingMin = 0;
+  let lastKnown = 0;
+
+  for (const fixture of fixtures) {
+    const gameweek = fixture.gameweek;
+    if (!Number.isFinite(gameweek) || gameweek <= 0) {
+      continue;
+    }
+
+    if (gameweek > lastKnown) {
+      lastKnown = gameweek;
+    }
+
+    if (isLiveFixture(fixture)) {
+      if (liveMin === 0 || gameweek < liveMin) {
+        liveMin = gameweek;
+      }
+      continue;
+    }
+
+    if (isFinishedOrCancelledFixture(fixture)) {
+      continue;
+    }
+
+    const kickoffMs = parseFixtureKickoffMs(fixture);
+    if (kickoffMs >= nowMs || !Number.isFinite(kickoffMs)) {
+      if (upcomingMin === 0 || gameweek < upcomingMin) {
+        upcomingMin = gameweek;
+      }
+      continue;
+    }
+
+    // Kickoff is in the past but status not finalized yet. Treat it as active gameweek.
+    if (upcomingMin === 0 || gameweek < upcomingMin) {
+      upcomingMin = gameweek;
+    }
+  }
+
+  if (liveMin > 0) {
+    return liveMin;
+  }
+
+  if (upcomingMin > 0) {
+    return upcomingMin;
+  }
+
+  return lastKnown > 0 ? lastKnown : null;
+};
+
+const resolveGameweekDeadlineMs = (fixtures: Fixture[], gameweek: number): number | null => {
+  const kickoffMs = fixtures
+    .filter((fixture) => fixture.gameweek === gameweek)
+    .map((fixture) => parseFixtureKickoffMs(fixture))
+    .filter((value) => Number.isFinite(value))
+    .sort((left, right) => left - right)[0];
+
+  if (!Number.isFinite(kickoffMs)) {
+    return null;
+  }
+
+  return kickoffMs - PICK_TEAM_DEADLINE_LEAD_MS;
 };
 
 const sanitizeStarterIds = (ids: string[], max: number): string[] => {
@@ -1012,8 +1098,9 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
           recenterToPitch();
         }
 
-        if (fixturesResult[0]?.gameweek) {
-          setGameweek(fixturesResult[0].gameweek);
+        const resolvedGameweek = resolveActiveGameweekFromFixtures(fixturesResult, Date.now());
+        if (resolvedGameweek) {
+          setGameweek(resolvedGameweek);
         }
 
         if (lineupResultRaw.status === "rejected") {
@@ -1154,6 +1241,27 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
 
     return map;
   }, [fixtures]);
+
+  const activeFixtureGameweek = useMemo(() => {
+    return resolveActiveGameweekFromFixtures(fixtures, Date.now());
+  }, [fixtures]);
+
+  const lockState = useMemo(() => {
+    if (!activeFixtureGameweek) {
+      return null;
+    }
+
+    const deadlineMs = resolveGameweekDeadlineMs(fixtures, activeFixtureGameweek);
+    if (deadlineMs === null) {
+      return null;
+    }
+
+    return {
+      gameweek: activeFixtureGameweek,
+      deadlineMs,
+      locked: Date.now() >= deadlineMs
+    };
+  }, [activeFixtureGameweek, fixtures]);
 
   const selectedPlayer = useMemo(() => {
     if (!selectedPlayerId) {
@@ -2079,6 +2187,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
 
   const shouldShowBulkActions =
     mode === "PAT" && !isReadOnlyPointsView && (Boolean(substitutionSourcePlayerId) || hasSubstitutionDraftChanges);
+  const isPickTeamLocked = mode === "PAT" && !isReadOnlyPointsView && Boolean(lockState?.locked);
 
   const onCancelBulkChanges = () => {
     if (!lastSavedLineup) {
@@ -2096,6 +2205,22 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
 
   const onSaveBulkChanges = async () => {
     if (!lineup || !selectedLeagueId) {
+      return;
+    }
+
+    if (lockState?.locked) {
+      const deadlineLabel = new Date(lockState.deadlineMs).toLocaleString("id-ID", {
+        day: "2-digit",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+        timeZone: "Asia/Jakarta"
+      });
+      void appAlert.warning(
+        "Lineup Locked",
+        `Pick Team for GW ${lockState.gameweek} is locked since ${deadlineLabel} WIB (2 hours before first kickoff).`
+      );
       return;
     }
 
@@ -2237,6 +2362,14 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       ) : null}
 
       <Card ref={pitchBoardRef} className={`fpl-board card${isTransferMode ? " fpl-board--trf" : ""}`}>
+        {isPickTeamLocked ? (
+          <div className="substitution-banner">
+            <p>
+              {`GW ${lockState?.gameweek ?? "-"} is locked. Pick Team deadline is 2 hours before first kickoff.`}
+            </p>
+          </div>
+        ) : null}
+
         {shouldShowBulkActions ? (
           <div className="pick-team-bulk-actions">
             <Button
@@ -2254,7 +2387,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
               size="sm"
               className="pick-team-bulk-btn"
               onClick={() => void onSaveBulkChanges()}
-              disabled={!lastSavedLineup || !hasPendingChanges || isSavingLineup || isLeagueDataLoading}
+              disabled={!lastSavedLineup || !hasPendingChanges || isSavingLineup || isLeagueDataLoading || isPickTeamLocked}
             >
               {isSavingLineup ? t("team.bulk.saving") : t("team.bulk.save")}
             </Button>

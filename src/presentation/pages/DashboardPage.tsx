@@ -19,8 +19,10 @@ import { appAlert } from "../lib/appAlert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
-const formatDeadlineWindow = (kickoffAt: string, t: (key: string, params?: Record<string, string | number>) => string): string => {
-  const diffMs = new Date(kickoffAt).getTime() - Date.now();
+const PICK_TEAM_DEADLINE_LEAD_MS = 2 * 60 * 60 * 1000;
+
+const formatDeadlineWindow = (deadlineAtMs: number, t: (key: string, params?: Record<string, string | number>) => string): string => {
+  const diffMs = deadlineAtMs - Date.now();
   if (diffMs <= 0) {
     return t("dashboard.deadline.live");
   }
@@ -46,12 +48,34 @@ const parseKickoffMs = (kickoffAt: string): number => {
   return Number.isFinite(value) ? value : Number.POSITIVE_INFINITY;
 };
 
+const resolveGameweekDeadlineMs = (fixtures: Fixture[], gameweek: number): number | null => {
+  const kickoffMs = fixtures
+    .filter((fixture) => fixture.gameweek === gameweek)
+    .map((fixture) => parseKickoffMs(fixture.kickoffAt))
+    .filter((value) => Number.isFinite(value))
+    .sort((left, right) => left - right)[0];
+
+  if (!Number.isFinite(kickoffMs)) {
+    return null;
+  }
+
+  return kickoffMs - PICK_TEAM_DEADLINE_LEAD_MS;
+};
+
 const formatFantasyPoints = (value: number, fractionDigits = 1): string => {
   if (!Number.isFinite(value)) {
     return "-";
   }
 
   return value.toFixed(Math.max(0, fractionDigits));
+};
+
+const formatFantasyRoundedUp = (value: number): string => {
+  if (!Number.isFinite(value)) {
+    return "-";
+  }
+
+  return String(Math.ceil(value));
 };
 
 export const DashboardPage = () => {
@@ -211,8 +235,12 @@ export const DashboardPage = () => {
       .slice(0, 4);
   }, [featuredGameweek, sortedFixtures]);
 
-  const headerFixture = nextUpcomingFixture ?? featuredFixtures[0] ?? null;
   const fixtureSectionLabel = featuredGameweek !== null ? t("dashboard.gwLabel", { gameweek: featuredGameweek }) : "-";
+  const homeHeaderGameweek = featuredGameweek ?? dashboard?.gameweek ?? 1;
+  const homeHeaderDeadlineMs = useMemo(
+    () => resolveGameweekDeadlineMs(sortedFixtures, homeHeaderGameweek),
+    [homeHeaderGameweek, sortedFixtures]
+  );
   const fixtureSectionTitle =
     nextUpcomingFixture || featuredFixtures.length === 0
       ? t("dashboard.fixtures.title.upcoming")
@@ -223,9 +251,9 @@ export const DashboardPage = () => {
 
   const newsItems = useMemo(() => getGlobalNewsItems(2), []);
   const averagePointsValue = seasonPointsSummary
-    ? formatFantasyPoints(seasonPointsSummary.averagePoints)
+    ? formatFantasyRoundedUp(seasonPointsSummary.averagePoints)
     : dashboard
-      ? formatFantasyPoints(dashboard.averageGwPoints)
+      ? formatFantasyRoundedUp(dashboard.averageGwPoints)
       : "-";
   const totalPointsValue = seasonPointsSummary
     ? formatFantasyPoints(seasonPointsSummary.totalPoints, 0)
@@ -280,9 +308,9 @@ export const DashboardPage = () => {
             <p className="menu-home-kicker">{t("dashboard.appName")}</p>
             <h2>{t("dashboard.myTeam")}</h2>
             <p className="menu-home-subtitle">
-              {t("dashboard.gwLabel", { gameweek: dashboard.gameweek })} • {selectedLeague?.name ?? t("dashboard.leagueFallback")}
-              {headerFixture
-                ? ` • ${t("dashboard.deadline.prefix", { timeLeft: formatDeadlineWindow(headerFixture.kickoffAt, t) })}`
+              {t("dashboard.gwLabel", { gameweek: homeHeaderGameweek })} • {selectedLeague?.name ?? t("dashboard.leagueFallback")}
+              {homeHeaderDeadlineMs !== null
+                ? ` • ${t("dashboard.deadline.prefix", { timeLeft: formatDeadlineWindow(homeHeaderDeadlineMs, t) })}`
                 : ""}
             </p>
           </div>
