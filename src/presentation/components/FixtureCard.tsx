@@ -1,5 +1,6 @@
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
 import { LazyImage } from "./LazyImage";
+import { useI18n } from "../hooks/useI18n";
 
 type FixtureState = "live" | "finished" | "upcoming";
 
@@ -30,14 +31,14 @@ const getFixtureState = (fixture: Fixture): FixtureState => {
   return "upcoming";
 };
 
-const formatKickoffMeta = (kickoffAt: string): string => {
+const formatKickoffMeta = (kickoffAt: string, locale: string): string => {
   const date = new Date(kickoffAt);
-  const dayMonth = new Intl.DateTimeFormat("id-ID", {
+  const dayMonth = new Intl.DateTimeFormat(locale, {
     day: "2-digit",
     month: "short",
     timeZone: "Asia/Jakarta"
   }).format(date);
-  const time = new Intl.DateTimeFormat("id-ID", {
+  const time = new Intl.DateTimeFormat(locale, {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
@@ -49,22 +50,23 @@ const formatKickoffMeta = (kickoffAt: string): string => {
   return `${dayMonth} • ${time} WIB`;
 };
 
-const getLiveLabel = (rawStatus: string | undefined): string => {
+const getLiveLabel = (rawStatus: string | undefined, liveWord: string): string => {
   const status = rawStatus?.trim() ?? "";
   if (!status) {
-    return "LIVE";
+    return liveWord;
   }
 
   const suffix = status.replace(/^LIVE/i, "").trim();
-  return suffix ? `LIVE ${suffix}` : "LIVE";
+  return suffix ? `${liveWord} ${suffix}` : liveWord;
 };
 
 export const FixtureCard = ({ fixture }: { fixture: Fixture }) => {
-  const kickOff = formatKickoffMeta(fixture.kickoffAt);
+  const { dateLocale, t } = useI18n();
+  const kickOff = formatKickoffMeta(fixture.kickoffAt, dateLocale);
   const hasScore = typeof fixture.homeScore === "number" && typeof fixture.awayScore === "number";
-  const scoreline = hasScore ? `${fixture.homeScore} - ${fixture.awayScore}` : "vs";
+  const scoreline = hasScore ? `${fixture.homeScore} - ${fixture.awayScore}` : t("fixture.center.vs");
   const state = getFixtureState(fixture);
-  const liveLabel = getLiveLabel(fixture.status);
+  const liveLabel = getLiveLabel(fixture.status, t("fixture.status.live"));
 
   return (
     <article className="fixture-modern-card">
@@ -107,7 +109,7 @@ export const FixtureCard = ({ fixture }: { fixture: Fixture }) => {
           </span>
         ) : null}
         {state === "upcoming" ? (
-          <span className="fixture-status-badge fixture-status-upcoming">NOT STARTED</span>
+          <span className="fixture-status-badge fixture-status-upcoming">{t("fixture.status.notStarted")}</span>
         ) : null}
       </div>
 

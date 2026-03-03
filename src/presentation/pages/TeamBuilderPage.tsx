@@ -19,6 +19,7 @@ import {
 import { buildLineupFromPlayers } from "../../domain/fantasy/services/squadBuilder";
 import { LoadingState } from "../components/LoadingState";
 import { LazyImage } from "../components/LazyImage";
+import { useI18n } from "../hooks/useI18n";
 import { useSession } from "../hooks/useSession";
 import { useLeagueSelection } from "../hooks/useLeagueSelection";
 import { appAlert } from "../lib/appAlert";
@@ -455,6 +456,7 @@ async function withRetry<T>(run: () => Promise<T>, retries: number): Promise<T> 
 }
 
 export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
+  const { t } = useI18n();
   const reduceMotion = useReducedMotion();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -1930,10 +1932,10 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
 
   const pointsViewTitle =
     pointsMetric === "average"
-      ? "Average Points View"
+      ? t("team.pointsView.average")
       : pointsMetric === "highest"
-        ? "Highest Points View"
-        : "Squad Points View";
+        ? t("team.pointsView.highest")
+        : t("team.pointsView.squad");
   const isReadOnlyPointsView = isPointsView && mode === "PAT";
 
   useEffect(() => {
@@ -2060,7 +2062,10 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
   const substitutionSourceName = substitutionSourcePlayerId
     ? playersById.get(substitutionSourcePlayerId)?.name ?? "selected player"
     : null;
-  const substitutionTargetLabel = substitutionSourceTarget?.zone === "BENCH" ? "starter on the field" : "bench player";
+  const substitutionTargetLabel =
+    substitutionSourceTarget?.zone === "BENCH"
+      ? t("team.substitution.target.starter")
+      : t("team.substitution.target.bench");
 
   const hasPendingChanges = useMemo(() => {
     return JSON.stringify(toComparableLineup(lineup)) !== JSON.stringify(toComparableLineup(lastSavedLineup));
@@ -2163,11 +2168,11 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
                 {pointsViewGameweek ? ` • GW ${pointsViewGameweek}` : ""}
               </strong>
               <p>
-                Total: {pointsViewTotal ?? "-"} pts
-                {isPointsViewLoading ? " • loading..." : ""}
+                {t("team.pointsView.total", { points: pointsViewTotal ?? "-" })}
+                {isPointsViewLoading ? ` • ${t("team.pointsView.loading")}` : ""}
               </p>
               {pointsMetric === "highest" && pointsViewTopUserId ? (
-                <p>{`Top user: ${pointsViewTopUserId}`}</p>
+                <p>{t("team.pointsView.topUser", { user: pointsViewTopUserId })}</p>
               ) : null}
               {pointsViewNotice ? <p>{pointsViewNotice}</p> : null}
             </div>
@@ -2177,7 +2182,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
               variant="secondary"
               onClick={() => navigate("/pick-team", { replace: true })}
             >
-              Back to Team
+              {t("team.pointsView.back")}
             </Button>
           </div>
         </Card>
@@ -2186,45 +2191,45 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       {!isReadOnlyPointsView ? (
         <Card className="card team-chip-box">
           {mode === "PAT" ? (
-            <div className="team-pat-inline" aria-label="Pick Team chips">
+            <div className="team-pat-inline" aria-label={t("team.chips.pickTeamAria")}>
               <div className="team-pat-inline-item">
-                <p className="small-label">Wildcard</p>
-                <strong>Available</strong>
+                <p className="small-label">{t("team.chips.wildcard")}</p>
+                <strong>{t("team.chips.available")}</strong>
               </div>
               <div className="team-pat-inline-item">
-                <p className="small-label">Triple Captain</p>
-                <strong>Available</strong>
+                <p className="small-label">{t("team.chips.tripleCaptain")}</p>
+                <strong>{t("team.chips.available")}</strong>
               </div>
               <div className="team-pat-inline-item">
-                <p className="small-label">Free Hit</p>
-                <strong>Available</strong>
+                <p className="small-label">{t("team.chips.freeHit")}</p>
+                <strong>{t("team.chips.available")}</strong>
               </div>
               <div className="team-pat-inline-item">
-                <p className="small-label">Bench Boost</p>
-                <strong>Available</strong>
+                <p className="small-label">{t("team.chips.benchBoost")}</p>
+                <strong>{t("team.chips.available")}</strong>
               </div>
             </div>
           ) : (
-            <div className="team-trf-inline" aria-label="Transfers metrics">
+            <div className="team-trf-inline" aria-label={t("team.chips.transfersAria")}>
               <div className="team-trf-inline-item">
-                <p className="small-label">Free TRF</p>
+                <p className="small-label">{t("team.chips.freeTrf")}</p>
                 <strong>1</strong>
               </div>
               <div className="team-trf-inline-item">
-                <p className="small-label">Point Cost</p>
+                <p className="small-label">{t("team.chips.pointCost")}</p>
                 <strong>0 pts</strong>
               </div>
               <div className="team-trf-inline-item">
-                <p className="small-label">Budget</p>
+                <p className="small-label">{t("team.chips.budget")}</p>
                 <strong>£{Math.max(0, 100 - squadCost).toFixed(1)}</strong>
               </div>
               <div className="team-trf-inline-item">
-                <p className="small-label">Wildcard</p>
-                <strong>Available</strong>
+                <p className="small-label">{t("team.chips.wildcard")}</p>
+                <strong>{t("team.chips.available")}</strong>
               </div>
               <div className="team-trf-inline-item">
-                <p className="small-label">Free Hit</p>
-                <strong>Available</strong>
+                <p className="small-label">{t("team.chips.freeHit")}</p>
+                <strong>{t("team.chips.available")}</strong>
               </div>
             </div>
           )}
@@ -2242,7 +2247,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
               onClick={onCancelBulkChanges}
               disabled={!lastSavedLineup || !hasPendingChanges || isSavingLineup}
             >
-              Cancel
+              {t("team.bulk.cancel")}
             </Button>
             <Button
               type="button"
@@ -2251,7 +2256,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
               onClick={() => void onSaveBulkChanges()}
               disabled={!lastSavedLineup || !hasPendingChanges || isSavingLineup || isLeagueDataLoading}
             >
-              {isSavingLineup ? "Saving..." : "Save"}
+              {isSavingLineup ? t("team.bulk.saving") : t("team.bulk.save")}
             </Button>
           </div>
         ) : null}
@@ -2259,7 +2264,10 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         {substitutionSourcePlayerId && mode === "PAT" && !isReadOnlyPointsView ? (
           <div className="substitution-banner">
             <p>
-              Swapping <strong>{substitutionSourceName}</strong>. Select a highlighted {substitutionTargetLabel} to continue.
+              {t("team.substitution.banner", {
+                source: substitutionSourceName ?? "-",
+                target: substitutionTargetLabel
+              })}
             </p>
           </div>
         ) : null}
@@ -2270,7 +2278,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
 
         {mode === "PAT" ? (
           <div className="fpl-bench">
-            <p className="small-label">Substitutes</p>
+            <p className="small-label">{t("team.bench.title")}</p>
             <div className="bench-grid">
               {Array.from({ length: SUBSTITUTE_SIZE }).map((_, index) => {
                 const playerId = lineup?.substituteIds[index];
@@ -2298,7 +2306,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
                         });
                       }}
                     >
-                      {`Pick ${benchPosition}`}
+                      {t("team.pickSlot", { slot: benchPosition })}
                     </button>
                   );
                 }
@@ -2328,7 +2336,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
 	                    </div>
 	                    <div className="player-info-chip">
 	                      <div className="player-name-chip">{shortName(player.name)}</div>
-                      <div className="player-fixture-chip">{`Bench ${player.position}`}</div>
+                      <div className="player-fixture-chip">{t("team.bench.position", { position: player.position })}</div>
                       {isReadOnlyPointsView ? (
                         <div className="player-total-chip">{resolvePlayerPointsLabel(player.id)}</div>
                       ) : null}
@@ -2370,8 +2378,8 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
               className="player-modal-close"
               onClick={() => setSelectedPlayerId(null)}
             >
-              Close
-            </Button>
+	              {t("team.modal.close")}
+	            </Button>
 
             <div className="player-modal-hero">
               <div className="player-portrait">
@@ -2465,32 +2473,32 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
             </div>
 
             {isSelectedPlayerDetailsLoading ? (
-              <LoadingState label="Loading backend player details" inline compact />
-            ) : null}
+	              <LoadingState label={t("team.modal.loadingDetails")} inline compact />
+	            ) : null}
 
             <div className="player-modal-stats">
               <article className="modal-stat-card">
-                <p>Price</p>
-                <strong>£{selectedPlayerStats?.price ?? "-"}</strong>
-              </article>
-              <article className="modal-stat-card">
-                <p>Point / Match</p>
-                <strong>{selectedPlayerStats?.pointPerMatch ?? "-"}</strong>
-              </article>
-              <article className="modal-stat-card">
-                <p>Form</p>
-                <strong>{selectedPlayerStats?.form ?? "-"}</strong>
-              </article>
-              <article className="modal-stat-card">
-                <p>Selected %</p>
-                <strong>{selectedPlayerStats?.selectedPercentage ?? "-"}</strong>
-              </article>
+	                <p>{t("team.modal.price")}</p>
+	                <strong>£{selectedPlayerStats?.price ?? "-"}</strong>
+	              </article>
+	              <article className="modal-stat-card">
+	                <p>{t("team.modal.pointPerMatch")}</p>
+	                <strong>{selectedPlayerStats?.pointPerMatch ?? "-"}</strong>
+	              </article>
+	              <article className="modal-stat-card">
+	                <p>{t("team.modal.form")}</p>
+	                <strong>{selectedPlayerStats?.form ?? "-"}</strong>
+	              </article>
+	              <article className="modal-stat-card">
+	                <p>{t("team.modal.selected")}</p>
+	                <strong>{selectedPlayerStats?.selectedPercentage ?? "-"}</strong>
+	              </article>
             </div>
 
             {isFullProfileVisible ? (
               <>
                 <div className="player-modal-fixtures">
-                  <h4>Player Profile (Backend)</h4>
+	                  <h4>{t("team.modal.backendProfile")}</h4>
                   <div className="player-modal-profile-grid">
                     {selectedPlayerProfileItems.map((item) => (
                       <article key={`profile-${item.label}`} className="modal-stat-card">
@@ -2503,7 +2511,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
 
                 {selectedPlayerSeasonStats.length > 0 ? (
                   <div className="player-modal-fixtures">
-                    <h4>Season Stats (Backend)</h4>
+	                    <h4>{t("team.modal.backendSeasonStats")}</h4>
                     <div className="player-modal-profile-grid">
                       {selectedPlayerSeasonStats.map((item) => (
                         <article key={`season-${item.label}`} className="modal-stat-card">
@@ -2517,34 +2525,34 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
 
                 {selectedPlayerDetails?.history && selectedPlayerDetails.history.length > 0 ? (
                   <div className="player-modal-fixtures">
-                    <h4>Recent Matches (Backend)</h4>
+	                    <h4>{t("team.modal.backendRecentMatches")}</h4>
                     <div className="fixture-strip">
                       {selectedPlayerDetails.history.slice(0, 5).map((item) => (
                         <article key={`history-${item.fixtureId}-${item.gameweek}`} className="fixture-pill">
-                          <p>GW {item.gameweek}</p>
-                          <strong>
-                            {item.opponent} ({item.homeAway === "home" ? "H" : "A"})
-                          </strong>
-                          <span>{item.points} pts</span>
-                        </article>
+	                          <p>{t("dashboard.gwLabel", { gameweek: item.gameweek })}</p>
+	                          <strong>
+	                            {item.opponent} ({item.homeAway === "home" ? t("team.modal.homeShort") : t("team.modal.awayShort")})
+	                          </strong>
+	                          <span>{item.points} pts</span>
+	                        </article>
                       ))}
                     </div>
                   </div>
                 ) : null}
               </>
             ) : (
-              <p className="muted">Tap Full Profile to view extended backend profile and season history.</p>
-            )}
+	              <p className="muted">{t("team.modal.profileHint")}</p>
+	            )}
 
-            <div className="player-modal-fixtures">
-              <h4>Incoming Fixtures</h4>
+	            <div className="player-modal-fixtures">
+	              <h4>{t("team.modal.incomingFixtures")}</h4>
               <div className="fixture-strip">
                 {fixtureStrip.map((item) => (
                   <article
                     key={`gw-${item.gw}`}
                     className={`fixture-pill ${item.isCurrent ? "current" : ""}`}
                   >
-                    <p>GW {item.gw}</p>
+	                    <p>{t("dashboard.gwLabel", { gameweek: item.gw })}</p>
                     <strong>{item.label}</strong>
                     <span>
                       {item.points !== null ? `${item.points.toFixed(1)} pts` : "-"}
@@ -2562,8 +2570,8 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
                   disabled={!selectedPlayerIsStarter}
                   onChange={(event) => onCaptainChange(event.target.checked)}
                 />
-                Captain
-              </label>
+	                {t("team.modal.captain")}
+	              </label>
 
               <label>
                 <input
@@ -2572,13 +2580,13 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
                   disabled={!selectedPlayerIsStarter}
                   onChange={(event) => onViceCaptainChange(event.target.checked)}
                 />
-                Vice Captain
-              </label>
+	                {t("team.modal.viceCaptain")}
+	              </label>
             </div>
 
             {selectedPlayerIsBench ? (
-              <p className="muted">Captain and vice captain can only be assigned to starting players.</p>
-            ) : null}
+	              <p className="muted">{t("team.modal.captainNotice")}</p>
+	            ) : null}
 
             <div className="player-modal-actions">
               <Button
@@ -2586,15 +2594,15 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
                 variant="secondary"
                 onClick={() => setIsFullProfileVisible((previous) => !previous)}
               >
-                {isFullProfileVisible ? "Hide Full Profile" : "Full Profile"}
-              </Button>
+	                {isFullProfileVisible ? t("team.modal.hideFullProfile") : t("team.modal.fullProfile")}
+	              </Button>
               <Button
                 type="button"
                 onClick={startSubstitutionFromSelectedPlayer}
                 disabled={!selectedPlayerCanSubstitute}
               >
-                {selectedPlayerIsSubstitutionSource ? "Substitution Active" : "Substitutes"}
-              </Button>
+	                {selectedPlayerIsSubstitutionSource ? t("team.modal.substitutionActive") : t("team.modal.substitutes")}
+	              </Button>
             </div>
               </Card>
             </motion.div>

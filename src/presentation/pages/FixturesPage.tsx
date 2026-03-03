@@ -10,6 +10,7 @@ import type { Fixture } from "../../domain/fantasy/entities/Fixture";
 import type { LeagueStanding } from "../../domain/fantasy/entities/LeagueStanding";
 import { LoadingState } from "../components/LoadingState";
 import { useLeagueSelection } from "../hooks/useLeagueSelection";
+import { useI18n } from "../hooks/useI18n";
 import { appAlert } from "../lib/appAlert";
 import { LazyImage } from "../components/LazyImage";
 import { isLiveFixture } from "../lib/fixtureDisplay";
@@ -194,8 +195,8 @@ const buildStandingsFromFixtures = (fixtures: Fixture[]): LeagueStanding[] => {
   });
 };
 
-const formatDayLabel = (kickoffAt: string): string => {
-  return new Intl.DateTimeFormat("en-GB", {
+const formatDayLabel = (kickoffAt: string, locale: string): string => {
+  return new Intl.DateTimeFormat(locale, {
     weekday: "short",
     day: "2-digit",
     month: "short",
@@ -214,7 +215,7 @@ const toDayKey = (kickoffAt: string): string => {
   return formatter.format(date);
 };
 
-const formatRangeLabel = (items: Fixture[]): string => {
+const formatRangeLabel = (items: Fixture[], locale: string): string => {
   if (items.length === 0) {
     return "-";
   }
@@ -225,8 +226,8 @@ const formatRangeLabel = (items: Fixture[]): string => {
 
   const start = sorted[0];
   const end = sorted[sorted.length - 1];
-  const startLabel = formatDayLabel(start.kickoffAt);
-  const endLabel = formatDayLabel(end.kickoffAt);
+  const startLabel = formatDayLabel(start.kickoffAt, locale);
+  const endLabel = formatDayLabel(end.kickoffAt, locale);
   return `${startLabel} - ${endLabel}`;
 };
 
@@ -247,6 +248,7 @@ const tableTransition = {
 };
 
 export const FixturesPage = () => {
+  const { t, dateLocale } = useI18n();
   const { getFixtures, getLeagueStandings } = useContainer();
   const { leagues, selectedLeagueId } = useLeagueSelection();
 
@@ -309,16 +311,16 @@ export const FixturesPage = () => {
       return;
     }
 
-    void appAlert.error("Fixtures", fixturesQuery.error.message);
-  }, [fixturesQuery.error]);
+    void appAlert.error(t("fixtures.alert.title"), fixturesQuery.error.message);
+  }, [fixturesQuery.error, t]);
 
   useEffect(() => {
     if (!(standingsQuery.error instanceof Error)) {
       return;
     }
 
-    void appAlert.error("Standings", standingsQuery.error.message);
-  }, [standingsQuery.error]);
+    void appAlert.error(t("fixtures.alert.standingsTitle"), standingsQuery.error.message);
+  }, [standingsQuery.error, t]);
 
   const fixtures = fixturesQuery.data ?? [];
   const standings = standingsQuery.data?.items ?? [];
@@ -344,8 +346,8 @@ export const FixturesPage = () => {
   }, [effectiveStandings]);
 
   const selectedLeagueName = useMemo(() => {
-    return leagues.find((league) => league.id === selectedLeagueId)?.name ?? "Liga 1 Indonesia";
-  }, [leagues, selectedLeagueId]);
+    return leagues.find((league) => league.id === selectedLeagueId)?.name ?? t("fixtures.defaultLeague");
+  }, [leagues, selectedLeagueId, t]);
 
   const groupedByGameweek = useMemo(() => {
     const sorted = [...fixtures].sort(
@@ -394,7 +396,7 @@ export const FixturesPage = () => {
   const activeGameweekFixtures = activeGameweekGroup?.items ?? [];
   const activeGameweek = activeGameweekGroup?.gameweek ?? null;
   const seasonLabel = seasonLabelFromDate(activeGameweekFixtures[0]?.kickoffAt ?? new Date().toISOString());
-  const matchweekRange = formatRangeLabel(activeGameweekFixtures);
+  const matchweekRange = formatRangeLabel(activeGameweekFixtures, dateLocale);
 
   const availableClubs = useMemo(() => {
     const names = new Set<string>();
@@ -440,13 +442,13 @@ export const FixturesPage = () => {
       const items = grouped.get(key) ?? [];
       return {
         key,
-        label: formatDayLabel(items[0]?.kickoffAt ?? new Date().toISOString()),
+        label: formatDayLabel(items[0]?.kickoffAt ?? new Date().toISOString(), dateLocale),
         items: [...items].sort(
           (left, right) => new Date(left.kickoffAt).getTime() - new Date(right.kickoffAt).getTime()
         )
       };
     });
-  }, [filteredFixtures]);
+  }, [dateLocale, filteredFixtures]);
 
   const standingsColumns = useMemo<ColumnDef<LeagueStanding>[]>(
     () => [
@@ -457,7 +459,7 @@ export const FixturesPage = () => {
       },
       {
         id: "club",
-        header: "Club",
+        header: t("fixtures.table.club"),
         cell: ({ row }) => {
           const item = row.original;
           return (
@@ -491,17 +493,23 @@ export const FixturesPage = () => {
       },
       {
         id: "form",
-        header: "Last 5",
+        header: t("fixtures.table.lastFive"),
         cell: ({ row }) => {
           const recentForm = parseStandingForm(row.original.form);
           return (
-            <div className="fixtures-standing-form" aria-label="Last five form">
+            <div className="fixtures-standing-form" aria-label={t("fixtures.form.aria")}>
               {recentForm.map((result, index) => (
                 <span
                   key={`${row.original.teamId}-form-${index}`}
                   className={`fixtures-standing-form-chip ${result ? `fixtures-standing-form-${result.toLowerCase()}` : "fixtures-standing-form-empty-chip"} ${index === recentForm.length - 1 ? "latest" : ""}`}
                   title={
-                    result === "W" ? "Win" : result === "D" ? "Draw" : result === "L" ? "Loss" : "No data"
+                    result === "W"
+                      ? t("fixtures.form.win")
+                      : result === "D"
+                        ? t("fixtures.form.draw")
+                        : result === "L"
+                          ? t("fixtures.form.loss")
+                          : t("fixtures.form.noData")
                   }
                 >
                   {result === "W" ? "✓" : result === "D" ? "—" : result === "L" ? "✕" : "·"}
@@ -512,7 +520,7 @@ export const FixturesPage = () => {
         }
       }
     ],
-    []
+    [t]
   );
 
   const standingsTable = useReactTable({
@@ -545,14 +553,14 @@ export const FixturesPage = () => {
   return (
     <div className="page-grid fixtures-v2-page">
       <section className="fixtures-v2-hero">
-        <p className="fixtures-v2-hero-label">Season</p>
+        <p className="fixtures-v2-hero-label">{t("fixtures.season")}</p>
         <button type="button" className="fixtures-v2-season-button">
           {seasonLabel}
           <ChevronDown className="inline-icon" aria-hidden="true" />
         </button>
       </section>
 
-      <section className="fixtures-v2-tabs" role="tablist" aria-label="Fixtures tabs">
+      <section className="fixtures-v2-tabs" role="tablist" aria-label={t("fixtures.alert.title")}>
         <button
           type="button"
           role="tab"
@@ -560,7 +568,7 @@ export const FixturesPage = () => {
           aria-selected={activeTab === "matches"}
           onClick={() => setActiveTab("matches")}
         >
-          Matches
+          {t("fixtures.tab.matches")}
         </button>
         <button
           type="button"
@@ -569,7 +577,7 @@ export const FixturesPage = () => {
           aria-selected={activeTab === "table"}
           onClick={() => setActiveTab("table")}
         >
-          Table
+          {t("fixtures.tab.table")}
         </button>
         <button
           type="button"
@@ -578,7 +586,7 @@ export const FixturesPage = () => {
           aria-selected={activeTab === "stats"}
           onClick={() => setActiveTab("stats")}
         >
-          Stats
+          {t("fixtures.tab.stats")}
         </button>
       </section>
 
@@ -605,7 +613,7 @@ export const FixturesPage = () => {
                 >
                   {groupedByGameweek.map((group) => (
                     <option key={group.gameweek} value={group.gameweek}>
-                      Matchweek {group.gameweek}
+                      {t("fixtures.matchweek", { gameweek: group.gameweek })}
                     </option>
                   ))}
                 </select>
@@ -614,7 +622,7 @@ export const FixturesPage = () => {
 
               <label className="fixtures-v2-filter-select">
                 <select value={selectedClub} onChange={(event) => setSelectedClub(event.target.value)}>
-                  <option value="all">All Clubs</option>
+                  <option value="all">{t("fixtures.filter.allClubs")}</option>
                   {availableClubs.map((club) => (
                     <option key={club} value={club}>
                       {club}
@@ -625,7 +633,7 @@ export const FixturesPage = () => {
               </label>
 
               <button type="button" className="fixtures-v2-filter-reset" onClick={onResetFilters}>
-                Reset
+                {t("fixtures.filter.reset")}
               </button>
             </section>
 
@@ -639,7 +647,7 @@ export const FixturesPage = () => {
                 <ChevronLeft className="inline-icon" aria-hidden="true" />
               </button>
               <div>
-                <h3>Matchweek {activeGameweek ?? "-"}</h3>
+                <h3>{t("fixtures.matchweek", { gameweek: activeGameweek ?? "-" })}</h3>
                 <p>{matchweekRange}</p>
               </div>
               <button
@@ -652,8 +660,8 @@ export const FixturesPage = () => {
               </button>
             </section>
 
-            {fixturesQuery.isPending ? <LoadingState label="Loading fixtures" /> : null}
-            {!fixturesQuery.isPending && fixturesByDay.length === 0 ? <p className="muted">No fixtures found.</p> : null}
+            {fixturesQuery.isPending ? <LoadingState label={t("fixtures.loading.fixtures")} /> : null}
+            {!fixturesQuery.isPending && fixturesByDay.length === 0 ? <p className="muted">{t("fixtures.empty.fixtures")}</p> : null}
 
             {!fixturesQuery.isPending ? (
               <div className="fixtures-v2-day-list">
@@ -686,21 +694,27 @@ export const FixturesPage = () => {
 
         {activeTab === "table" ? (
           <motion.div key="fixtures-table" {...tableTransition}>
-            {standingsQuery.isPending && effectiveStandings.length === 0 ? <LoadingState label="Loading standings" /> : null}
-            {!standingsQuery.isPending && effectiveStandings.length === 0 ? <p className="muted">No standings found.</p> : null}
+            {standingsQuery.isPending && effectiveStandings.length === 0 ? (
+              <LoadingState label={t("fixtures.loading.standings")} />
+            ) : null}
+            {!standingsQuery.isPending && effectiveStandings.length === 0 ? (
+              <p className="muted">{t("fixtures.empty.standings")}</p>
+            ) : null}
 
             {!standingsQuery.isPending && effectiveStandings.length > 0 ? (
               <div className="fixtures-standings-shell">
                 <div className="fixtures-standings-shell-head">
                   <span className={`fixtures-standings-mode ${effectiveStandingsMode === "live" ? "live" : ""}`}>
                     {effectiveStandingsMode === "live"
-                      ? "Live"
+                      ? t("fixtures.mode.live")
                       : effectiveStandingsMode === "derived"
-                        ? "Provisional"
-                        : "Official"}
+                        ? t("fixtures.mode.provisional")
+                        : t("fixtures.mode.official")}
                   </span>
                   <span className="fixtures-standings-snapshot">
-                    {standingsGameweek !== null ? `Snapshot GW ${standingsGameweek}` : "Snapshot latest"}
+                    {standingsGameweek !== null
+                      ? t("fixtures.snapshot.gw", { gameweek: standingsGameweek })
+                      : t("fixtures.snapshot.latest")}
                   </span>
                 </div>
 
@@ -739,8 +753,8 @@ export const FixturesPage = () => {
 
         {activeTab === "stats" ? (
           <motion.section key="fixtures-stats" className="fixtures-v2-stats-placeholder" {...tableTransition}>
-            <h3>Stats</h3>
-            <p>Advanced match stats and trends will appear here.</p>
+            <h3>{t("fixtures.stats.title")}</h3>
+            <p>{t("fixtures.stats.subtitle")}</p>
           </motion.section>
         ) : null}
       </AnimatePresence>

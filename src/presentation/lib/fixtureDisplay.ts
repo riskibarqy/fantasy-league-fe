@@ -16,8 +16,8 @@ const LIVE_STATUSES = new Set([
   "PAUSED"
 ]);
 
-const formatMatchTime = (kickoffAt: string): string => {
-  return new Intl.DateTimeFormat("en-GB", {
+const formatMatchTime = (kickoffAt: string, locale = "en-GB"): string => {
+  return new Intl.DateTimeFormat(locale, {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
@@ -36,15 +36,21 @@ export const isLiveFixture = (fixture: Fixture): boolean => {
   );
 };
 
-export const formatFixtureCenterLabel = (fixture: Fixture): string => {
+export const formatFixtureCenterLabel = (
+  fixture: Fixture,
+  options?: {
+    locale?: string;
+    liveLabel?: string;
+  }
+): string => {
   const hasScore = typeof fixture.homeScore === "number" && typeof fixture.awayScore === "number";
   if (hasScore) {
     return `${fixture.homeScore} - ${fixture.awayScore}`;
   }
 
   if (isLiveFixture(fixture)) {
-    return fixture.status?.trim() || "LIVE";
+    return fixture.status?.trim() || options?.liveLabel || "LIVE";
   }
 
-  return formatMatchTime(fixture.kickoffAt);
+  return formatMatchTime(fixture.kickoffAt, options?.locale);
 };
