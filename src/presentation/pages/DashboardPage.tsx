@@ -107,7 +107,8 @@ export const DashboardPage = () => {
               key: cacheKeys.seasonPointsSummary(userId, leagueIDForHome),
               ttlMs: cacheTtlMs.seasonPointsSummary,
               loader: () => getSeasonPointsSummary.execute(leagueIDForHome, accessToken),
-              allowStaleOnError: true
+              storage: "memory",
+              allowStaleOnError: false
             })
           : Promise.resolve<SeasonPointsSummary | null>(null);
         const customLeaguePromise =
