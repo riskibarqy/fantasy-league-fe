@@ -8,7 +8,7 @@ import { cacheTtlMs } from "../../app/cache/requestCache";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
 import type { LeagueStanding } from "../../domain/fantasy/entities/LeagueStanding";
-import { TopScoreType } from "../../domain/fantasy/entities/TopScore";
+import { TopScoreType,TopScoresDetail } from "../../domain/fantasy/entities/TopScore";
 import { FixtureCard } from "../components/FixtureCard";
 import { LazyImage } from "../components/LazyImage";
 import { LoadingState } from "../components/LoadingState";

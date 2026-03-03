@@ -3,7 +3,7 @@ import type { Fixture } from "../../domain/fantasy/entities/Fixture";
 import type { League } from "../../domain/fantasy/entities/League";
 import type { Player } from "../../domain/fantasy/entities/Player";
 import type { Club } from "../../domain/fantasy/entities/Club";
-import {TopScoresDetail,TopScoreType,TopScoreStatsApiResponse} from "../../domain/fantasy/entities/TopScore";
+import {TopScoreStatsApiResponse} from "../../domain/fantasy/entities/TopScore";
 
 export const mockLeagues: League[] = [
   {
