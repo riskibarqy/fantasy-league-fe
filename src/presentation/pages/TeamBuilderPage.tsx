@@ -8,7 +8,6 @@ import type { Player } from "../../domain/fantasy/entities/Player";
 import type { PlayerDetails } from "../../domain/fantasy/entities/PlayerDetails";
 import type { TeamLineup } from "../../domain/fantasy/entities/Team";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
-import type { UserGameweekPoints } from "../../domain/fantasy/entities/UserGameweekPoints";
 import {
   BENCH_SLOT_POSITIONS,
   FORMATION_LIMITS,
@@ -673,38 +672,6 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     const summaryTargetGameweek =
       gameweek && Number.isFinite(gameweek) ? Math.max(1, gameweek - 1) : undefined;
 
-    const pickPreferredRow = (rows: UserGameweekPoints[]): UserGameweekPoints | null => {
-      if (rows.length === 0) {
-        return null;
-      }
-
-      if (pointsMetric === "highest") {
-        return [...rows].sort((left, right) => {
-          if (left.totalPoints !== right.totalPoints) {
-            return right.totalPoints - left.totalPoints;
-          }
-
-          return right.gameweek - left.gameweek;
-        })[0];
-      }
-
-      if (summaryTargetGameweek) {
-        const gwRow = rows.find((item) => item.gameweek === summaryTargetGameweek);
-        if (gwRow) {
-          return gwRow;
-        }
-
-        const nearestPreviousRow = [...rows]
-          .filter((item) => item.gameweek <= summaryTargetGameweek)
-          .sort((left, right) => right.gameweek - left.gameweek)[0];
-        if (nearestPreviousRow) {
-          return nearestPreviousRow;
-        }
-      }
-
-      return [...rows].sort((left, right) => right.gameweek - left.gameweek)[0];
-    };
-
     const loadPointsView = async () => {
       try {
         if (pointsMetric === "highest") {
@@ -719,7 +686,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
 
           if (!highestRow) {
             setPointsByPlayerId({});
-            setPointsViewGameweek(null);
+            setPointsViewGameweek(summaryTargetGameweek ?? null);
             setPointsViewTotal(null);
             setPointsViewTopUserId(null);
             if (summaryTargetGameweek) {
@@ -743,18 +710,29 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
           return;
         }
 
-        const rows = await getMyPlayerPointsByGameweek.execute(leagueId, accessToken);
+        const rows = await getMyPlayerPointsByGameweek.execute(
+          leagueId,
+          accessToken,
+          summaryTargetGameweek
+        );
         if (!mounted) {
           return;
         }
 
-        const selectedRow = pickPreferredRow(rows);
+        const selectedRow =
+          summaryTargetGameweek !== undefined
+            ? rows.find((item) => item.gameweek === summaryTargetGameweek) ?? null
+            : rows[0] ?? null;
         if (!selectedRow) {
           setPointsByPlayerId({});
-          setPointsViewGameweek(null);
+          setPointsViewGameweek(summaryTargetGameweek ?? null);
           setPointsViewTotal(null);
           setPointsViewTopUserId(null);
-          setPointsViewNotice("No player points available for this league yet.");
+          if (summaryTargetGameweek) {
+            setPointsViewNotice(`No player points available for GW ${summaryTargetGameweek} yet.`);
+          } else {
+            setPointsViewNotice("No player points available for this league yet.");
+          }
           return;
         }
 
