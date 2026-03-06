@@ -1150,8 +1150,11 @@ const mapTopScoreDetails = (
 
   const api = root as TopScoreStatsApiResponse;
   const data = api.data;
-
+  console.log("------>api : ",api)
+  console.log("------>data : ",data)
   const bucket = data?.[fallbackType];
+  console.log("------>bucket : ",bucket)
+  console.log("------>type : ",fallbackType)
   if (!Array.isArray(bucket)) {
     return [];
   }
