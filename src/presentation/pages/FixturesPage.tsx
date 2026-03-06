@@ -1,20 +1,21 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
-import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
-import { AnimatePresence, motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table";
-import { useContainer } from "../../app/dependencies/DependenciesProvider";
+import { AnimatePresence, motion } from "framer-motion";
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { cacheTtlMs } from "../../app/cache/requestCache";
+import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
 import type { LeagueStanding } from "../../domain/fantasy/entities/LeagueStanding";
-import { LoadingState } from "../components/LoadingState";
-import { useLeagueSelection } from "../hooks/useLeagueSelection";
-import { useI18n } from "../hooks/useI18n";
-import { appAlert } from "../lib/appAlert";
-import { LazyImage } from "../components/LazyImage";
-import { isLiveFixture } from "../lib/fixtureDisplay";
+import { TopScoreType,TopScoresDetail } from "../../domain/fantasy/entities/TopScore";
 import { FixtureCard } from "../components/FixtureCard";
+import { LazyImage } from "../components/LazyImage";
+import { LoadingState } from "../components/LoadingState";
+import { useI18n } from "../hooks/useI18n";
+import { useLeagueSelection } from "../hooks/useLeagueSelection";
+import { appAlert } from "../lib/appAlert";
+import { isLiveFixture } from "../lib/fixtureDisplay";
 
 type FixturesTab = "matches" | "table" | "stats";
 type FormResult = "W" | "D" | "L";
@@ -236,7 +237,7 @@ const seasonLabelFromDate = (value: string): string => {
   const year = date.getUTCFullYear();
   const month = date.getUTCMonth();
   const startYear = month >= 6 ? year : year - 1;
-  const endYear = String((startYear + 1) % 100).padStart(2, "0");
+  const endYear = startYear + 1;
   return `${startYear}/${endYear}`;
 };
 
@@ -247,14 +248,37 @@ const tableTransition = {
   transition: { duration: 0.2, ease: "easeOut" as const }
 };
 
+
+const topScoreOptions: { label: string; value: TopScoreType }[] = [
+  { label: "Goal", value: "GOAL_TOPSCORER" },
+  { label: "Assist", value: "ASSIST_TOPSCORER" },
+  { label: "Yellow Card", value: "YELLOWCARDS" },
+  { label: "Red Card", value: "REDCARDS" }
+];
+
+const totalHeaderFromType = (type: TopScoreType): string => {
+  switch (type) {
+    case "GOAL_TOPSCORER":
+      return "Goals";
+    case "ASSIST_TOPSCORER":
+      return "Assists";
+    case "YELLOWCARDS":
+      return "Yellow";
+    case "REDCARDS":
+      return "Red";
+    default:
+      return "Total";
+  }
+}
 export const FixturesPage = () => {
   const { t, dateLocale } = useI18n();
-  const { getFixtures, getLeagueStandings } = useContainer();
+  const { getFixtures, getLeagueStandings, getTopScoreDetails } = useContainer();
   const { leagues, selectedLeagueId } = useLeagueSelection();
 
   const [activeTab, setActiveTab] = useState<FixturesTab>("matches");
   const [selectedClub, setSelectedClub] = useState("all");
   const [gameweekPageIndex, setGameweekPageIndex] = useState(0);
+  const [selectedStatType, setSelectedStatType] = useState<TopScoreType>("GOAL_TOPSCORER");
   const activeGameweekButtonRef = useRef<HTMLSelectElement | null>(null);
 
   const fixturesQuery = useQuery({
@@ -397,7 +421,16 @@ export const FixturesPage = () => {
   const activeGameweek = activeGameweekGroup?.gameweek ?? null;
   const seasonLabel = seasonLabelFromDate(activeGameweekFixtures[0]?.kickoffAt ?? new Date().toISOString());
   const matchweekRange = formatRangeLabel(activeGameweekFixtures, dateLocale);
-
+  const apiSeasonLabel = seasonLabel.replace("/", "-");
+  const statsQuery = useQuery({
+    queryKey: ["top-score", selectedLeagueId, apiSeasonLabel, selectedStatType],
+    enabled: Boolean(selectedLeagueId) && activeTab === "stats",
+    staleTime: 60_000,
+    queryFn: async () => {
+      if (!selectedLeagueId) return [];
+      return getTopScoreDetails.execute(selectedLeagueId, seasonLabel, selectedStatType);
+    }
+  });
   const availableClubs = useMemo(() => {
     const names = new Set<string>();
     for (const fixture of activeGameweekFixtures) {
@@ -522,10 +555,98 @@ export const FixturesPage = () => {
     ],
     [t]
   );
+  const statsItems = statsQuery.data ?? [];
+
+  const statsColumns = useMemo<ColumnDef<TopScoresDetail>[]>(
+    () => [
+      { id: "rank", accessorKey: "rank", header: "#" },
+      {
+        id: "player",
+        header: "Player",
+        cell: ({ row }) => {
+          const item = row.original;
+          return (
+            <div className="fixtures-standing-team-cell">
+              {item.imagePlayer ? (
+                <LazyImage
+                  src={item.imagePlayer}
+                  alt={item.playerName}
+                  className="fixtures-standing-logo"
+                  fallback={<span className="fixtures-standing-logo fixtures-standing-logo-fallback">P</span>}
+                />
+              ) : (
+                <span className="fixtures-standing-logo fixtures-standing-logo-fallback">P</span>
+              )}
+              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                <strong>{item.playerName}</strong>
+                {item.positionName ? <span className="muted">{item.positionName}</span> : null}
+              </div>
+            </div>
+          );
+        }
+      },
+      {
+        id: "club",
+        header: "Club",
+        cell: ({ row }) => {
+          const item = row.original;
+          return (
+            <div className="fixtures-standing-team-cell">
+              {item.imageParticipant ? (
+                <LazyImage
+                  src={item.imageParticipant}
+                  alt={item.participantName}
+                  className="fixtures-standing-logo"
+                  fallback={<span className="fixtures-standing-logo fixtures-standing-logo-fallback">C</span>}
+                />
+              ) : (
+                <span className="fixtures-standing-logo fixtures-standing-logo-fallback">C</span>
+              )}
+              <strong>{item.participantName}</strong>
+            </div>
+          );
+        }
+      },
+      {
+        id: "nationality",
+        header: "Nationality",
+        cell: ({ row }) => {
+          const item = row.original;
+          return (
+            <div className="fixtures-standing-team-cell">
+              {item.imageNationality ? (
+                <LazyImage
+                  src={item.imageNationality}
+                  alt={item.nationality ?? "Nationality"}
+                  className="fixtures-standing-logo"
+                  fallback={<span className="fixtures-standing-logo fixtures-standing-logo-fallback">N</span>}
+                />
+              ) : (
+                <span className="fixtures-standing-logo fixtures-standing-logo-fallback">N</span>
+              )}
+              <span>{item.nationality ?? "-"}</span>
+            </div>
+          );
+        }
+      },
+      {
+        id: "total",
+        accessorKey: "total",
+        header: totalHeaderFromType(selectedStatType)
+      }
+    ],
+    [selectedStatType]
+  );
 
   const standingsTable = useReactTable({
     data: effectiveStandings,
     columns: standingsColumns,
+    getCoreRowModel: getCoreRowModel()
+  });
+
+  const statsTable = useReactTable({
+    data: statsItems,
+    columns: statsColumns,
     getCoreRowModel: getCoreRowModel()
   });
 
@@ -752,10 +873,61 @@ export const FixturesPage = () => {
         ) : null}
 
         {activeTab === "stats" ? (
-          <motion.section key="fixtures-stats" className="fixtures-v2-stats-placeholder" {...tableTransition}>
-            <h3>{t("fixtures.stats.title")}</h3>
-            <p>{t("fixtures.stats.subtitle")}</p>
-          </motion.section>
+          <motion.div key="fixtures-stats" {...tableTransition}>
+            <div className="fixtures-standings-shell">
+              <div className="fixtures-standings-shell-head" style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <label className="fixtures-v2-filter-select" style={{ minWidth: 220 }}>
+                  <select
+                    value={selectedStatType}
+                    onChange={(e) => setSelectedStatType(e.target.value as TopScoreType)}
+                  >
+                    {topScoreOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="inline-icon" aria-hidden="true" />
+                </label>
+
+                <span className="muted">Topscorers — {seasonLabel}</span>
+              </div>
+
+              {statsQuery.isPending ? <LoadingState label="Loading stats" /> : null}
+              {!statsQuery.isPending && statsItems.length === 0 ? <p className="muted">No stats found.</p> : null}
+
+              {!statsQuery.isPending && statsItems.length > 0 ? (
+                <div className="fixtures-standings-table-wrap">
+                  <table className="fixtures-standings-table">
+                    <thead>
+                      {statsTable.getHeaderGroups().map((headerGroup) => (
+                        <tr key={headerGroup.id}>
+                          {headerGroup.headers.map((header) => (
+                            <th key={header.id}>
+                              {header.isPlaceholder
+                                ? null
+                                : flexRender(header.column.columnDef.header, header.getContext())}
+                            </th>
+                          ))}
+                        </tr>
+                      ))}
+                    </thead>
+                    <tbody>
+                      {statsTable.getRowModel().rows.map((row) => (
+                        <tr key={row.id}>
+                          {row.getVisibleCells().map((cell) => (
+                            <td key={cell.id} className={cell.column.id === "total" ? "fixtures-standing-points" : undefined}>
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </div>
+          </motion.div>
         ) : null}
       </AnimatePresence>
     </div>
