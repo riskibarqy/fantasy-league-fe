@@ -1147,13 +1147,8 @@ const mapTopScoreDetails = (
   if (!root) {
     throw new Error("Invalid top scorers payload.");
   }
-
-  console.log("------>root : ",root)
   const data = root as  Record<TopScoreType, TopScoresDetail[]>;
   const bucket = data?.[fallbackType];
-  console.log("------>data : ",data)
-  console.log("------>bucket : ",bucket)
-  console.log("------>type : ",fallbackType)
   if (!Array.isArray(bucket)) {
     return [];
   }
