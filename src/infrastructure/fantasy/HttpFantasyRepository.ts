@@ -28,7 +28,7 @@ import type {
   RankMovement
 } from "../../domain/fantasy/entities/CustomLeague";
 import { HttpClient, HttpError } from "../http/httpClient";
-import {TopScoresDetail, TopScoreStatsApiResponse, TopScoreType} from "@/domain/fantasy/entities/TopScore";
+import {TopScoresDetail, TopScoreType} from "@/domain/fantasy/entities/TopScore";
 
 export class HttpFantasyRepository implements FantasyRepository {
   constructor(private readonly httpClient: HttpClient) {}
@@ -1156,11 +1156,10 @@ const mapTopScoreDetails = (
     throw new Error("Invalid top scorers payload.");
   }
 
-  const api = root as TopScoreStatsApiResponse;
-  const data = api.data;
-  console.log("------>api : ",api)
-  console.log("------>data : ",data)
+  console.log("------>root : ",root)
+  const data = root as  Record<TopScoreType, TopScoresDetail[]>;
   const bucket = data?.[fallbackType];
+  console.log("------>data : ",data)
   console.log("------>bucket : ",bucket)
   console.log("------>type : ",fallbackType)
   if (!Array.isArray(bucket)) {
