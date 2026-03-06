@@ -428,7 +428,9 @@ export const FixturesPage = () => {
     staleTime: 60_000,
     queryFn: async () => {
       if (!selectedLeagueId) return [];
-      return getTopScoreDetails.execute(selectedLeagueId, seasonLabel, selectedStatType);
+      const response = getTopScoreDetails.execute(selectedLeagueId, seasonLabel, selectedStatType);
+      console.log( "----->", response);
+      return response
     }
   });
   const availableClubs = useMemo(() => {
