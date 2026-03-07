@@ -3,9 +3,12 @@ import type { FantasyRepository } from "../../../domain/fantasy/repositories/Fan
 export class GetLineup {
   constructor(private readonly fantasyRepository: FantasyRepository) {}
 
-  async execute(leagueId: string, accessToken?: string) {
+  async execute(leagueId: string, accessToken: string) {
     if (!leagueId.trim()) {
       throw new Error("League id is required.");
+    }
+    if (!accessToken.trim()) {
+      throw new Error("Access token is required.");
     }
 
     return this.fantasyRepository.getLineup(leagueId, accessToken);

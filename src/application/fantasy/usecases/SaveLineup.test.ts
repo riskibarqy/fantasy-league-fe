@@ -34,7 +34,7 @@ describe("SaveLineup", () => {
     vi.mocked(repo.saveLineup).mockResolvedValue(defaultLineup);
 
     const usecase = new SaveLineup(repo);
-    const result = await usecase.execute(defaultLineup, mockPlayers);
+    const result = await usecase.execute(defaultLineup, mockPlayers, "token");
 
     expect(result.leagueId).toBe(defaultLineup.leagueId);
     expect(repo.saveLineup).toHaveBeenCalledOnce();
@@ -50,8 +50,18 @@ describe("SaveLineup", () => {
           ...defaultLineup,
           viceCaptainId: defaultLineup.captainId
         },
-        mockPlayers
+        mockPlayers,
+        "token"
       )
     ).rejects.toThrow("different");
+  });
+
+  it("rejects save when access token is missing", async () => {
+    const repo = fantasyRepositoryStub();
+    const usecase = new SaveLineup(repo);
+
+    await expect(usecase.execute(defaultLineup, mockPlayers, "")).rejects.toThrow(
+      "Access token is required."
+    );
   });
 });

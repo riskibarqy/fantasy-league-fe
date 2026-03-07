@@ -6,7 +6,11 @@ import { validateLineup } from "../../../domain/fantasy/services/lineupRules";
 export class SaveLineup {
   constructor(private readonly fantasyRepository: FantasyRepository) {}
 
-  async execute(lineup: TeamLineup, players: Player[], accessToken?: string) {
+  async execute(lineup: TeamLineup, players: Player[], accessToken: string) {
+    if (!accessToken.trim()) {
+      throw new Error("Access token is required.");
+    }
+
     const playersById = new Map(players.map((player) => [player.id, player]));
     const validation = validateLineup(lineup, playersById);
 

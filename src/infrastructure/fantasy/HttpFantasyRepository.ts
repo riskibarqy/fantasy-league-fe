@@ -152,19 +152,19 @@ export class HttpFantasyRepository implements FantasyRepository {
     return mapPlayerDetails(payload, leagueId, playerId);
   }
 
-  async getLineup(leagueId: string, accessToken?: string): Promise<TeamLineup | null> {
+  async getLineup(leagueId: string, accessToken: string): Promise<TeamLineup | null> {
     const payload = await this.httpClient.get<unknown>(
       `/v1/leagues/${leagueId}/lineup`,
-      this.authHeaderIfPresent(accessToken)
+      this.authHeader(accessToken)
     );
     return mapLineup(payload, leagueId);
   }
 
-  async saveLineup(lineup: TeamLineup, accessToken?: string): Promise<TeamLineup> {
+  async saveLineup(lineup: TeamLineup, accessToken: string): Promise<TeamLineup> {
     const payload = await this.httpClient.put<TeamLineup, unknown>(
       `/v1/leagues/${lineup.leagueId}/lineup`,
       lineup,
-      this.authHeaderIfPresent(accessToken)
+      this.authHeader(accessToken)
     );
 
     return mapLineup(payload, lineup.leagueId) ?? lineup;
@@ -344,17 +344,6 @@ export class HttpFantasyRepository implements FantasyRepository {
     const token = accessToken.trim();
     if (!token) {
       throw new Error("Access token is required.");
-    }
-
-    return {
-      Authorization: `Bearer ${token}`
-    };
-  }
-
-  private authHeaderIfPresent(accessToken?: string): Record<string, string> {
-    const token = accessToken?.trim() ?? "";
-    if (!token) {
-      return {};
     }
 
     return {

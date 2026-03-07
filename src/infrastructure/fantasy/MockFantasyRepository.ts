@@ -79,7 +79,9 @@ export class MockFantasyRepository implements FantasyRepository {
   ): Promise<UserGameweekPoints[]> {
     await delay(170);
 
-    const lineup = (await this.getLineup(leagueId)) ?? (defaultLineup.leagueId === leagueId ? defaultLineup : null);
+    const lineup =
+      (await this.getLineup(leagueId, "mock-access-token")) ??
+      (defaultLineup.leagueId === leagueId ? defaultLineup : null);
     if (!lineup) {
       return [];
     }
@@ -297,14 +299,14 @@ export class MockFantasyRepository implements FantasyRepository {
     };
   }
 
-  async getLineup(leagueId: string, _accessToken?: string): Promise<TeamLineup | null> {
+  async getLineup(leagueId: string, _accessToken: string): Promise<TeamLineup | null> {
     await delay(200);
 
     const lineups = readStoredLineups();
     return lineups[leagueId] ?? (defaultLineup.leagueId === leagueId ? defaultLineup : null);
   }
 
-  async saveLineup(lineup: TeamLineup, _accessToken?: string): Promise<TeamLineup> {
+  async saveLineup(lineup: TeamLineup, _accessToken: string): Promise<TeamLineup> {
     await delay(300);
 
     const lineups = readStoredLineups();
@@ -429,7 +431,7 @@ export class MockFantasyRepository implements FantasyRepository {
       ...input.lineup,
       leagueId: input.leagueId,
       updatedAt: new Date().toISOString()
-    });
+    }, accessToken);
 
     const profiles = readStoredOnboardingProfiles();
     const current = profiles["mock-user"];
