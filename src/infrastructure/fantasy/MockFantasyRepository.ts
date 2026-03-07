@@ -27,8 +27,10 @@ import {
   mockFixtures,
   mockLeagues,
   mockPlayers,
-  mockTeams
+  mockTeams,
+  mockTopScoreStatsApiDetail
 } from "../mocks/data";
+import {TopScoresDetail, TopScoreStatsApiResponse, TopScoreType} from "@/domain/fantasy/entities/TopScore";
 
 const STORAGE_KEY = "fantasy-mock-lineups";
 const SQUAD_STORAGE_KEY = "fantasy-mock-squads";
@@ -151,7 +153,23 @@ export class MockFantasyRepository implements FantasyRepository {
       isLive: live
     }));
   }
+  async getTopScoreDetails(
+      _leagueId: string,
+      _season: string,
+      type: TopScoreType
+  ): Promise<TopScoresDetail[]> {
+    await delay(180);
 
+    const data = mockTopScoreStatsApiDetail.data as TopScoreStatsApiResponse["data"];
+
+    const bucket = data[type];
+
+    if (!bucket) {
+      return [];
+    }
+
+   return bucket
+  }
   async getFixtureDetails(leagueId: string, fixtureId: string): Promise<FixtureDetails> {
     await delay(180);
 
