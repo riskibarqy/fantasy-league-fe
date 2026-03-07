@@ -47,7 +47,7 @@
     "tailwindcss": "^4.1.18",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.6.3",
-    "vitest": "^2.1.5"
+    "vitest": "^4.0.18"
   },
   "overrides": {
     "whatwg-encoding": "file:./vendor/whatwg-encoding"
