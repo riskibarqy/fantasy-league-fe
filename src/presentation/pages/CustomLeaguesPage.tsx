@@ -58,16 +58,17 @@ export const CustomLeaguesPage = () => {
 
       try {
         setIsLoading(true);
+        setGroups([]);
+        setErrorMessage(null);
         const result = await getOrLoadCached({
           key: cacheKeys.customLeagues(userId),
           ttlMs: cacheTtlMs.customLeagues,
           loader: () => getMyCustomLeagues.execute(accessToken),
-          allowStaleOnError: true,
+          allowStaleOnError: false,
           forceRefresh
         });
 
         setGroups(sortCustomLeagues(result));
-        setErrorMessage(null);
       } catch (error) {
         setErrorMessage(error instanceof Error ? error.message : t("customLeagues.error.loadFailed"));
       } finally {

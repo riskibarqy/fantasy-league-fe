@@ -160,11 +160,19 @@ export class HttpFantasyRepository implements FantasyRepository {
   }
 
   async getLineup(leagueId: string, accessToken: string): Promise<TeamLineup | null> {
-    const payload = await this.httpClient.get<unknown>(
-      `/v1/leagues/${leagueId}/lineup`,
-      this.authHeader(accessToken)
-    );
-    return mapLineup(payload, leagueId);
+    try {
+      const payload = await this.httpClient.get<unknown>(
+        `/v1/leagues/${leagueId}/lineup`,
+        this.authHeader(accessToken)
+      );
+      return mapLineup(payload, leagueId);
+    } catch (error) {
+      if (error instanceof HttpError && error.statusCode === 404) {
+        return null;
+      }
+
+      throw error;
+    }
   }
 
   async saveLineup(lineup: TeamLineup, accessToken: string): Promise<TeamLineup> {

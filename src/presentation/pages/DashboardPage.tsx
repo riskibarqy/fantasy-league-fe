@@ -79,7 +79,7 @@ const formatFantasyRoundedUp = (value: number): string => {
 };
 
 export const DashboardPage = () => {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const { getDashboard, getFixtures, getMyCustomLeagues, getSeasonPointsSummary } = useContainer();
   const { leagues, selectedLeagueId } = useLeagueSelection();
   const { session } = useSession();
@@ -88,6 +88,7 @@ export const DashboardPage = () => {
   const [seasonPointsSummary, setSeasonPointsSummary] = useState<SeasonPointsSummary | null>(null);
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [customLeagues, setCustomLeagues] = useState<CustomLeague[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -101,6 +102,13 @@ export const DashboardPage = () => {
 
     const load = async () => {
       try {
+        setIsLoading(true);
+        setDashboard(null);
+        setSeasonPointsSummary(null);
+        setFixtures([]);
+        setCustomLeagues([]);
+        setErrorMessage(null);
+
         const accessToken = session?.accessToken?.trim() ?? "";
         const userId = session?.user.id?.trim() ?? "";
         if (!accessToken || !userId) {
@@ -111,11 +119,8 @@ export const DashboardPage = () => {
           key: cacheKeys.dashboard(userId),
           ttlMs: cacheTtlMs.dashboard,
           loader: () => getDashboard.execute(accessToken),
-          allowStaleOnError: true
+          allowStaleOnError: false
         });
-        if (mounted) {
-          setDashboard(dashboardResult);
-        }
 
         const leagueIDForHome = selectedLeagueId || dashboardResult.selectedLeagueId;
         const fixturePromise = leagueIDForHome
@@ -123,7 +128,7 @@ export const DashboardPage = () => {
               key: cacheKeys.fixtures(leagueIDForHome),
               ttlMs: cacheTtlMs.fixtures,
               loader: () => getFixtures.execute(leagueIDForHome),
-              allowStaleOnError: true
+              allowStaleOnError: false
             })
           : Promise.resolve<Fixture[]>([]);
         const summaryPromise = leagueIDForHome
@@ -141,11 +146,11 @@ export const DashboardPage = () => {
                 key: cacheKeys.customLeagues(userId),
                 ttlMs: cacheTtlMs.customLeagues,
                 loader: () => getMyCustomLeagues.execute(accessToken),
-                allowStaleOnError: true
+                allowStaleOnError: false
               })
             : Promise.resolve<CustomLeague[]>([]);
 
-        const [fixtureResultRaw, summaryResultRaw, customLeagueResultRaw] = await Promise.allSettled([
+        const [fixtureResult, summaryResult, customLeagueResultRaw] = await Promise.allSettled([
           fixturePromise,
           summaryPromise,
           customLeaguePromise
@@ -155,23 +160,30 @@ export const DashboardPage = () => {
           return;
         }
 
-        const fixtureResult =
-          fixtureResultRaw.status === "fulfilled" ? fixtureResultRaw.value : [];
-        const summaryResult =
-          summaryResultRaw.status === "fulfilled" ? summaryResultRaw.value : null;
-        const customLeagueResult =
-          customLeagueResultRaw.status === "fulfilled" ? customLeagueResultRaw.value : [];
+        if (fixtureResult.status !== "fulfilled") {
+          throw fixtureResult.reason;
+        }
 
-        setSeasonPointsSummary(summaryResult);
-        setFixtures(fixtureResult);
-        setCustomLeagues(customLeagueResult.slice(0, 3));
-        setErrorMessage(null);
+        if (summaryResult.status !== "fulfilled") {
+          throw summaryResult.reason;
+        }
+
+        setDashboard(dashboardResult);
+        setSeasonPointsSummary(summaryResult.value);
+        setFixtures(fixtureResult.value);
+        setCustomLeagues(
+          customLeagueResultRaw.status === "fulfilled" ? customLeagueResultRaw.value.slice(0, 3) : []
+        );
       } catch (error) {
         if (!mounted) {
           return;
         }
 
         setErrorMessage(error instanceof Error ? error.message : t("dashboard.loadFailed"));
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
+        }
       }
     };
 
@@ -265,9 +277,7 @@ export const DashboardPage = () => {
     : dashboard
       ? formatFantasyPoints(dashboard.highestGwPoints, 0)
       : "-";
-  const rankLabel = dashboard && dashboard.rank > 0 ? `#${dashboard.rank.toLocaleString(locale)}` : "-";
-
-  if (!dashboard) {
+  if (isLoading || !dashboard) {
     if (errorMessage) {
       return (
         <div className="page-grid">
@@ -313,10 +323,6 @@ export const DashboardPage = () => {
                 ? ` • ${t("dashboard.deadline.prefix", { timeLeft: formatDeadlineWindow(homeHeaderDeadlineMs, t) })}`
                 : ""}
             </p>
-          </div>
-          <div className="menu-home-rank-badge">
-            <span>{t("dashboard.rank")}</span>
-            <strong>{rankLabel}</strong>
           </div>
         </div>
 

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
-import { cacheKeys, cacheTtlMs, getOrLoadCached, peekCached } from "../../app/cache/requestCache";
+import { cacheKeys, cacheTtlMs, getOrLoadCached } from "../../app/cache/requestCache";
 import type { Club } from "../../domain/fantasy/entities/Club";
 import type { Player } from "../../domain/fantasy/entities/Player";
 import type { PlayerDetails } from "../../domain/fantasy/entities/PlayerDetails";
@@ -669,8 +669,10 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
 
     let mounted = true;
     setIsPointsViewLoading(true);
-    const summaryTargetGameweek =
-      gameweek && Number.isFinite(gameweek) ? Math.max(1, gameweek - 1) : undefined;
+    const currentTargetGameweek =
+      gameweek && Number.isFinite(gameweek) && gameweek > 0 ? gameweek : undefined;
+    const highestTargetGameweek =
+      gameweek && Number.isFinite(gameweek) && gameweek > 0 ? gameweek : undefined;
 
     const loadPointsView = async () => {
       try {
@@ -678,7 +680,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
           const highestRow = await getHighestPlayerPointsByGameweek.execute(
             leagueId,
             accessToken,
-            summaryTargetGameweek
+            highestTargetGameweek
           );
           if (!mounted) {
             return;
@@ -686,13 +688,13 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
 
           if (!highestRow) {
             setPointsByPlayerId({});
-            setPointsViewGameweek(summaryTargetGameweek ?? null);
+            setPointsViewGameweek(highestTargetGameweek ?? null);
             setPointsViewTotal(null);
             setPointsViewTopUserId(null);
-            if (summaryTargetGameweek) {
-              setPointsViewNotice(`No highest lineup points available for GW ${summaryTargetGameweek} yet.`);
+            if (highestTargetGameweek) {
+              setPointsViewNotice(`No highest lineup points available for GW ${highestTargetGameweek} yet.`);
             } else {
-              setPointsViewNotice("No highest lineup points available for previous gameweek yet.");
+              setPointsViewNotice("No highest lineup points available for the current gameweek yet.");
             }
             return;
           }
@@ -713,26 +715,22 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         const rows = await getMyPlayerPointsByGameweek.execute(
           leagueId,
           accessToken,
-          summaryTargetGameweek
+          currentTargetGameweek
         );
         if (!mounted) {
           return;
         }
 
         const selectedRow =
-          summaryTargetGameweek !== undefined
-            ? rows.find((item) => item.gameweek === summaryTargetGameweek) ?? null
+          currentTargetGameweek !== undefined
+            ? rows.find((item) => item.gameweek === currentTargetGameweek) ?? null
             : rows[0] ?? null;
         if (!selectedRow) {
           setPointsByPlayerId({});
-          setPointsViewGameweek(summaryTargetGameweek ?? null);
-          setPointsViewTotal(null);
+          setPointsViewGameweek(currentTargetGameweek ?? null);
+          setPointsViewTotal(currentTargetGameweek ? 0 : null);
           setPointsViewTopUserId(null);
-          if (summaryTargetGameweek) {
-            setPointsViewNotice(`No player points available for GW ${summaryTargetGameweek} yet.`);
-          } else {
-            setPointsViewNotice("No player points available for this league yet.");
-          }
+          setPointsViewNotice(null);
           return;
         }
 
@@ -879,7 +877,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
               key: cacheKeys.dashboard(userId),
               ttlMs: cacheTtlMs.dashboard,
               loader: () => getDashboard.execute(accessToken),
-              allowStaleOnError: true
+              allowStaleOnError: false
             }),
           1
         );
@@ -894,9 +892,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
           return;
         }
 
-        const message =
-          error instanceof Error ? error.message : "Failed to load dashboard.";
-        setInfoMessage(`Header fallback: ${message}`);
+        setInfoMessage(error instanceof Error ? error.message : "Failed to load dashboard.");
       }
     };
 
@@ -922,32 +918,17 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     setIsSavingLineup(false);
     setSubstitutionSourcePlayerId(null);
     setHasSubstitutionDraftChanges(false);
-
-    const optimisticPlayers = peekCached<Player[]>(cacheKeys.players(selectedLeagueId), true) ?? [];
-    const optimisticTeams = peekCached<Club[]>(cacheKeys.teams(selectedLeagueId), true) ?? [];
-    const optimisticFixtures = peekCached<Fixture[]>(cacheKeys.fixtures(selectedLeagueId), true) ?? [];
-    const optimisticDraft = readLineupDraft(selectedLeagueId, userScope);
-    const optimisticLineup = optimisticDraft ? normalizeLineup(selectedLeagueId, optimisticDraft) : null;
-
-    if (optimisticPlayers.length > 0) {
-      setPlayers(optimisticPlayers);
-    }
-
-    if (optimisticTeams.length > 0) {
-      setTeams(optimisticTeams);
-    }
-
-    if (optimisticFixtures.length > 0) {
-      setFixtures(optimisticFixtures);
-    }
-
-    if (optimisticLineup) {
-      setLineup(optimisticLineup);
-    }
+    setPlayers([]);
+    setTeams([]);
+    setFixtures([]);
+    setLineup(null);
+    setSelectedPlayerId(null);
+    setSelectedPlayerDetails(null);
+    setErrorMessage(null);
+    setInfoMessage(null);
 
     const loadLeagueData = async () => {
-      const shouldShowBlockingLoader = optimisticPlayers.length === 0 && !optimisticLineup;
-      setIsLeagueDataLoading(shouldShowBlockingLoader);
+      setIsLeagueDataLoading(true);
 
       try {
         let playersResultRaw: Player[] = [];
@@ -961,7 +942,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
                   key: cacheKeys.players(selectedLeagueId),
                   ttlMs: cacheTtlMs.players,
                   loader: () => getPlayers.execute(selectedLeagueId),
-                  allowStaleOnError: true,
+                  allowStaleOnError: false,
                   forceRefresh: attempt > 0
                 }),
               2
@@ -986,19 +967,19 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
           throw playersError instanceof Error ? playersError : new Error("Failed to load players.");
         }
 
-        const [lineupResultRaw, fixturesResultRaw, teamsResultRaw] = await Promise.allSettled([
+        const [lineupResult, fixturesResult, teamsResult] = await Promise.all([
           getLineup.execute(selectedLeagueId, accessToken),
           getOrLoadCached({
             key: cacheKeys.fixtures(selectedLeagueId),
             ttlMs: cacheTtlMs.fixtures,
             loader: () => getFixtures.execute(selectedLeagueId),
-            allowStaleOnError: true
+            allowStaleOnError: false
           }),
           getOrLoadCached({
             key: cacheKeys.teams(selectedLeagueId),
             ttlMs: cacheTtlMs.teams,
             loader: () => getTeams.execute(selectedLeagueId),
-            allowStaleOnError: true
+            allowStaleOnError: false
           })
         ]);
 
@@ -1006,22 +987,10 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
           return;
         }
 
-        if (lineupResultRaw.status === "rejected" && isUnauthorizedError(lineupResultRaw.reason)) {
-          await forceLogout("Your session has expired. Please sign in again.");
-          return;
-        }
-
         const playersResult = playersResultRaw;
         let infoToShow: string | null = null;
         let loadErrorToShow: string | null = null;
         let shouldRecenterPitch = false;
-
-        const lineupResult =
-          lineupResultRaw.status === "fulfilled" ? lineupResultRaw.value : null;
-        const fixturesResult =
-          fixturesResultRaw.status === "fulfilled" ? fixturesResultRaw.value : [];
-        const teamsResult =
-          teamsResultRaw.status === "fulfilled" ? teamsResultRaw.value : optimisticTeams;
 
         setPlayers(playersResult);
         setTeams(teamsResult);
@@ -1102,22 +1071,6 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         const resolvedGameweek = resolveActiveGameweekFromFixtures(fixturesResult, Date.now());
         if (resolvedGameweek) {
           setGameweek(resolvedGameweek);
-        }
-
-        if (lineupResultRaw.status === "rejected") {
-          const message =
-            lineupResultRaw.reason instanceof Error
-              ? lineupResultRaw.reason.message
-              : "Failed to load lineup.";
-          loadErrorToShow = loadErrorToShow ?? `Lineup request failed (${message}).`;
-        }
-
-        if (fixturesResultRaw.status === "rejected") {
-          const message =
-            fixturesResultRaw.reason instanceof Error
-              ? fixturesResultRaw.reason.message
-              : "Failed to load fixtures.";
-          loadErrorToShow = loadErrorToShow ?? `Fixtures request failed (${message}).`;
         }
 
         if (infoToShow) {
@@ -1300,13 +1253,14 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
 
     const loadPlayerDetails = async () => {
       setIsSelectedPlayerDetailsLoading(true);
+      setSelectedPlayerDetails(null);
 
       try {
         const details = await getOrLoadCached({
           key: cacheKeys.playerDetails(selectedLeagueId, selectedPlayer.id),
           ttlMs: cacheTtlMs.playerDetails,
           loader: () => getPlayerDetails.execute(selectedLeagueId, selectedPlayer.id),
-          allowStaleOnError: true
+          allowStaleOnError: false
         });
 
         if (!mounted) {
@@ -2100,7 +2054,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
   const resolvePlayerPointsLabel = useCallback(
     (playerId: string): string => {
       const value = pointsByPlayerId[playerId];
-      return Number.isFinite(value) ? `${value} pts` : "-";
+      return `${Number.isFinite(value) ? value : 0} pts`;
     },
     [pointsByPlayerId]
   );
@@ -2305,6 +2259,16 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       setIsSavingLineup(false);
     }
   };
+
+  if (isLeagueDataLoading) {
+    return (
+      <div className={`page-grid team-builder-page${isReadOnlyPointsView ? " team-builder-page--points-view" : ""}`}>
+        <Card className="card">
+          <LoadingState label="Loading team data" />
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className={`page-grid team-builder-page${isReadOnlyPointsView ? " team-builder-page--points-view" : ""}`}>

@@ -178,6 +178,7 @@ export const TeamPlayerPickerPage = () => {
 
     const loadPlayers = async () => {
       setIsLoading(true);
+      setPlayers([]);
       setErrorMessage(null);
 
       try {
@@ -187,7 +188,7 @@ export const TeamPlayerPickerPage = () => {
               key: cacheKeys.players(context.leagueId),
               ttlMs: cacheTtlMs.players,
               loader: () => getPlayers.execute(context.leagueId),
-              allowStaleOnError: true
+              allowStaleOnError: false
             }),
           2
         );
@@ -201,7 +202,7 @@ export const TeamPlayerPickerPage = () => {
                     key: cacheKeys.players(context.leagueId),
                     ttlMs: cacheTtlMs.players,
                     loader: () => getPlayers.execute(context.leagueId),
-                    allowStaleOnError: true,
+                    allowStaleOnError: false,
                     forceRefresh: true
                   }),
                 1

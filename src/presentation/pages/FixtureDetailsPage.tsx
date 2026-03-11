@@ -63,23 +63,25 @@ export const FixtureDetailsPage = () => {
     const load = async () => {
       try {
         setIsLoading(true);
+        setDetails(null);
+        setErrorMessage(null);
         const payload = await getOrLoadCached({
           key: cacheKeys.fixtureDetails(resolvedLeagueId, normalizedFixtureId),
           ttlMs: cacheTtlMs.fixtureDetails,
           loader: () => getFixtureDetails.execute(resolvedLeagueId, normalizedFixtureId),
-          allowStaleOnError: true
+          allowStaleOnError: false
         });
         if (!mounted) {
           return;
         }
 
         setDetails(payload);
-        setErrorMessage(null);
       } catch (error) {
         if (!mounted) {
           return;
         }
 
+        setDetails(null);
         setErrorMessage(error instanceof Error ? error.message : "Failed to load fixture details.");
       } finally {
         if (mounted) {

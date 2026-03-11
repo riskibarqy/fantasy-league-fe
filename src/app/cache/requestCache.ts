@@ -65,7 +65,7 @@ export const getOrLoadCached = async <T,>({
   ttlMs,
   loader,
   storage = "memory+local",
-  allowStaleOnError = true,
+  allowStaleOnError = false,
   forceRefresh = false
 }: LoadCachedOptions<T>): Promise<T> => {
   let staleValue: T | undefined;

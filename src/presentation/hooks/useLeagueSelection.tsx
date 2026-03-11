@@ -52,6 +52,8 @@ export const LeagueSelectionProvider = ({ children }: PropsWithChildren) => {
     const load = async () => {
       try {
         setIsLoading(true);
+        setLeagues([]);
+        setErrorMessage(null);
 
         const accessToken = session?.accessToken?.trim() ?? "";
         const userId = session?.user.id?.trim() ?? "";
@@ -60,7 +62,7 @@ export const LeagueSelectionProvider = ({ children }: PropsWithChildren) => {
               key: cacheKeys.dashboard(userId),
               ttlMs: cacheTtlMs.dashboard,
               loader: () => getDashboard.execute(accessToken),
-              allowStaleOnError: true
+              allowStaleOnError: false
             })
           : Promise.resolve(null);
 
