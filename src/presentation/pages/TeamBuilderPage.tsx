@@ -1070,7 +1070,13 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
 
         const resolvedGameweek = resolveActiveGameweekFromFixtures(fixturesResult, Date.now());
         if (resolvedGameweek) {
-          setGameweek(resolvedGameweek);
+          setGameweek((current) => {
+            if (current && current > 0) {
+              return current;
+            }
+
+            return resolvedGameweek;
+          });
         }
 
         if (infoToShow) {
