@@ -1,5 +1,6 @@
 import type { CompleteOnboardingInput } from "../../../domain/fantasy/entities/Onboarding";
 import type { FantasyRepository } from "../../../domain/fantasy/repositories/FantasyRepository";
+import { createGeneratedSquadName } from "../../../domain/fantasy/services/nameGenerator";
 
 export class CompleteOnboarding {
   constructor(private readonly fantasyRepository: FantasyRepository) {}
@@ -23,7 +24,7 @@ export class CompleteOnboarding {
       {
         ...input,
         leagueId,
-        squadName: input.squadName?.trim() || "",
+        squadName: input.squadName?.trim() || createGeneratedSquadName(),
         playerIds
       },
       token

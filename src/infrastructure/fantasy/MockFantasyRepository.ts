@@ -16,6 +16,7 @@ import type {
 import type { PickSquadInput, Squad } from "../../domain/fantasy/entities/Squad";
 import type { SeasonPointsSummary } from "../../domain/fantasy/entities/SeasonPointsSummary";
 import type { UserGameweekPoints } from "../../domain/fantasy/entities/UserGameweekPoints";
+import type { PublicAppConfig } from "../../domain/fantasy/entities/AppConfig";
 import type {
   CreateCustomLeagueInput,
   CustomLeague,
@@ -31,6 +32,8 @@ import {
   mockTopScoreStatsApiDetail
 } from "../mocks/data";
 import {TopScoresDetail, TopScoreStatsApiResponse, TopScoreType} from "@/domain/fantasy/entities/TopScore";
+import { appEnv } from "../../app/config/env";
+import { buildEnvPublicAppConfig } from "../../presentation/lib/maintenanceMode";
 
 const STORAGE_KEY = "fantasy-mock-lineups";
 const SQUAD_STORAGE_KEY = "fantasy-mock-squads";
@@ -39,6 +42,17 @@ const CUSTOM_LEAGUE_STANDING_STORAGE_KEY = "fantasy-mock-custom-league-standings
 const ONBOARDING_STORAGE_KEY = "fantasy-mock-onboarding-profiles";
 
 export class MockFantasyRepository implements FantasyRepository {
+  async getPublicAppConfig(): Promise<PublicAppConfig> {
+    await delay(50);
+    return buildEnvPublicAppConfig(appEnv);
+  }
+
+  async getPublicCustomLeagues(): Promise<CustomLeague[]> {
+    await delay(120);
+    const items = readStoredCustomLeagues();
+    return items.slice(0, 8);
+  }
+
   async getDashboard(_accessToken: string): Promise<Dashboard> {
     await delay(200);
     return mockDashboard;

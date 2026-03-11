@@ -31,12 +31,14 @@ const sortCustomLeagues = (items: CustomLeague[]): CustomLeague[] => {
 export const CustomLeaguesPage = () => {
   const { t } = useI18n();
   const [searchParams] = useSearchParams();
-  const { getMyCustomLeagues, createCustomLeague, joinCustomLeagueByInvite } = useContainer();
+  const { getMyCustomLeagues, getPublicCustomLeagues, createCustomLeague, joinCustomLeagueByInvite } = useContainer();
   const { leagues, selectedLeagueId } = useLeagueSelection();
   const { session } = useSession();
 
   const [groups, setGroups] = useState<CustomLeague[]>([]);
+  const [publicGroups, setPublicGroups] = useState<CustomLeague[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isPublicLoading, setIsPublicLoading] = useState(false);
   const [isCreateLoading, setIsCreateLoading] = useState(false);
   const [isJoinLoading, setIsJoinLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -78,9 +80,25 @@ export const CustomLeaguesPage = () => {
     [accessToken, getMyCustomLeagues, t, userId]
   );
 
+  const loadPublicGroups = useCallback(async () => {
+    try {
+      setIsPublicLoading(true);
+      const result = await getPublicCustomLeagues.execute();
+      setPublicGroups(sortCustomLeagues(result));
+    } catch {
+      setPublicGroups([]);
+    } finally {
+      setIsPublicLoading(false);
+    }
+  }, [getPublicCustomLeagues]);
+
   useEffect(() => {
     void loadGroups(false);
   }, [loadGroups]);
+
+  useEffect(() => {
+    void loadPublicGroups();
+  }, [loadPublicGroups]);
 
   useEffect(() => {
     if (errorMessage) {
@@ -113,6 +131,7 @@ export const CustomLeaguesPage = () => {
   }, [searchParams]);
 
   const leagueCount = useMemo(() => groups.length, [groups]);
+  const publicLeagueCount = useMemo(() => publicGroups.length, [publicGroups]);
   const leaguesById = useMemo(() => new Map(leagues.map((league) => [league.id, league])), [leagues]);
 
   const buildInviteLink = (inviteCode: string): string => {
@@ -159,13 +178,8 @@ export const CustomLeaguesPage = () => {
 
   const onCreate = async () => {
     const leagueId = createLeagueId.trim();
-    const name = createName.trim();
     if (!leagueId) {
       setActionMessage(t("customLeagues.validation.leagueNotReady"));
-      return;
-    }
-    if (!name) {
-      setActionMessage(t("customLeagues.validation.nameRequired"));
       return;
     }
     if (!accessToken || !userId) {
@@ -178,14 +192,15 @@ export const CustomLeaguesPage = () => {
       const created = await createCustomLeague.execute(
         {
           leagueId,
-          name
+          name: createName
         },
         accessToken
       );
 
       invalidateCached(cacheKeys.customLeagues(userId));
-      await loadGroups(true);
+      await Promise.all([loadGroups(true), loadPublicGroups()]);
       setCreateName("");
+      setJoinValue(created.inviteCode);
       setActionMessage(t("customLeagues.action.created", { code: created.inviteCode }));
     } catch (error) {
       const message = error instanceof Error ? error.message : t("customLeagues.error.createFailed");
@@ -214,7 +229,7 @@ export const CustomLeaguesPage = () => {
       invalidateCached(cacheKeys.customLeague(joined.id, userId));
       invalidateCached(cacheKeys.customLeagueStandings(joined.id, userId));
 
-      await loadGroups(true);
+      await Promise.all([loadGroups(true), loadPublicGroups()]);
       setJoinValue(inviteCode);
       setActionMessage(t("customLeagues.action.joined", { name: joined.name }));
     } catch (error) {
@@ -337,6 +352,77 @@ export const CustomLeaguesPage = () => {
                 <Link to={`/custom-leagues/${group.id}`} className="secondary-button home-news-more">
                   {t("customLeagues.open")}
                 </Link>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={() => void copyText(group.inviteCode, t("customLeagues.copyCode"))}
+                >
+                  {t("customLeagues.copyCode")}
+                </button>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={() => void copyText(buildInviteLink(group.inviteCode), t("customLeagues.copyLink"))}
+                >
+                  {t("customLeagues.copyLink")}
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="card page-section">
+        <div className="home-section-head">
+          <div className="section-title">
+            <h2>{t("customLeagues.public.title")}</h2>
+            <p className="muted">{t("customLeagues.public.subtitle")}</p>
+          </div>
+          <span className="small-label">{t("customLeagues.count", { count: publicLeagueCount })}</span>
+        </div>
+
+        {isPublicLoading ? <LoadingState label={t("customLeagues.public.loading")} /> : null}
+        {!isPublicLoading && publicGroups.length === 0 ? <p className="muted">{t("customLeagues.public.empty")}</p> : null}
+
+        <div className="custom-leagues-grid">
+          {publicGroups.map((group) => (
+            <article key={`public-${group.id}`} className="custom-league-item">
+              <div className="home-section-head">
+                <strong>{group.name}</strong>
+                <RankMovementBadge value={group.rankMovement} />
+              </div>
+              <div className="media-line">
+                {leaguesById.get(group.leagueId)?.logoUrl ? (
+                  <LazyImage
+                    src={leaguesById.get(group.leagueId)?.logoUrl ?? ""}
+                    alt={leaguesById.get(group.leagueId)?.name ?? group.leagueId}
+                    className="media-thumb media-thumb-small"
+                    fallback={
+                      <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
+                        L
+                      </span>
+                    }
+                  />
+                ) : (
+                  <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
+                    L
+                  </span>
+                )}
+                <div className="media-copy">
+                  <p className="muted">
+                    {t("customLeagues.league", { league: leaguesById.get(group.leagueId)?.name ?? group.leagueId })}
+                  </p>
+                </div>
+              </div>
+              <p className="small-label">{t("customLeagues.inviteCode", { code: group.inviteCode })}</p>
+              <div className="custom-league-item-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setJoinValue(group.inviteCode)}
+                >
+                  {t("customLeagues.public.useInvite")}
+                </button>
                 <button
                   type="button"
                   className="ghost-button"

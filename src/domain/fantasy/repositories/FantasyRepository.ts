@@ -9,6 +9,7 @@ import type { Club } from "../entities/Club";
 import type { PickSquadInput, Squad } from "../entities/Squad";
 import type { SeasonPointsSummary } from "../entities/SeasonPointsSummary";
 import type { UserGameweekPoints } from "../entities/UserGameweekPoints";
+import type { PublicAppConfig } from "../entities/AppConfig";
 import type {
   CompleteOnboardingInput,
   CompleteOnboardingResult,
@@ -23,6 +24,7 @@ import type {
 import {TopScoresDetail, TopScoreType} from "@/domain/fantasy/entities/TopScore";
 
 export interface FantasyRepository {
+  getPublicAppConfig(): Promise<PublicAppConfig>;
   getDashboard(accessToken: string): Promise<Dashboard>;
   getLeagues(): Promise<League[]>;
   getTeams(leagueId: string): Promise<Club[]>;
@@ -59,6 +61,7 @@ export interface FantasyRepository {
     input: CompleteOnboardingInput,
     accessToken: string
   ): Promise<CompleteOnboardingResult>;
+  getPublicCustomLeagues(): Promise<CustomLeague[]>;
   getMyCustomLeagues(accessToken: string): Promise<CustomLeague[]>;
   createCustomLeague(input: CreateCustomLeagueInput, accessToken: string): Promise<CustomLeague>;
   joinCustomLeagueByInvite(inviteCode: string, accessToken: string): Promise<CustomLeague>;

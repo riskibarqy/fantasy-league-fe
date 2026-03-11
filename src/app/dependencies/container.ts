@@ -18,6 +18,8 @@ import { GetMyPlayerPointsByGameweek } from "../../application/fantasy/usecases/
 import { GetMySquad } from "../../application/fantasy/usecases/GetMySquad";
 import { GetPlayerDetails } from "../../application/fantasy/usecases/GetPlayerDetails";
 import { GetPlayers } from "../../application/fantasy/usecases/GetPlayers";
+import { GetPublicAppConfig } from "../../application/fantasy/usecases/GetPublicAppConfig";
+import { GetPublicCustomLeagues } from "../../application/fantasy/usecases/GetPublicCustomLeagues";
 import { GetSeasonPointsSummary } from "../../application/fantasy/usecases/GetSeasonPointsSummary";
 import { GetTeams } from "../../application/fantasy/usecases/GetTeams";
 import { JoinCustomLeagueByInvite } from "../../application/fantasy/usecases/JoinCustomLeagueByInvite";
@@ -55,6 +57,8 @@ export const buildContainer = () => {
     loginWithPassword: new LoginWithPassword(repositories.authRepository),
     loginWithGoogleIdToken: new LoginWithGoogleIdToken(repositories.authRepository),
     logout: new Logout(repositories.authRepository),
+    getPublicAppConfig: new GetPublicAppConfig(repositories.fantasyRepository),
+    getPublicCustomLeagues: new GetPublicCustomLeagues(repositories.fantasyRepository),
     getDashboard: new GetDashboard(repositories.fantasyRepository),
     getLeagues: new GetLeagues(repositories.fantasyRepository),
     getTeams: new GetTeams(repositories.fantasyRepository),

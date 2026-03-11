@@ -3,9 +3,12 @@ import { CompleteOnboarding } from "./CompleteOnboarding";
 import { GetTeams } from "./GetTeams";
 import { SaveOnboardingFavoriteClub } from "./SaveOnboardingFavoriteClub";
 import type { FantasyRepository } from "../../../domain/fantasy/repositories/FantasyRepository";
+import { defaultPublicAppConfig } from "../../../domain/fantasy/entities/AppConfig";
 import { defaultLineup, mockPlayers, mockTeams } from "../../../infrastructure/mocks/data";
 
 const fantasyRepositoryStub = (): FantasyRepository => ({
+  getPublicAppConfig: vi.fn().mockResolvedValue(defaultPublicAppConfig()),
+  getPublicCustomLeagues: vi.fn(),
   getDashboard: vi.fn(),
   getLeagues: vi.fn(),
   getTeams: vi.fn(),
@@ -127,7 +130,7 @@ describe("Onboarding usecases", () => {
     expect(repo.completeOnboarding).toHaveBeenCalledWith(
       {
         leagueId: "idn-liga-1-2025",
-        squadName: "",
+        squadName: expect.stringMatching(/\S/),
         playerIds,
         lineup: defaultLineup
       },

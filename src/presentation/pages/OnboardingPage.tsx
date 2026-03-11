@@ -19,6 +19,7 @@ import { markOnboardingCompleted } from "../hooks/useOnboardingStatus";
 import { useSession } from "../hooks/useSession";
 import { HttpError } from "../../infrastructure/http/httpClient";
 import { appAlert } from "../lib/appAlert";
+import { createGeneratedSquadName } from "../../domain/fantasy/services/nameGenerator";
 import {
   consumePickerResult,
   readLineupDraft,
@@ -402,7 +403,7 @@ export const OnboardingPage = () => {
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState("");
   const [lineupDraft, setLineupDraft] = useState<TeamLineup | null>(null);
-  const [squadName, setSquadName] = useState("My Squad");
+  const [squadName, setSquadName] = useState(() => createGeneratedSquadName());
   const [teamSearch, setTeamSearch] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);

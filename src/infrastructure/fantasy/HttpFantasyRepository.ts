@@ -15,6 +15,7 @@ import type { Club } from "../../domain/fantasy/entities/Club";
 import type { PickSquadInput, Squad } from "../../domain/fantasy/entities/Squad";
 import type { SeasonPointsSummary } from "../../domain/fantasy/entities/SeasonPointsSummary";
 import type { UserGameweekPoints, UserPlayerPoint } from "../../domain/fantasy/entities/UserGameweekPoints";
+import type { PublicAppConfig } from "../../domain/fantasy/entities/AppConfig";
 import type {
   CompleteOnboardingInput,
   CompleteOnboardingResult,
@@ -29,9 +30,16 @@ import type {
 } from "../../domain/fantasy/entities/CustomLeague";
 import { HttpClient, HttpError } from "../http/httpClient";
 import {TopScoresDetail, TopScoreType} from "@/domain/fantasy/entities/TopScore";
+import { defaultPublicAppConfig } from "../../domain/fantasy/entities/AppConfig";
+import { normalizePublicAppConfig } from "../../presentation/lib/maintenanceMode";
 
 export class HttpFantasyRepository implements FantasyRepository {
   constructor(private readonly httpClient: HttpClient) {}
+
+  async getPublicAppConfig(): Promise<PublicAppConfig> {
+    const payload = await this.httpClient.get<unknown>("/v1/public/app-config");
+    return normalizePublicAppConfig(payload, defaultPublicAppConfig());
+  }
 
   async getDashboard(accessToken: string): Promise<Dashboard> {
     const payload = await this.httpClient.get<unknown>("/v1/dashboard", this.authHeader(accessToken));
@@ -296,6 +304,30 @@ export class HttpFantasyRepository implements FantasyRepository {
 
     const fallbackData = await this.httpClient.get<unknown>("/v1/custom-leagues", headers);
     return mapCustomLeagues(fallbackData);
+  }
+
+  async getPublicCustomLeagues(): Promise<CustomLeague[]> {
+    const candidates = [
+      "/v1/custom-leagues/public",
+      "/v1/public/custom-leagues"
+    ];
+
+    let lastError: unknown;
+    for (const path of candidates) {
+      try {
+        const data = await this.httpClient.get<unknown>(path);
+        return mapCustomLeagues(data);
+      } catch (error) {
+        if (error instanceof HttpError && (error.statusCode === 404 || error.statusCode === 405)) {
+          lastError = error;
+          continue;
+        }
+
+        throw error;
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error("Failed to load public custom leagues.");
   }
 
   async createCustomLeague(input: CreateCustomLeagueInput, accessToken: string): Promise<CustomLeague> {

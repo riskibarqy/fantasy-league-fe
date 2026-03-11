@@ -202,6 +202,11 @@ const MESSAGES: Record<AppLanguage, Record<string, string>> = {
     "customLeagues.action.joined": "Joined \"{name}\".",
     "customLeagues.error.createFailed": "Failed to create custom league.",
     "customLeagues.error.joinFailed": "Failed to join custom league.",
+    "customLeagues.public.title": "Public Custom Leagues",
+    "customLeagues.public.subtitle": "Browse public leagues and use an invite code to join.",
+    "customLeagues.public.loading": "Loading public custom leagues",
+    "customLeagues.public.empty": "No public custom leagues found.",
+    "customLeagues.public.useInvite": "Use Invite",
 
     "customLeagueStandings.errorTitle": "Standings Load Failed",
     "customLeagueStandings.titleFallback": "Custom League",
@@ -414,6 +419,11 @@ const MESSAGES: Record<AppLanguage, Record<string, string>> = {
     "customLeagues.action.joined": "Berhasil bergabung ke \"{name}\".",
     "customLeagues.error.createFailed": "Gagal membuat liga kustom.",
     "customLeagues.error.joinFailed": "Gagal bergabung ke liga kustom.",
+    "customLeagues.public.title": "Liga Kustom Publik",
+    "customLeagues.public.subtitle": "Lihat liga publik dan gunakan kode undangan untuk bergabung.",
+    "customLeagues.public.loading": "Memuat liga kustom publik",
+    "customLeagues.public.empty": "Belum ada liga kustom publik.",
+    "customLeagues.public.useInvite": "Pakai Kode",
 
     "customLeagueStandings.errorTitle": "Gagal Memuat Klasemen",
     "customLeagueStandings.titleFallback": "Liga Kustom",

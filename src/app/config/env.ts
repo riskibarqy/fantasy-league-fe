@@ -12,5 +12,14 @@ export const appEnv = {
   anubisBaseUrl: process.env.NEXT_PUBLIC_ANUBIS_BASE_URL ?? "http://localhost:8081",
   anubisAppId: process.env.NEXT_PUBLIC_ANUBIS_APP_ID ?? "",
   googleClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "",
-  fantasyApiBaseUrl: process.env.NEXT_PUBLIC_FANTASY_API_BASE_URL ?? "http://localhost:8080"
+  fantasyApiBaseUrl: process.env.NEXT_PUBLIC_FANTASY_API_BASE_URL ?? "http://localhost:8080",
+  maintenanceEnabled: toBool(process.env.NEXT_PUBLIC_MAINTENANCE_ENABLED, false),
+  maintenanceMode: process.env.NEXT_PUBLIC_MAINTENANCE_MODE ?? "full",
+  maintenanceTitle: process.env.NEXT_PUBLIC_MAINTENANCE_TITLE ?? "",
+  maintenanceMessage: process.env.NEXT_PUBLIC_MAINTENANCE_MESSAGE ?? "",
+  maintenanceStartsAt: process.env.NEXT_PUBLIC_MAINTENANCE_STARTS_AT ?? "",
+  maintenanceEndsAt: process.env.NEXT_PUBLIC_MAINTENANCE_ENDS_AT ?? "",
+  maintenanceAllowPaths: process.env.NEXT_PUBLIC_MAINTENANCE_ALLOW_PATHS ?? "/login",
+  maintenanceBlockedPaths: process.env.NEXT_PUBLIC_MAINTENANCE_BLOCKED_PATHS ?? "",
+  maintenanceAllowedUserIds: process.env.NEXT_PUBLIC_MAINTENANCE_ALLOWED_USER_IDS ?? ""
 } as const;
