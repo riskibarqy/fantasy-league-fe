@@ -26,6 +26,7 @@ const fantasyRepositoryStub = (): FantasyRepository => ({
   completeOnboarding: vi.fn(),
   getMyCustomLeagues: vi.fn(),
   createCustomLeague: vi.fn(),
+  joinPublicCustomLeague: vi.fn(),
   joinCustomLeagueByInvite: vi.fn(),
   getCustomLeague: vi.fn(),
   getCustomLeagueStandings: vi.fn()
@@ -41,7 +42,9 @@ describe("CreateCustomLeague", () => {
       name: input.name,
       inviteCode: "ABC123",
       isDefault: false,
+      isPublic: true,
       myRank: 1,
+      memberCount: 1,
       rankMovement: "new",
       createdAtUtc: new Date().toISOString(),
       updatedAtUtc: new Date().toISOString()

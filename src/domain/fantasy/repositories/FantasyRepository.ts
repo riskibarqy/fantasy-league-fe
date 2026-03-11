@@ -61,9 +61,10 @@ export interface FantasyRepository {
     input: CompleteOnboardingInput,
     accessToken: string
   ): Promise<CompleteOnboardingResult>;
-  getPublicCustomLeagues(): Promise<CustomLeague[]>;
+  getPublicCustomLeagues(leagueId?: string): Promise<CustomLeague[]>;
   getMyCustomLeagues(accessToken: string): Promise<CustomLeague[]>;
   createCustomLeague(input: CreateCustomLeagueInput, accessToken: string): Promise<CustomLeague>;
+  joinPublicCustomLeague(groupId: string, accessToken: string): Promise<CustomLeague>;
   joinCustomLeagueByInvite(inviteCode: string, accessToken: string): Promise<CustomLeague>;
   getCustomLeague(groupId: string, accessToken: string): Promise<CustomLeague>;
   getCustomLeagueStandings(groupId: string, accessToken: string): Promise<CustomLeagueStanding[]>;

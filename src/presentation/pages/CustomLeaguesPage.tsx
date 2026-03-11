@@ -31,7 +31,13 @@ const sortCustomLeagues = (items: CustomLeague[]): CustomLeague[] => {
 export const CustomLeaguesPage = () => {
   const { t } = useI18n();
   const [searchParams] = useSearchParams();
-  const { getMyCustomLeagues, getPublicCustomLeagues, createCustomLeague, joinCustomLeagueByInvite } = useContainer();
+  const {
+    getMyCustomLeagues,
+    getPublicCustomLeagues,
+    createCustomLeague,
+    joinPublicCustomLeague,
+    joinCustomLeagueByInvite
+  } = useContainer();
   const { leagues, selectedLeagueId } = useLeagueSelection();
   const { session } = useSession();
 
@@ -83,14 +89,15 @@ export const CustomLeaguesPage = () => {
   const loadPublicGroups = useCallback(async () => {
     try {
       setIsPublicLoading(true);
-      const result = await getPublicCustomLeagues.execute();
+      setPublicGroups([]);
+      const result = await getPublicCustomLeagues.execute(selectedLeagueId);
       setPublicGroups(sortCustomLeagues(result));
     } catch {
       setPublicGroups([]);
     } finally {
       setIsPublicLoading(false);
     }
-  }, [getPublicCustomLeagues]);
+  }, [getPublicCustomLeagues, selectedLeagueId]);
 
   useEffect(() => {
     void loadGroups(false);
@@ -231,6 +238,30 @@ export const CustomLeaguesPage = () => {
 
       await Promise.all([loadGroups(true), loadPublicGroups()]);
       setJoinValue(inviteCode);
+      setActionMessage(t("customLeagues.action.joined", { name: joined.name }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t("customLeagues.error.joinFailed");
+      setActionMessage(message);
+    } finally {
+      setIsJoinLoading(false);
+    }
+  };
+
+  const onJoinPublic = async (groupId: string) => {
+    if (!accessToken || !userId) {
+      setActionMessage(t("customLeagues.error.sessionExpired"));
+      return;
+    }
+
+    try {
+      setIsJoinLoading(true);
+      const joined = await joinPublicCustomLeague.execute(groupId, accessToken);
+
+      invalidateCached(cacheKeys.customLeagues(userId));
+      invalidateCached(cacheKeys.customLeague(joined.id, userId));
+      invalidateCached(cacheKeys.customLeagueStandings(joined.id, userId));
+
+      await Promise.all([loadGroups(true), loadPublicGroups()]);
       setActionMessage(t("customLeagues.action.joined", { name: joined.name }));
     } catch (error) {
       const message = error instanceof Error ? error.message : t("customLeagues.error.joinFailed");
@@ -389,7 +420,7 @@ export const CustomLeaguesPage = () => {
             <article key={`public-${group.id}`} className="custom-league-item">
               <div className="home-section-head">
                 <strong>{group.name}</strong>
-                <RankMovementBadge value={group.rankMovement} />
+                <span className="small-label">{t("customLeagues.public.members", { count: group.memberCount })}</span>
               </div>
               <div className="media-line">
                 {leaguesById.get(group.leagueId)?.logoUrl ? (
@@ -414,28 +445,14 @@ export const CustomLeaguesPage = () => {
                   </p>
                 </div>
               </div>
-              <p className="small-label">{t("customLeagues.inviteCode", { code: group.inviteCode })}</p>
               <div className="custom-league-item-actions">
                 <button
                   type="button"
                   className="secondary-button"
-                  onClick={() => setJoinValue(group.inviteCode)}
+                  onClick={() => void onJoinPublic(group.id)}
+                  disabled={isJoinLoading}
                 >
-                  {t("customLeagues.public.useInvite")}
-                </button>
-                <button
-                  type="button"
-                  className="ghost-button"
-                  onClick={() => void copyText(group.inviteCode, t("customLeagues.copyCode"))}
-                >
-                  {t("customLeagues.copyCode")}
-                </button>
-                <button
-                  type="button"
-                  className="ghost-button"
-                  onClick={() => void copyText(buildInviteLink(group.inviteCode), t("customLeagues.copyLink"))}
-                >
-                  {t("customLeagues.copyLink")}
+                  {isJoinLoading ? t("customLeagues.public.joining") : t("customLeagues.public.join")}
                 </button>
               </div>
             </article>

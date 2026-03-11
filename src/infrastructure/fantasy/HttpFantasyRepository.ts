@@ -306,28 +306,16 @@ export class HttpFantasyRepository implements FantasyRepository {
     return mapCustomLeagues(fallbackData);
   }
 
-  async getPublicCustomLeagues(): Promise<CustomLeague[]> {
-    const candidates = [
-      "/v1/custom-leagues/public",
-      "/v1/public/custom-leagues"
-    ];
-
-    let lastError: unknown;
-    for (const path of candidates) {
-      try {
-        const data = await this.httpClient.get<unknown>(path);
-        return mapCustomLeagues(data);
-      } catch (error) {
-        if (error instanceof HttpError && (error.statusCode === 404 || error.statusCode === 405)) {
-          lastError = error;
-          continue;
-        }
-
-        throw error;
-      }
+  async getPublicCustomLeagues(leagueId?: string): Promise<CustomLeague[]> {
+    const query = new URLSearchParams();
+    const normalizedLeagueId = leagueId?.trim() ?? "";
+    if (normalizedLeagueId) {
+      query.set("league_id", normalizedLeagueId);
     }
 
-    throw lastError instanceof Error ? lastError : new Error("Failed to load public custom leagues.");
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    const data = await this.httpClient.get<unknown>(`/v1/custom-leagues/public${suffix}`);
+    return mapCustomLeagues(data);
   }
 
   async createCustomLeague(input: CreateCustomLeagueInput, accessToken: string): Promise<CustomLeague> {
@@ -343,6 +331,16 @@ export class HttpFantasyRepository implements FantasyRepository {
         league_id: input.leagueId,
         name: input.name
       },
+      this.authHeader(accessToken)
+    );
+
+    return mapCustomLeague(data);
+  }
+
+  async joinPublicCustomLeague(groupId: string, accessToken: string): Promise<CustomLeague> {
+    const data = await this.httpClient.post<Record<string, never>, unknown>(
+      `/v1/custom-leagues/${encodeURIComponent(groupId)}/join`,
+      {},
       this.authHeader(accessToken)
     );
 
@@ -489,7 +487,9 @@ const mapCustomLeague = (payload: unknown): CustomLeague => {
     name: readString(record, "name"),
     inviteCode: readString(record, "invite_code", "inviteCode"),
     isDefault: readBoolean(record, "is_default", "isDefault"),
+    isPublic: readBoolean(record, "is_public", "isPublic"),
     myRank: readNumber(record, "my_rank", "myRank"),
+    memberCount: readNumber(record, "member_count", "memberCount"),
     rankMovement: normalizeRankMovement(record.rank_movement ?? record.rankMovement),
     createdAtUtc: readString(record, "created_at_utc", "createdAtUtc"),
     updatedAtUtc: readString(record, "updated_at_utc", "updatedAtUtc")

@@ -7,7 +7,9 @@ export type CustomLeague = {
   name: string;
   inviteCode: string;
   isDefault: boolean;
+  isPublic: boolean;
   myRank: number;
+  memberCount: number;
   rankMovement: RankMovement;
   createdAtUtc: string;
   updatedAtUtc: string;

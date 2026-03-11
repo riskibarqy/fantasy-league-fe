@@ -3,7 +3,7 @@ import type { FantasyRepository } from "../../../domain/fantasy/repositories/Fan
 export class GetPublicCustomLeagues {
   constructor(private readonly fantasyRepository: FantasyRepository) {}
 
-  async execute() {
-    return this.fantasyRepository.getPublicCustomLeagues();
+  async execute(leagueId?: string) {
+    return this.fantasyRepository.getPublicCustomLeagues(leagueId);
   }
 }

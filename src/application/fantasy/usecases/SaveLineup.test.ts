@@ -27,6 +27,7 @@ const fantasyRepositoryStub = (): FantasyRepository => ({
   completeOnboarding: vi.fn(),
   getMyCustomLeagues: vi.fn(),
   createCustomLeague: vi.fn(),
+  joinPublicCustomLeague: vi.fn(),
   joinCustomLeagueByInvite: vi.fn(),
   getCustomLeague: vi.fn(),
   getCustomLeagueStandings: vi.fn()

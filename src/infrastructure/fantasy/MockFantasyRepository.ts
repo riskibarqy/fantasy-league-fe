@@ -47,10 +47,18 @@ export class MockFantasyRepository implements FantasyRepository {
     return buildEnvPublicAppConfig(appEnv);
   }
 
-  async getPublicCustomLeagues(): Promise<CustomLeague[]> {
+  async getPublicCustomLeagues(leagueId?: string): Promise<CustomLeague[]> {
     await delay(120);
-    const items = readStoredCustomLeagues();
-    return items.slice(0, 8);
+    const normalizedLeagueId = leagueId?.trim() ?? "";
+    const items = readStoredCustomLeagues().filter((item) => item.isPublic);
+    if (!normalizedLeagueId) {
+      return items.slice(0, 8).map((item) => withMockMemberCount(item));
+    }
+
+    return items
+      .filter((item) => item.leagueId === normalizedLeagueId)
+      .slice(0, 8)
+      .map((item) => withMockMemberCount(item));
   }
 
   async getDashboard(_accessToken: string): Promise<Dashboard> {
@@ -523,7 +531,9 @@ export class MockFantasyRepository implements FantasyRepository {
       name,
       inviteCode,
       isDefault: false,
+      isPublic: true,
       myRank: 1,
+      memberCount: 1,
       rankMovement: "new",
       createdAtUtc: now,
       updatedAtUtc: now
@@ -591,9 +601,26 @@ export class MockFantasyRepository implements FantasyRepository {
     return {
       ...found,
       myRank: alreadyJoined ? found.myRank : standings[found.id]?.length ?? found.myRank,
+      memberCount: standings[found.id]?.length ?? found.memberCount,
       rankMovement: "new",
       updatedAtUtc: new Date().toISOString()
     };
+  }
+
+  async joinPublicCustomLeague(groupId: string, accessToken: string): Promise<CustomLeague> {
+    await delay(220);
+
+    const normalizedGroupId = groupId.trim();
+    if (!normalizedGroupId) {
+      throw new Error("Custom league id is required.");
+    }
+
+    const found = readStoredCustomLeagues().find((item) => item.id === normalizedGroupId && item.isPublic);
+    if (!found) {
+      throw new Error("Public custom league not found.");
+    }
+
+    return this.joinCustomLeagueByInvite(found.inviteCode, accessToken);
   }
 
   async getCustomLeague(groupId: string, _accessToken: string): Promise<CustomLeague> {
@@ -650,7 +677,9 @@ const defaultCustomLeagues = (): CustomLeague[] => [
     name: "Liga 1 Weekend Warriors",
     inviteCode: "WARRIOR8",
     isDefault: false,
+    isPublic: true,
     myRank: 2,
+    memberCount: 4,
     rankMovement: "up",
     createdAtUtc: "2026-02-10T10:00:00.000Z",
     updatedAtUtc: "2026-02-16T09:00:00.000Z"
@@ -662,7 +691,9 @@ const defaultCustomLeagues = (): CustomLeague[] => [
     name: "Jakarta Mini League",
     inviteCode: "JAKARTA9",
     isDefault: false,
+    isPublic: true,
     myRank: 5,
+    memberCount: 6,
     rankMovement: "down",
     createdAtUtc: "2026-02-08T06:00:00.000Z",
     updatedAtUtc: "2026-02-16T09:00:00.000Z"
@@ -674,7 +705,9 @@ const defaultCustomLeagues = (): CustomLeague[] => [
     name: "Office Fantasy Cup",
     inviteCode: "OFFICE77",
     isDefault: false,
+    isPublic: false,
     myRank: 1,
+    memberCount: 3,
     rankMovement: "same",
     createdAtUtc: "2026-02-01T06:00:00.000Z",
     updatedAtUtc: "2026-02-16T09:00:00.000Z"
@@ -686,7 +719,9 @@ const defaultCustomLeagues = (): CustomLeague[] => [
     name: "Community Challenge",
     inviteCode: "COMM678",
     isDefault: false,
+    isPublic: true,
     myRank: 8,
+    memberCount: 8,
     rankMovement: "new",
     createdAtUtc: "2026-02-12T12:00:00.000Z",
     updatedAtUtc: "2026-02-16T09:00:00.000Z"
@@ -791,7 +826,7 @@ const readStoredCustomLeagues = (): CustomLeague[] => {
 
   try {
     const parsed = JSON.parse(raw) as CustomLeague[];
-    return Array.isArray(parsed) ? parsed : defaultCustomLeagues();
+    return Array.isArray(parsed) ? parsed.map((item) => withMockMemberCount(item)) : defaultCustomLeagues();
   } catch {
     return defaultCustomLeagues();
   }
@@ -799,6 +834,15 @@ const readStoredCustomLeagues = (): CustomLeague[] => {
 
 const writeStoredCustomLeagues = (items: CustomLeague[]): void => {
   localStorage.setItem(CUSTOM_LEAGUE_STORAGE_KEY, JSON.stringify(items));
+};
+
+const withMockMemberCount = (item: CustomLeague): CustomLeague => {
+  const standings = readStoredCustomLeagueStandings();
+  return {
+    ...item,
+    isPublic: Boolean(item.isPublic),
+    memberCount: standings[item.id]?.length ?? item.memberCount ?? 0
+  };
 };
 
 const readStoredCustomLeagueStandings = (): Record<string, CustomLeagueStanding[]> => {
