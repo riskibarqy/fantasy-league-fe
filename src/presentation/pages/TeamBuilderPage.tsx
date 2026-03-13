@@ -34,6 +34,7 @@ import {
   writeLineupDraft,
   type SlotPickerTarget
 } from "./teamPickerStorage";
+import { resolveFixtureTargetGameweek } from "./teamBuilderGameweek";
 
 type TeamMode = "PAT" | "TRF";
 type PointsMetric = "average" | "my" | "highest";
@@ -1232,16 +1233,8 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     return resolveActiveGameweekFromFixtures(fixtures, Date.now());
   }, [fixtures]);
 
-  const planningGameweek = useMemo(() => {
-    if (activeFixtureGameweek && activeFixtureGameweek > 0) {
-      return activeFixtureGameweek + 1;
-    }
-
-    if (gameweek && gameweek > 0) {
-      return gameweek + 1;
-    }
-
-    return null;
+  const fixtureTargetGameweek = useMemo(() => {
+    return resolveFixtureTargetGameweek(gameweek, activeFixtureGameweek);
   }, [activeFixtureGameweek, gameweek]);
 
   const fixtureByTeam = useMemo(() => {
@@ -1249,8 +1242,8 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     const sorted = [...fixtures].sort((left, right) => parseFixtureKickoffMs(left) - parseFixtureKickoffMs(right));
     const nowMs = Date.now();
 
-    const preferred = planningGameweek
-      ? sorted.filter((fixture) => fixture.gameweek === planningGameweek)
+    const preferred = fixtureTargetGameweek
+      ? sorted.filter((fixture) => fixture.gameweek === fixtureTargetGameweek)
       : sorted.filter((fixture) => parseFixtureKickoffMs(fixture) >= nowMs);
     const fallback = sorted.filter((fixture) => parseFixtureKickoffMs(fixture) >= nowMs);
     const source = preferred.length > 0 ? preferred : fallback.length > 0 ? fallback : sorted;
@@ -1266,7 +1259,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     }
 
     return map;
-  }, [fixtures, planningGameweek]);
+  }, [fixtureTargetGameweek, fixtures]);
 
   const lockState = useMemo(() => {
     if (!activeFixtureGameweek) {
@@ -1735,7 +1728,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     }
 
     const baseGameweek =
-      planningGameweek ??
+      fixtureTargetGameweek ??
       gameweek ??
       fixtures
         .map((fixture) => fixture.gameweek)
@@ -1775,7 +1768,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         points: isDone ? simulatePastPoints(selectedPlayer, gw) : null
       };
     });
-  }, [fixtures, gameweek, planningGameweek, selectedPlayer]);
+  }, [fixtureTargetGameweek, fixtures, gameweek, selectedPlayer]);
 
   const pointsViewTitle =
     pointsMetric === "average"
@@ -1981,7 +1974,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       ? fixture.homeTeam === player.club
         ? `${fixture.awayTeam} (H)`
         : `${fixture.homeTeam} (A)`
-      : `GW ${planningGameweek ?? gameweek ?? "-"}`;
+      : `GW ${fixtureTargetGameweek ?? gameweek ?? "-"}`;
     const jerseyBackground = jerseyBackgroundFromColors(resolveJerseyColorPair(player, teamColorIndex));
     const jerseyNumber = jerseyNumberFromPlayer(player.id);
 
