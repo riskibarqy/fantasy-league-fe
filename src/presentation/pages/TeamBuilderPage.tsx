@@ -8,6 +8,7 @@ import type { Player } from "../../domain/fantasy/entities/Player";
 import type { PlayerDetails } from "../../domain/fantasy/entities/PlayerDetails";
 import type { TeamLineup } from "../../domain/fantasy/entities/Team";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
+import type { UserGameweekPoints } from "../../domain/fantasy/entities/UserGameweekPoints";
 import {
   BENCH_SLOT_POSITIONS,
   FORMATION_LIMITS,
@@ -383,6 +384,34 @@ const normalizeLineup = (leagueId: string, lineup: TeamLineup | null): TeamLineu
   });
 };
 
+const buildLineupFromPointsRow = (row: UserGameweekPoints): TeamLineup => {
+  const starters = row.players.filter((item) => item.isStarter);
+  const bench = row.players.filter((item) => !item.isStarter);
+
+  const goalkeeperId = starters.find((item) => item.position === "GK")?.playerId ?? "";
+  const defenderIds = starters.filter((item) => item.position === "DEF").map((item) => item.playerId);
+  const midfielderIds = starters.filter((item) => item.position === "MID").map((item) => item.playerId);
+  const forwardIds = starters.filter((item) => item.position === "FWD").map((item) => item.playerId);
+  const substituteIds = bench.map((item) => item.playerId).slice(0, SUBSTITUTE_SIZE);
+  const captainId = starters.find((item) => item.isCaptain)?.playerId ?? goalkeeperId;
+  const viceCaptainId =
+    starters.find((item) => item.isViceCaptain)?.playerId ??
+    starters.find((item) => item.playerId !== captainId)?.playerId ??
+    captainId;
+
+  return {
+    leagueId: row.leagueId,
+    goalkeeperId,
+    defenderIds,
+    midfielderIds,
+    forwardIds,
+    substituteIds,
+    captainId,
+    viceCaptainId,
+    updatedAt: new Date().toISOString()
+  };
+};
+
 const toComparableLineup = (lineup: TeamLineup | null) => {
   if (!lineup) {
     return null;
@@ -598,6 +627,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
   const [pointsViewGameweek, setPointsViewGameweek] = useState<number | null>(null);
   const [pointsViewTotal, setPointsViewTotal] = useState<number | null>(null);
   const [pointsViewTopUserId, setPointsViewTopUserId] = useState<string | null>(null);
+  const [pointsViewLineup, setPointsViewLineup] = useState<TeamLineup | null>(null);
   const [isPointsViewLoading, setIsPointsViewLoading] = useState(false);
   const [pointsViewNotice, setPointsViewNotice] = useState<string | null>(null);
 
@@ -652,6 +682,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       setPointsViewGameweek(null);
       setPointsViewTotal(null);
       setPointsViewTopUserId(null);
+      setPointsViewLineup(null);
       setPointsViewNotice(null);
       setIsPointsViewLoading(false);
       return;
@@ -664,9 +695,11 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       setPointsViewGameweek(null);
       setPointsViewTotal(null);
       setPointsViewTopUserId(null);
+      setPointsViewLineup(null);
       return;
     }
     if (!gameweek || !Number.isFinite(gameweek) || gameweek <= 0) {
+      setPointsViewLineup(null);
       setIsPointsViewLoading(true);
       return;
     }
@@ -693,6 +726,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
             setPointsViewGameweek(highestTargetGameweek ?? null);
             setPointsViewTotal(null);
             setPointsViewTopUserId(null);
+            setPointsViewLineup(null);
             if (highestTargetGameweek) {
               setPointsViewNotice(`No highest lineup points available for GW ${highestTargetGameweek} yet.`);
             } else {
@@ -710,6 +744,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
           setPointsViewGameweek(highestRow.gameweek);
           setPointsViewTotal(highestRow.totalPoints);
           setPointsViewTopUserId(highestRow.userId || null);
+          setPointsViewLineup(buildLineupFromPointsRow(highestRow));
           setPointsViewNotice(null);
           return;
         }
@@ -745,6 +780,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         setPointsViewGameweek(selectedRow.gameweek);
         setPointsViewTotal(selectedRow.totalPoints);
         setPointsViewTopUserId(null);
+        setPointsViewLineup(null);
         setPointsViewNotice(null);
       } catch (error) {
         if (!mounted) {
@@ -760,6 +796,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         setPointsViewGameweek(null);
         setPointsViewTotal(null);
         setPointsViewTopUserId(null);
+        setPointsViewLineup(null);
         setPointsViewNotice(null);
         void appAlert.error("Points View", error instanceof Error ? error.message : "Failed to load player points.");
       } finally {
@@ -1740,14 +1777,26 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     });
   }, [fixtures, gameweek, planningGameweek, selectedPlayer]);
 
+  const pointsViewTitle =
+    pointsMetric === "average"
+      ? t("team.pointsView.average")
+      : pointsMetric === "highest"
+        ? t("team.pointsView.highest")
+        : t("team.pointsView.squad");
+  const isReadOnlyPointsView = isPointsView && mode === "PAT";
+  const visualLineup =
+    isReadOnlyPointsView && pointsMetric === "highest"
+      ? pointsViewLineup
+      : lineup;
+
   const patRows = useMemo<PitchRow[]>(() => {
-    const lineupOutfieldCount = lineup
-      ? lineup.defenderIds.filter(Boolean).length +
-        lineup.midfielderIds.filter(Boolean).length +
-        lineup.forwardIds.filter(Boolean).length
+    const lineupOutfieldCount = visualLineup
+      ? visualLineup.defenderIds.filter(Boolean).length +
+        visualLineup.midfielderIds.filter(Boolean).length +
+        visualLineup.forwardIds.filter(Boolean).length
       : 0;
 
-    if (!lineup) {
+    if (!visualLineup) {
       return [
         { label: "GK", slots: 1, ids: [] },
         {
@@ -1769,19 +1818,19 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     }
 
     const defenderIds = buildFlexibleRowIds(
-      lineup.defenderIds,
+      visualLineup.defenderIds,
       PAT_MIN_SLOTS.DEF,
       PAT_MAX_SLOTS.DEF,
       lineupOutfieldCount
     );
     const midfielderIds = buildFlexibleRowIds(
-      lineup.midfielderIds,
+      visualLineup.midfielderIds,
       PAT_MIN_SLOTS.MID,
       PAT_MAX_SLOTS.MID,
       lineupOutfieldCount
     );
     const forwardIds = buildFlexibleRowIds(
-      lineup.forwardIds,
+      visualLineup.forwardIds,
       PAT_MIN_SLOTS.FWD,
       PAT_MAX_SLOTS.FWD,
       lineupOutfieldCount
@@ -1791,7 +1840,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       {
         label: "GK",
         slots: 1,
-        ids: lineup.goalkeeperId ? [lineup.goalkeeperId] : []
+        ids: visualLineup.goalkeeperId ? [visualLineup.goalkeeperId] : []
       },
       {
         label: "DEF",
@@ -1809,7 +1858,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         ids: forwardIds
       }
     ];
-  }, [lineup]);
+  }, [visualLineup]);
 
   const trfRows = useMemo<PitchRow[]>(() => {
     const playersByPosition = {
@@ -2005,9 +2054,11 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
                       }
                     : undefined;
 
-                const isCaptain = showLeadershipBadges && Boolean(lineup && player && lineup.captainId === player.id);
+                const isCaptain =
+                  showLeadershipBadges && Boolean(visualLineup && player && visualLineup.captainId === player.id);
                 const isViceCaptain =
-                  showLeadershipBadges && Boolean(lineup && player && lineup.viceCaptainId === player.id);
+                  showLeadershipBadges &&
+                  Boolean(visualLineup && player && visualLineup.viceCaptainId === player.id);
                 const interaction = player ? resolveCardInteraction(player.id) : null;
                 const pointsLabel = player && isReadOnlyPointsView ? resolvePlayerPointsLabel(player.id) : undefined;
 
@@ -2030,21 +2081,13 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     );
   };
 
-  const pointsViewTitle =
-    pointsMetric === "average"
-      ? t("team.pointsView.average")
-      : pointsMetric === "highest"
-        ? t("team.pointsView.highest")
-        : t("team.pointsView.squad");
-  const isReadOnlyPointsView = isPointsView && mode === "PAT";
-
   useEffect(() => {
     if (!isReadOnlyPointsView) {
       pointsViewCenteredKeyRef.current = "";
       return;
     }
 
-    if (!lineup || isLeagueDataLoading || isPointsViewLoading) {
+    if (!visualLineup || isLeagueDataLoading || isPointsViewLoading) {
       return;
     }
 
@@ -2059,7 +2102,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     isLeagueDataLoading,
     isPointsViewLoading,
     isReadOnlyPointsView,
-    lineup,
+    visualLineup,
     pointsMetric,
     pointsViewGameweek,
     recenterToPitch
@@ -2285,6 +2328,16 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     );
   }
 
+  if (isReadOnlyPointsView && pointsMetric === "highest" && isPointsViewLoading && !pointsViewLineup) {
+    return (
+      <div className="page-grid team-builder-page team-builder-page--points-view">
+        <Card className="card">
+          <LoadingState label="Loading highest lineup" />
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className={`page-grid team-builder-page${isReadOnlyPointsView ? " team-builder-page--points-view" : ""}`}>
       {mode === "PAT" && isReadOnlyPointsView ? (
@@ -2417,7 +2470,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
             <p className="small-label">{t("team.bench.title")}</p>
             <div className="bench-grid">
               {Array.from({ length: SUBSTITUTE_SIZE }).map((_, index) => {
-                const playerId = lineup?.substituteIds[index];
+                const playerId = visualLineup?.substituteIds[index];
                 const player = playerId ? playersById.get(playerId) : null;
                 const benchPosition = requiredBenchSlots[index] ?? "BENCH";
                 const interaction = player ? resolveCardInteraction(player.id) : null;
