@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
-import { cacheKeys, cacheTtlMs, getOrLoadCached } from "../../app/cache/requestCache";
+import { cacheKeys, cacheTtlMs, getOrLoadCached, invalidateCached } from "../../app/cache/requestCache";
 import type { Club } from "../../domain/fantasy/entities/Club";
 import type { Player } from "../../domain/fantasy/entities/Player";
 import type { PlayerDetails } from "../../domain/fantasy/entities/PlayerDetails";
@@ -666,13 +666,15 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       setPointsViewTopUserId(null);
       return;
     }
+    if (!gameweek || !Number.isFinite(gameweek) || gameweek <= 0) {
+      setIsPointsViewLoading(true);
+      return;
+    }
 
     let mounted = true;
     setIsPointsViewLoading(true);
-    const currentTargetGameweek =
-      gameweek && Number.isFinite(gameweek) && gameweek > 0 ? gameweek : undefined;
-    const highestTargetGameweek =
-      gameweek && Number.isFinite(gameweek) && gameweek > 0 ? gameweek : undefined;
+    const currentTargetGameweek = gameweek;
+    const highestTargetGameweek = gameweek;
 
     const loadPointsView = async () => {
       try {
@@ -968,7 +970,13 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         }
 
         const [lineupResult, fixturesResult, teamsResult] = await Promise.all([
-          getLineup.execute(selectedLeagueId, accessToken),
+          getOrLoadCached({
+            key: cacheKeys.lineup(userScope, selectedLeagueId),
+            ttlMs: cacheTtlMs.lineup,
+            loader: () => getLineup.execute(selectedLeagueId, accessToken),
+            storage: "memory",
+            allowStaleOnError: false
+          }),
           getOrLoadCached({
             key: cacheKeys.fixtures(selectedLeagueId),
             ttlMs: cacheTtlMs.fixtures,
@@ -2246,6 +2254,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         saved = await saveLineup.execute(lineup, players, session?.accessToken ?? "");
       }
       const normalizedSaved = normalizeLineup(selectedLeagueId, saved);
+      invalidateCached(cacheKeys.lineup(userScope, selectedLeagueId));
       setLineup(normalizedSaved);
       setLastSavedLineup(normalizedSaved);
       setSelectedPlayerId(null);
