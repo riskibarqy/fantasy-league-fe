@@ -22,6 +22,7 @@ import { GetPublicAppConfig } from "../../application/fantasy/usecases/GetPublic
 import { GetPublicCustomLeagues } from "../../application/fantasy/usecases/GetPublicCustomLeagues";
 import { GetSeasonPointsSummary } from "../../application/fantasy/usecases/GetSeasonPointsSummary";
 import { GetTeams } from "../../application/fantasy/usecases/GetTeams";
+import { GetTeamNextMatches } from "../../application/fantasy/usecases/GetTeamNextMatches";
 import { JoinCustomLeagueByInvite } from "../../application/fantasy/usecases/JoinCustomLeagueByInvite";
 import { JoinPublicCustomLeague } from "../../application/fantasy/usecases/JoinPublicCustomLeague";
 import { PickSquad } from "../../application/fantasy/usecases/PickSquad";
@@ -63,6 +64,7 @@ export const buildContainer = () => {
     getDashboard: new GetDashboard(repositories.fantasyRepository),
     getLeagues: new GetLeagues(repositories.fantasyRepository),
     getTeams: new GetTeams(repositories.fantasyRepository),
+    getTeamNextMatches: new GetTeamNextMatches(repositories.fantasyRepository),
     getFixtures: new GetFixtures(repositories.fantasyRepository),
     getTopScoreDetails: new GetTopScore(repositories.fantasyRepository),
     getSeasonPointsSummary: new GetSeasonPointsSummary(repositories.fantasyRepository),

@@ -177,6 +177,7 @@ export const cacheTtlMs = {
   dashboard: 30_000,
   leagues: 5 * 60_000,
   teams: 5 * 60_000,
+  teamNextMatches: 60_000,
   fixtures: 2 * 60_000,
   seasonPointsSummary: 60_000,
   standings: 60_000,
@@ -193,6 +194,8 @@ export const cacheKeys = {
   dashboard: (userId: string): string => `dashboard:${userId.trim() || "anonymous"}`,
   leagues: (): string => "leagues",
   teams: (leagueId: string): string => `teams:${leagueId}`,
+  teamNextMatches: (leagueId: string, gameweek: number, teamIds: string[]): string =>
+    `team-next-matches:${leagueId}:${gameweek}:${[...new Set(teamIds.map((item) => item.trim()).filter(Boolean))].sort().join(",")}`,
   fixtures: (leagueId: string): string => `fixtures:${leagueId}`,
   seasonPointsSummary: (userId: string, leagueId: string): string =>
     `season-points-summary:${userId}:${leagueId}`,

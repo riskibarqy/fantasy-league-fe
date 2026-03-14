@@ -17,6 +17,7 @@ import type { PickSquadInput, Squad } from "../../domain/fantasy/entities/Squad"
 import type { SeasonPointsSummary } from "../../domain/fantasy/entities/SeasonPointsSummary";
 import type { UserGameweekPoints } from "../../domain/fantasy/entities/UserGameweekPoints";
 import type { PublicAppConfig } from "../../domain/fantasy/entities/AppConfig";
+import type { TeamNextMatch } from "../../domain/fantasy/entities/TeamNextMatch";
 import type {
   CreateCustomLeagueInput,
   CustomLeague,
@@ -74,6 +75,57 @@ export class MockFantasyRepository implements FantasyRepository {
   async getTeams(leagueId: string): Promise<Club[]> {
     await delay(200);
     return mockTeams.filter((team) => team.leagueId === leagueId);
+  }
+
+  async getTeamNextMatches(
+    leagueId: string,
+    gameweek: number,
+    teamIds: string[]
+  ): Promise<TeamNextMatch[]> {
+    await delay(120);
+
+    const teams = mockTeams.filter((team) => team.leagueId === leagueId);
+    const teamById = new Map(teams.map((team) => [team.id, team]));
+    const teamByName = new Map(teams.map((team) => [team.name, team]));
+    const fixtureByTeamId = new Map<string, TeamNextMatch>();
+
+    for (const fixture of mockFixtures.filter((item) => item.leagueId === leagueId && item.gameweek === gameweek)) {
+      const homeTeam = teamByName.get(fixture.homeTeam);
+      const awayTeam = teamByName.get(fixture.awayTeam);
+      if (!homeTeam || !awayTeam) {
+        continue;
+      }
+
+      if (!fixtureByTeamId.has(homeTeam.id)) {
+        fixtureByTeamId.set(homeTeam.id, {
+          teamId: homeTeam.id,
+          teamName: homeTeam.name,
+          opponentTeamId: awayTeam.id,
+          opponentTeamName: awayTeam.name,
+          homeAway: "HOME"
+        });
+      }
+
+      if (!fixtureByTeamId.has(awayTeam.id)) {
+        fixtureByTeamId.set(awayTeam.id, {
+          teamId: awayTeam.id,
+          teamName: awayTeam.name,
+          opponentTeamId: homeTeam.id,
+          opponentTeamName: homeTeam.name,
+          homeAway: "AWAY"
+        });
+      }
+    }
+
+    return teamIds.map((teamId) => {
+      const normalizedTeamId = teamId.trim();
+      return (
+        fixtureByTeamId.get(normalizedTeamId) ?? {
+          teamId: normalizedTeamId,
+          teamName: teamById.get(normalizedTeamId)?.name
+        }
+      );
+    });
   }
 
   async getFixtures(leagueId: string): Promise<Fixture[]> {
@@ -291,7 +343,16 @@ export class MockFantasyRepository implements FantasyRepository {
       .filter((player) => player.leagueId === leagueId)
       .map((player) => {
         const teamColor = colorByClub.get(player.club.toLowerCase());
-        return teamColor ? { ...player, teamColor } : player;
+        const teamId = teams.find((team) => team.name.toLowerCase() === player.club.toLowerCase())?.id;
+        if (teamColor || teamId) {
+          return {
+            ...player,
+            ...(teamColor ? { teamColor } : {}),
+            ...(teamId ? { teamId } : {})
+          };
+        }
+
+        return player;
       });
   }
 

@@ -6,6 +6,7 @@ export type Player = {
   name: string;
   commonName?: string;
   club: string;
+  teamId?: string;
   imageUrl?: string;
   teamLogoUrl?: string;
   teamColor?: [string, string];

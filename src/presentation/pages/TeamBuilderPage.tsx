@@ -9,6 +9,7 @@ import type { PlayerDetails } from "../../domain/fantasy/entities/PlayerDetails"
 import type { TeamLineup } from "../../domain/fantasy/entities/Team";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
 import type { UserGameweekPoints } from "../../domain/fantasy/entities/UserGameweekPoints";
+import type { TeamNextMatch } from "../../domain/fantasy/entities/TeamNextMatch";
 import {
   BENCH_SLOT_POSITIONS,
   FORMATION_LIMITS,
@@ -588,6 +589,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
   const {
     getPlayers,
     getTeams,
+    getTeamNextMatches,
     getPlayerDetails,
     getLineup,
     getDashboard,
@@ -613,6 +615,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [lineup, setLineup] = useState<TeamLineup | null>(null);
   const [gameweek, setGameweek] = useState<number | null>(null);
+  const [nextMatchByTeamId, setNextMatchByTeamId] = useState<Record<string, TeamNextMatch>>({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [isLeagueDataLoading, setIsLeagueDataLoading] = useState(false);
@@ -899,6 +902,20 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
 
   const playersById = useMemo(() => new Map(players.map((player) => [player.id, player])), [players]);
   const teamColorIndex = useMemo(() => buildTeamColorIndex(teams), [teams]);
+  const teamIdByKey = useMemo(() => {
+    const map = new Map<string, string>();
+
+    for (const team of teams) {
+      const keys = [team.id, team.name, team.short].map(normalizeTeamKey).filter(Boolean);
+      for (const key of keys) {
+        if (!map.has(key)) {
+          map.set(key, team.id);
+        }
+      }
+    }
+
+    return map;
+  }, [teams]);
 
   useEffect(() => {
     let mounted = true;
@@ -962,6 +979,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     setTeams([]);
     setFixtures([]);
     setLineup(null);
+    setNextMatchByTeamId({});
     setSelectedPlayerId(null);
     setSelectedPlayerDetails(null);
     setErrorMessage(null);
@@ -1217,6 +1235,13 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       .map((id) => playersById.get(id))
       .filter((player): player is Player => Boolean(player));
   }, [playersById, squadIds]);
+  const squadTeamIds = useMemo(() => {
+    return [...new Set(
+      squadPlayers
+        .map((player) => player.teamId || teamIdByKey.get(normalizeTeamKey(player.club)) || "")
+        .filter(Boolean)
+    )];
+  }, [squadPlayers, teamIdByKey]);
   const requiredBenchSlots = useMemo(() => {
     if (!lineup) {
       return BENCH_SLOT_POSITIONS;
@@ -1237,29 +1262,50 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     return resolveFixtureTargetGameweek(gameweek, activeFixtureGameweek);
   }, [activeFixtureGameweek, gameweek]);
 
-  const fixtureByTeam = useMemo(() => {
-    const map = new Map<string, Fixture>();
-    const sorted = [...fixtures].sort((left, right) => parseFixtureKickoffMs(left) - parseFixtureKickoffMs(right));
-    const nowMs = Date.now();
-
-    const preferred = fixtureTargetGameweek
-      ? sorted.filter((fixture) => fixture.gameweek === fixtureTargetGameweek)
-      : sorted.filter((fixture) => parseFixtureKickoffMs(fixture) >= nowMs);
-    const fallback = sorted.filter((fixture) => parseFixtureKickoffMs(fixture) >= nowMs);
-    const source = preferred.length > 0 ? preferred : fallback.length > 0 ? fallback : sorted;
-
-    for (const fixture of source) {
-      if (!map.has(fixture.homeTeam)) {
-        map.set(fixture.homeTeam, fixture);
-      }
-
-      if (!map.has(fixture.awayTeam)) {
-        map.set(fixture.awayTeam, fixture);
-      }
+  useEffect(() => {
+    const leagueId = selectedLeagueId.trim();
+    if (!leagueId || !gameweek || gameweek <= 0 || squadTeamIds.length === 0) {
+      setNextMatchByTeamId({});
+      return;
     }
 
-    return map;
-  }, [fixtureTargetGameweek, fixtures]);
+    let mounted = true;
+
+    const loadNextMatches = async () => {
+      try {
+        const items = await getOrLoadCached({
+          key: cacheKeys.teamNextMatches(leagueId, gameweek, squadTeamIds),
+          ttlMs: cacheTtlMs.teamNextMatches,
+          storage: "memory",
+          allowStaleOnError: true,
+          loader: () => getTeamNextMatches.execute(leagueId, gameweek, squadTeamIds)
+        });
+
+        if (!mounted) {
+          return;
+        }
+
+        setNextMatchByTeamId(
+          items.reduce<Record<string, TeamNextMatch>>((acc, item) => {
+            acc[item.teamId] = item;
+            return acc;
+          }, {})
+        );
+      } catch {
+        if (!mounted) {
+          return;
+        }
+
+        setNextMatchByTeamId({});
+      }
+    };
+
+    void loadNextMatches();
+
+    return () => {
+      mounted = false;
+    };
+  }, [gameweek, getTeamNextMatches, selectedLeagueId, squadTeamIds]);
 
   const lockState = useMemo(() => {
     if (!activeFixtureGameweek) {
@@ -1969,12 +2015,12 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       );
     }
 
-    const fixture = fixtureByTeam.get(player.club);
-    const fixtureLabel = fixture
-      ? fixture.homeTeam === player.club
-        ? `${fixture.awayTeam} (H)`
-        : `${fixture.homeTeam} (A)`
-      : `GW ${fixtureTargetGameweek ?? gameweek ?? "-"}`;
+    const playerTeamId = player.teamId || teamIdByKey.get(normalizeTeamKey(player.club)) || "";
+    const nextMatch = playerTeamId ? nextMatchByTeamId[playerTeamId] : undefined;
+    const fixtureLabel =
+      nextMatch?.opponentTeamName && nextMatch.homeAway
+        ? `${nextMatch.opponentTeamName} (${nextMatch.homeAway === "HOME" ? "H" : "A"})`
+        : `GW ${gameweek ?? fixtureTargetGameweek ?? "-"}`;
     const jerseyBackground = jerseyBackgroundFromColors(resolveJerseyColorPair(player, teamColorIndex));
     const jerseyNumber = jerseyNumberFromPlayer(player.id);
 

@@ -16,6 +16,7 @@ import type { PickSquadInput, Squad } from "../../domain/fantasy/entities/Squad"
 import type { SeasonPointsSummary } from "../../domain/fantasy/entities/SeasonPointsSummary";
 import type { UserGameweekPoints, UserPlayerPoint } from "../../domain/fantasy/entities/UserGameweekPoints";
 import type { PublicAppConfig } from "../../domain/fantasy/entities/AppConfig";
+import type { TeamNextMatch } from "../../domain/fantasy/entities/TeamNextMatch";
 import type {
   CompleteOnboardingInput,
   CompleteOnboardingResult,
@@ -56,6 +57,21 @@ export class HttpFantasyRepository implements FantasyRepository {
       `/v1/leagues/${encodeURIComponent(leagueId)}/teams`
     );
     return mapTeams(payload, leagueId);
+  }
+
+  async getTeamNextMatches(
+    leagueId: string,
+    gameweek: number,
+    teamIds: string[]
+  ): Promise<TeamNextMatch[]> {
+    const query = new URLSearchParams({
+      gameweek: String(gameweek),
+      team_ids: teamIds.join(",")
+    });
+    const payload = await this.httpClient.get<unknown>(
+      `/v1/leagues/${encodeURIComponent(leagueId)}/teams/next-match?${query.toString()}`
+    );
+    return mapTeamNextMatches(payload);
   }
 
   async getFixtures(leagueId: string): Promise<Fixture[]> {
@@ -985,6 +1001,43 @@ const mapTeams = (payload: unknown, fallbackLeagueId: string): Club[] => {
     .filter((item): item is Club => Boolean(item));
 };
 
+const mapTeamNextMatches = (payload: unknown): TeamNextMatch[] => {
+  return toArrayFromPayload(payload, ["items"])
+    .map((item) => {
+      const record = asRecord(item);
+      if (!record) {
+        return null;
+      }
+
+      const teamId = readString(record, "teamId", "team_id");
+      if (!teamId) {
+        return null;
+      }
+
+      const homeAway = readString(record, "homeAway", "home_away").trim().toUpperCase();
+
+      const output: TeamNextMatch = { teamId };
+      const teamName = readString(record, "teamName", "team_name");
+      const opponentTeamId = readString(record, "opponentTeamId", "opponent_team_id");
+      const opponentTeamName = readString(record, "opponentTeamName", "opponent_team_name");
+      if (teamName) {
+        output.teamName = teamName;
+      }
+      if (opponentTeamId) {
+        output.opponentTeamId = opponentTeamId;
+      }
+      if (opponentTeamName) {
+        output.opponentTeamName = opponentTeamName;
+      }
+      if (homeAway === "HOME" || homeAway === "AWAY") {
+        output.homeAway = homeAway;
+      }
+
+      return output;
+    })
+    .filter((item): item is TeamNextMatch => Boolean(item));
+};
+
 const mapFixtures = (payload: unknown): Fixture[] => {
   return toArrayFromPayload(payload, ["fixtures", "items"])
     .map((item) => {
@@ -1364,7 +1417,10 @@ const mapPlayerFromRecord = (
       "display_name",
       "nickname"
     ),
-    club: readString(record, "club", "teamName", "team_name", "teamId", "team_id"),
+    club:
+      readString(record, "club", "teamName", "team_name") ||
+      readString(record, "teamId", "team_id"),
+    teamId: readString(record, "teamId", "team_id") || undefined,
     position: normalizePosition(positionRaw),
     price: normalizePrice(readNumber(record, "price")),
     form: readNumber(record, "form"),
