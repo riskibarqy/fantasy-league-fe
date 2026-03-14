@@ -2673,13 +2673,19 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     showLeadershipBadges: boolean,
     allowSlotPicking: boolean,
   ) => {
+    const boardModeLabel = isTransferMode ? "Transfers" : "Starting XI";
+    const boardGameweek =
+      (isTransferMode ? transferTargetGameweek : editableTargetGameweek) ??
+      fixtureTargetGameweek ??
+      gameweek;
+
     return (
       <div
         className={`fpl-pitch-stage${isTransferMode ? " fpl-pitch-stage--trf" : ""}`}
       >
         <div className="pitch-top-boards">
-          <div>Fantasy</div>
-          <div>Fantasy</div>
+          <div>{boardModeLabel}</div>
+          <div>{boardGameweek ? `GW ${boardGameweek}` : "Fantasy"}</div>
         </div>
 
         <div className={`fpl-pitch${isTransferMode ? " fpl-pitch--trf" : ""}`}>
