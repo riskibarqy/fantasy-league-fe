@@ -16,7 +16,7 @@ import type { PickSquadInput, Squad } from "../../domain/fantasy/entities/Squad"
 import type { SeasonPointsSummary } from "../../domain/fantasy/entities/SeasonPointsSummary";
 import type { UserGameweekPoints, UserPlayerPoint } from "../../domain/fantasy/entities/UserGameweekPoints";
 import type { PublicAppConfig } from "../../domain/fantasy/entities/AppConfig";
-import type { TeamNextMatch } from "../../domain/fantasy/entities/TeamNextMatch";
+import type { TeamFixture } from "../../domain/fantasy/entities/TeamNextMatch";
 import type {
   CompleteOnboardingInput,
   CompleteOnboardingResult,
@@ -59,19 +59,19 @@ export class HttpFantasyRepository implements FantasyRepository {
     return mapTeams(payload, leagueId);
   }
 
-  async getTeamNextMatches(
+  async getTeamFixtures(
     leagueId: string,
     gameweek: number,
     teamIds: string[]
-  ): Promise<TeamNextMatch[]> {
+  ): Promise<TeamFixture[]> {
     const query = new URLSearchParams({
       gameweek: String(gameweek),
       team_ids: teamIds.join(",")
     });
     const payload = await this.httpClient.get<unknown>(
-      `/v1/leagues/${encodeURIComponent(leagueId)}/teams/next-match?${query.toString()}`
+      `/v1/leagues/${encodeURIComponent(leagueId)}/teams/fixtures?${query.toString()}`
     );
-    return mapTeamNextMatches(payload);
+    return mapTeamFixtures(payload);
   }
 
   async getFixtures(
@@ -1014,7 +1014,7 @@ const mapTeams = (payload: unknown, fallbackLeagueId: string): Club[] => {
     .filter((item): item is Club => Boolean(item));
 };
 
-const mapTeamNextMatches = (payload: unknown): TeamNextMatch[] => {
+const mapTeamFixtures = (payload: unknown): TeamFixture[] => {
   return toArrayFromPayload(payload, ["items"])
     .map((item) => {
       const record = asRecord(item);
@@ -1029,7 +1029,7 @@ const mapTeamNextMatches = (payload: unknown): TeamNextMatch[] => {
 
       const homeAway = readString(record, "homeAway", "home_away").trim().toUpperCase();
 
-      const output: TeamNextMatch = { teamId };
+      const output: TeamFixture = { teamId };
       const teamName = readString(record, "teamName", "team_name");
       const opponentTeamId = readString(record, "opponentTeamId", "opponent_team_id");
       const opponentTeamName = readString(record, "opponentTeamName", "opponent_team_name");
@@ -1048,7 +1048,7 @@ const mapTeamNextMatches = (payload: unknown): TeamNextMatch[] => {
 
       return output;
     })
-    .filter((item): item is TeamNextMatch => Boolean(item));
+    .filter((item): item is TeamFixture => Boolean(item));
 };
 
 const mapFixturePage = (

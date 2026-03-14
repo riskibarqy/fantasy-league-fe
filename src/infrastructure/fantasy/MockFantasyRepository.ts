@@ -17,7 +17,7 @@ import type { PickSquadInput, Squad } from "../../domain/fantasy/entities/Squad"
 import type { SeasonPointsSummary } from "../../domain/fantasy/entities/SeasonPointsSummary";
 import type { UserGameweekPoints } from "../../domain/fantasy/entities/UserGameweekPoints";
 import type { PublicAppConfig } from "../../domain/fantasy/entities/AppConfig";
-import type { TeamNextMatch } from "../../domain/fantasy/entities/TeamNextMatch";
+import type { TeamFixture } from "../../domain/fantasy/entities/TeamNextMatch";
 import type {
   CreateCustomLeagueInput,
   CustomLeague,
@@ -77,17 +77,17 @@ export class MockFantasyRepository implements FantasyRepository {
     return mockTeams.filter((team) => team.leagueId === leagueId);
   }
 
-  async getTeamNextMatches(
+  async getTeamFixtures(
     leagueId: string,
     gameweek: number,
     teamIds: string[]
-  ): Promise<TeamNextMatch[]> {
+  ): Promise<TeamFixture[]> {
     await delay(120);
 
     const teams = mockTeams.filter((team) => team.leagueId === leagueId);
     const teamById = new Map(teams.map((team) => [team.id, team]));
     const teamByName = new Map(teams.map((team) => [team.name, team]));
-    const fixtureByTeamId = new Map<string, TeamNextMatch>();
+    const fixtureByTeamId = new Map<string, TeamFixture>();
 
     for (const fixture of mockFixtures.filter((item) => item.leagueId === leagueId && item.gameweek === gameweek)) {
       const homeTeam = teamByName.get(fixture.homeTeam);

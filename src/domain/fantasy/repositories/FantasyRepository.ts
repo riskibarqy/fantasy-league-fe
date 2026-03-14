@@ -10,7 +10,7 @@ import type { PickSquadInput, Squad } from "../entities/Squad";
 import type { SeasonPointsSummary } from "../entities/SeasonPointsSummary";
 import type { UserGameweekPoints } from "../entities/UserGameweekPoints";
 import type { PublicAppConfig } from "../entities/AppConfig";
-import type { TeamNextMatch } from "../entities/TeamNextMatch";
+import type { TeamFixture } from "../entities/TeamNextMatch";
 import type {
   CompleteOnboardingInput,
   CompleteOnboardingResult,
@@ -29,7 +29,7 @@ export interface FantasyRepository {
   getDashboard(accessToken: string): Promise<Dashboard>;
   getLeagues(): Promise<League[]>;
   getTeams(leagueId: string): Promise<Club[]>;
-  getTeamNextMatches(leagueId: string, gameweek: number, teamIds: string[]): Promise<TeamNextMatch[]>;
+  getTeamFixtures(leagueId: string, gameweek: number, teamIds: string[]): Promise<TeamFixture[]>;
   getFixtures(leagueId: string, gameweek: number, page?: number, pageSize?: number): Promise<FixturePage>;
   getSeasonPointsSummary(leagueId: string, accessToken: string): Promise<SeasonPointsSummary>;
   getMyPlayerPointsByGameweek(

@@ -1,6 +1,6 @@
 import type { FantasyRepository } from "../../../domain/fantasy/repositories/FantasyRepository";
 
-export class GetTeamNextMatches {
+export class GetTeamFixtures {
   constructor(private readonly fantasyRepository: FantasyRepository) {}
 
   async execute(leagueId: string, gameweek: number, teamIds: string[]) {
@@ -16,6 +16,6 @@ export class GetTeamNextMatches {
       return [];
     }
 
-    return this.fantasyRepository.getTeamNextMatches(leagueId, gameweek, normalizedTeamIds);
+    return this.fantasyRepository.getTeamFixtures(leagueId, gameweek, normalizedTeamIds);
   }
 }

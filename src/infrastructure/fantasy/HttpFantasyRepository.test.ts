@@ -31,7 +31,7 @@ describe("HttpFantasyRepository", () => {
     });
   });
 
-  it("loads next matches by league, gameweek, and team ids", async () => {
+  it("loads team fixtures by league, gameweek, and team ids", async () => {
     const httpClient = createHttpClientStub();
     const repository = new HttpFantasyRepository(httpClient);
 
@@ -48,7 +48,7 @@ describe("HttpFantasyRepository", () => {
     });
 
     await expect(
-      repository.getTeamNextMatches("idn-liga-1-2025", 26, ["sm-idn-team-10211", "sm-idn-team-2461"])
+      repository.getTeamFixtures("idn-liga-1-2025", 26, ["sm-idn-team-10211", "sm-idn-team-2461"])
     ).resolves.toEqual([
       {
         teamId: "sm-idn-team-10211",
@@ -60,7 +60,7 @@ describe("HttpFantasyRepository", () => {
     ]);
 
     expect(vi.mocked(httpClient.get)).toHaveBeenCalledWith(
-      "/v1/leagues/idn-liga-1-2025/teams/next-match?gameweek=26&team_ids=sm-idn-team-10211%2Csm-idn-team-2461"
+      "/v1/leagues/idn-liga-1-2025/teams/fixtures?gameweek=26&team_ids=sm-idn-team-10211%2Csm-idn-team-2461"
     );
   });
 

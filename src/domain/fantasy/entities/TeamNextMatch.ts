@@ -1,4 +1,4 @@
-export type TeamNextMatch = {
+export type TeamFixture = {
   teamId: string;
   teamName?: string;
   opponentTeamId?: string;

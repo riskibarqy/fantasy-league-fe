@@ -9,7 +9,7 @@ import type { PlayerDetails } from "../../domain/fantasy/entities/PlayerDetails"
 import type { TeamLineup } from "../../domain/fantasy/entities/Team";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
 import type { UserGameweekPoints } from "../../domain/fantasy/entities/UserGameweekPoints";
-import type { TeamNextMatch } from "../../domain/fantasy/entities/TeamNextMatch";
+import type { TeamFixture } from "../../domain/fantasy/entities/TeamNextMatch";
 import {
   BENCH_SLOT_POSITIONS,
   FORMATION_LIMITS,
@@ -590,7 +590,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
   const {
     getPlayers,
     getTeams,
-    getTeamNextMatches,
+    getTeamFixtures,
     getPlayerDetails,
     getLineup,
     getDashboard,
@@ -616,7 +616,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [lineup, setLineup] = useState<TeamLineup | null>(null);
   const [gameweek, setGameweek] = useState<number | null>(null);
-  const [nextMatchByTeamId, setNextMatchByTeamId] = useState<Record<string, TeamNextMatch>>({});
+  const [nextMatchByTeamId, setNextMatchByTeamId] = useState<Record<string, TeamFixture>>({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [isLeagueDataLoading, setIsLeagueDataLoading] = useState(false);
@@ -1284,9 +1284,17 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     return resolveFixtureTargetGameweek(gameweek, activeFixtureGameweek);
   }, [activeFixtureGameweek, gameweek]);
 
+  const nextMatchGameweek = useMemo(() => {
+    if (fixtureTargetGameweek && fixtureTargetGameweek > 0) {
+      return fixtureTargetGameweek + 1;
+    }
+
+    return null;
+  }, [fixtureTargetGameweek]);
+
   useEffect(() => {
     const leagueId = selectedLeagueId.trim();
-    if (!leagueId || !gameweek || gameweek <= 0 || squadTeamIds.length === 0) {
+    if (!leagueId || !nextMatchGameweek || nextMatchGameweek <= 0 || squadTeamIds.length === 0) {
       setNextMatchByTeamId({});
       return;
     }
@@ -1296,11 +1304,11 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     const loadNextMatches = async () => {
       try {
         const items = await getOrLoadCached({
-          key: cacheKeys.teamNextMatches(leagueId, gameweek, squadTeamIds),
-          ttlMs: cacheTtlMs.teamNextMatches,
+          key: cacheKeys.teamFixtures(leagueId, nextMatchGameweek, squadTeamIds),
+          ttlMs: cacheTtlMs.teamFixtures,
           storage: "memory",
           allowStaleOnError: true,
-          loader: () => getTeamNextMatches.execute(leagueId, gameweek, squadTeamIds)
+          loader: () => getTeamFixtures.execute(leagueId, nextMatchGameweek, squadTeamIds)
         });
 
         if (!mounted) {
@@ -1308,7 +1316,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         }
 
         setNextMatchByTeamId(
-          items.reduce<Record<string, TeamNextMatch>>((acc, item) => {
+          items.reduce<Record<string, TeamFixture>>((acc, item) => {
             acc[item.teamId] = item;
             return acc;
           }, {})
@@ -1327,7 +1335,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     return () => {
       mounted = false;
     };
-  }, [gameweek, getTeamNextMatches, selectedLeagueId, squadTeamIds]);
+  }, [getTeamFixtures, nextMatchGameweek, selectedLeagueId, squadTeamIds]);
 
   const lockState = useMemo(() => {
     const targetGameweek = gameweek && gameweek > 0 ? gameweek : activeFixtureGameweek;
@@ -2043,7 +2051,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     const fixtureLabel =
       nextMatch?.opponentTeamName && nextMatch.homeAway
         ? `${nextMatch.opponentTeamName} (${nextMatch.homeAway === "HOME" ? "H" : "A"})`
-        : `GW ${gameweek ?? fixtureTargetGameweek ?? "-"}`;
+        : `GW ${nextMatchGameweek ?? fixtureTargetGameweek ?? gameweek ?? "-"}`;
     const jerseyBackground = jerseyBackgroundFromColors(resolveJerseyColorPair(player, teamColorIndex));
     const jerseyNumber = jerseyNumberFromPlayer(player.id);
 
