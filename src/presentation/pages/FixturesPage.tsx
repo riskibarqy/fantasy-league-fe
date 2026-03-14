@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { cacheTtlMs } from "../../app/cache/requestCache";
+import { cacheKeys, cacheTtlMs, getOrLoadCached } from "../../app/cache/requestCache";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
 import type { Fixture } from "../../domain/fantasy/entities/Fixture";
 import type { LeagueStanding } from "../../domain/fantasy/entities/LeagueStanding";
@@ -14,6 +14,7 @@ import { LazyImage } from "../components/LazyImage";
 import { LoadingState } from "../components/LoadingState";
 import { useI18n } from "../hooks/useI18n";
 import { useLeagueSelection } from "../hooks/useLeagueSelection";
+import { useSession } from "../hooks/useSession";
 import { appAlert } from "../lib/appAlert";
 import { isLiveFixture } from "../lib/fixtureDisplay";
 
@@ -272,8 +273,9 @@ const totalHeaderFromType = (type: TopScoreType): string => {
 }
 export const FixturesPage = () => {
   const { t, dateLocale } = useI18n();
-  const { getFixtures, getLeagueStandings, getTopScoreDetails } = useContainer();
+  const { getDashboard, getFixtures, getLeagueStandings, getTopScoreDetails } = useContainer();
   const { leagues, selectedLeagueId } = useLeagueSelection();
+  const { session } = useSession();
 
   const [activeTab, setActiveTab] = useState<FixturesTab>("matches");
   const [selectedClub, setSelectedClub] = useState("all");
@@ -295,6 +297,26 @@ export const FixturesPage = () => {
     refetchInterval: (query) => {
       const current = query.state.data ?? [];
       return current.some((fixture) => isLiveFixture(fixture)) ? 30_000 : 120_000;
+    }
+  });
+
+  const dashboardQuery = useQuery({
+    queryKey: ["dashboard", session?.user.id],
+    enabled: Boolean(session?.accessToken && session?.user.id),
+    staleTime: cacheTtlMs.dashboard,
+    queryFn: async () => {
+      const accessToken = session?.accessToken?.trim() ?? "";
+      const userId = session?.user.id?.trim() ?? "";
+      if (!accessToken || !userId) {
+        return null;
+      }
+
+      return getOrLoadCached({
+        key: cacheKeys.dashboard(userId),
+        ttlMs: cacheTtlMs.dashboard,
+        loader: () => getDashboard.execute(accessToken),
+        allowStaleOnError: false
+      });
     }
   });
 
@@ -412,9 +434,24 @@ export const FixturesPage = () => {
     return bestIndex;
   }, [groupedByGameweek]);
 
+  const backendGameweek = dashboardQuery.data?.currentGameweek ?? dashboardQuery.data?.gameweek ?? null;
+  const preferredGameweekIndex = useMemo(() => {
+    if (groupedByGameweek.length === 0) {
+      return 0;
+    }
+    if (backendGameweek) {
+      const backendIndex = groupedByGameweek.findIndex((item) => item.gameweek === backendGameweek);
+      if (backendIndex >= 0) {
+        return backendIndex;
+      }
+    }
+
+    return nearestGameweekIndex;
+  }, [backendGameweek, groupedByGameweek, nearestGameweekIndex]);
+
   useEffect(() => {
-    setGameweekPageIndex(nearestGameweekIndex);
-  }, [nearestGameweekIndex, selectedLeagueId]);
+    setGameweekPageIndex(preferredGameweekIndex);
+  }, [preferredGameweekIndex, selectedLeagueId]);
 
   const activeGameweekGroup = groupedByGameweek[gameweekPageIndex] ?? null;
   const activeGameweekFixtures = activeGameweekGroup?.items ?? [];
