@@ -113,8 +113,10 @@ export class MockFantasyRepository implements FantasyRepository {
         fixtureByTeamId.set(homeTeam.id, {
           teamId: homeTeam.id,
           teamName: homeTeam.name,
+          teamShort: homeTeam.short,
           opponentTeamId: awayTeam.id,
           opponentTeamName: awayTeam.name,
+          opponentTeamShort: awayTeam.short,
           homeAway: "HOME",
         });
       }
@@ -123,8 +125,10 @@ export class MockFantasyRepository implements FantasyRepository {
         fixtureByTeamId.set(awayTeam.id, {
           teamId: awayTeam.id,
           teamName: awayTeam.name,
+          teamShort: awayTeam.short,
           opponentTeamId: homeTeam.id,
           opponentTeamName: homeTeam.name,
+          opponentTeamShort: homeTeam.short,
           homeAway: "AWAY",
         });
       }
@@ -136,6 +140,7 @@ export class MockFantasyRepository implements FantasyRepository {
         fixtureByTeamId.get(normalizedTeamId) ?? {
           teamId: normalizedTeamId,
           teamName: teamById.get(normalizedTeamId)?.name,
+          teamShort: teamById.get(normalizedTeamId)?.short,
         }
       );
     });

@@ -1271,6 +1271,7 @@ const mapTeamFixtures = (payload: unknown): TeamFixture[] => {
 
       const output: TeamFixture = { teamId };
       const teamName = readString(record, "teamName", "team_name");
+      const teamShort = readString(record, "teamShort", "team_short");
       const opponentTeamId = readString(
         record,
         "opponentTeamId",
@@ -1281,14 +1282,25 @@ const mapTeamFixtures = (payload: unknown): TeamFixture[] => {
         "opponentTeamName",
         "opponent_team_name",
       );
+      const opponentTeamShort = readString(
+        record,
+        "opponentTeamShort",
+        "opponent_team_short",
+      );
       if (teamName) {
         output.teamName = teamName;
+      }
+      if (teamShort) {
+        output.teamShort = teamShort;
       }
       if (opponentTeamId) {
         output.opponentTeamId = opponentTeamId;
       }
       if (opponentTeamName) {
         output.opponentTeamName = opponentTeamName;
+      }
+      if (opponentTeamShort) {
+        output.opponentTeamShort = opponentTeamShort;
       }
       if (homeAway === "HOME" || homeAway === "AWAY") {
         output.homeAway = homeAway;

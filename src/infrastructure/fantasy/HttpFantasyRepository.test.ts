@@ -42,8 +42,10 @@ describe("HttpFantasyRepository", () => {
         {
           teamId: "sm-idn-team-10211",
           teamName: "Persib",
+          teamShort: "PSB",
           opponentTeamId: "sm-idn-team-2461",
-          opponentTeamName: "PSM",
+          opponentTeamName: "PSM Makassar",
+          opponentTeamShort: "PSM",
           homeAway: "HOME"
         }
       ]
@@ -55,8 +57,10 @@ describe("HttpFantasyRepository", () => {
       {
         teamId: "sm-idn-team-10211",
         teamName: "Persib",
+        teamShort: "PSB",
         opponentTeamId: "sm-idn-team-2461",
-        opponentTeamName: "PSM",
+        opponentTeamName: "PSM Makassar",
+        opponentTeamShort: "PSM",
         homeAway: "HOME"
       }
     ]);

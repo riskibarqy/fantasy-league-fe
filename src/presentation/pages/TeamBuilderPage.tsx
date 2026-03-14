@@ -1183,6 +1183,17 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
 
     return map;
   }, [teams]);
+  const teamShortByID = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const team of teams) {
+      const short = team.short.trim();
+      if (!short) {
+        continue;
+      }
+      map.set(team.id, short);
+    }
+    return map;
+  }, [teams]);
 
   useEffect(() => {
     let mounted = true;
@@ -2550,8 +2561,14 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       const nextMatch = playerTeamId
         ? nextMatchByTeamId[playerTeamId]
         : undefined;
-      if (nextMatch?.opponentTeamName && nextMatch.homeAway) {
-        return `${nextMatch.opponentTeamName} (${nextMatch.homeAway === "HOME" ? "H" : "A"})`;
+      if ((nextMatch?.opponentTeamShort || nextMatch?.opponentTeamName) && nextMatch.homeAway) {
+        const opponentLabel =
+          nextMatch.opponentTeamShort ||
+          (nextMatch.opponentTeamId
+            ? teamShortByID.get(nextMatch.opponentTeamId)
+            : undefined) ||
+          nextMatch.opponentTeamName;
+        return `${opponentLabel} (${nextMatch.homeAway === "HOME" ? "H" : "A"})`;
       }
 
       const fallbackGameweek =
@@ -2574,6 +2591,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       nextMatchByTeamId,
       teamFixtureLookupGameweek,
       teamIdByKey,
+      teamShortByID,
     ],
   );
 
@@ -2628,7 +2646,6 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         onClick={options?.onPlayerClick}
         disabled={options?.isDisabled}
       >
-        <div className="player-price-chip">£{player.price.toFixed(1)}m</div>
         <div className="shirt-holder">
           <div className="shirt" style={{ background: jerseyBackground }}>
             <span className="shirt-number">{jerseyNumber}</span>
@@ -3359,9 +3376,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
                     }
                     disabled={interaction?.disabled || isReadOnlyPointsView}
                   >
-                    <div className="player-price-chip">
-                      £{player.price.toFixed(1)}m
-                    </div>
+                    <div className="player-price-chip">{player.position}</div>
                     <div className="shirt-holder">
                       <div
                         className="shirt"
