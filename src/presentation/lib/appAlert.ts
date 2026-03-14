@@ -8,6 +8,7 @@ type ConfirmOptions = {
 };
 
 export const appAlert = {
+  clear: () => toast.dismiss(),
   success: (title: string, text?: string) => toast.success(text ? `${title}: ${text}` : title),
   error: (title: string, text?: string) => toast.error(text ? `${title}: ${text}` : title),
   info: (title: string, text?: string) => toast(text ? `${title}: ${text}` : title),

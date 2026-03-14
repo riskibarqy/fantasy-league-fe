@@ -358,6 +358,56 @@ const expectedPositionForTarget = (
   return target.zone;
 };
 
+const normalizeStarterSlotsByPosition = (
+  lineup: TeamLineup,
+  playersById: Map<string, Player>,
+): TeamLineup => {
+  const starterIds = getStarterIds(lineup);
+  if (starterIds.length !== STARTER_SIZE) {
+    return lineup;
+  }
+
+  const goalkeeper = playersById.get(lineup.goalkeeperId);
+  if (!goalkeeper || goalkeeper.position !== "GK") {
+    return lineup;
+  }
+
+  const defenders: string[] = [];
+  const midfielders: string[] = [];
+  const forwards: string[] = [];
+
+  for (const playerId of starterIds) {
+    if (playerId === lineup.goalkeeperId) {
+      continue;
+    }
+
+    const player = playersById.get(playerId);
+    if (!player) {
+      return lineup;
+    }
+
+    if (player.position === "DEF") {
+      defenders.push(playerId);
+      continue;
+    }
+    if (player.position === "MID") {
+      midfielders.push(playerId);
+      continue;
+    }
+    if (player.position === "FWD") {
+      forwards.push(playerId);
+      continue;
+    }
+  }
+
+  return {
+    ...lineup,
+    defenderIds: defenders,
+    midfielderIds: midfielders,
+    forwardIds: forwards,
+  };
+};
+
 const getStarterIds = (lineup: TeamLineup): string[] => {
   return [
     lineup.goalkeeperId,
@@ -1415,14 +1465,20 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
           }
         }
 
-        const savedNormalized = normalizeLineup(
-          selectedLeagueId,
-          resolvedLineup,
+        const playersResultByID = new Map(
+          playersResult.map((player) => [player.id, player]),
+        );
+        const savedNormalized = normalizeStarterSlotsByPosition(
+          normalizeLineup(selectedLeagueId, resolvedLineup),
+          playersResultByID,
         );
         let normalized = savedNormalized;
         const draftLineup = readLineupDraft(selectedLeagueId, userScope);
         if (draftLineup) {
-          normalized = normalizeLineup(selectedLeagueId, draftLineup);
+          normalized = normalizeStarterSlotsByPosition(
+            normalizeLineup(selectedLeagueId, draftLineup),
+            playersResultByID,
+          );
         }
 
         const pickerResult = consumePickerResult(userScope);
@@ -2103,12 +2159,18 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         }
       }
 
-      const swapped = ensureLeadership({
-        ...nextLineup,
-        updatedAt: new Date().toISOString(),
-      });
+      const swapped = ensureLeadership(
+        normalizeStarterSlotsByPosition(
+          {
+            ...nextLineup,
+            updatedAt: new Date().toISOString(),
+          },
+          playersById,
+        ),
+      );
 
       setLineup(swapped);
+      setErrorMessage(null);
       setHasSubstitutionDraftChanges(true);
       setSubstitutionSourcePlayerId(null);
       setSelectedPlayerId(null);
@@ -2931,6 +2993,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       return;
     }
 
+    setErrorMessage(null);
     setIsSavingLineup(true);
     try {
       if (mode === "TRF") {
@@ -2981,6 +3044,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         setHasSubstitutionDraftChanges(false);
         setIsFullProfileVisible(false);
         writeLineupDraft(savedLineup, userScope);
+        appAlert.clear();
         void appAlert.success(
           "Transfer Saved",
           `${outgoingPlayer.name} replaced by ${incomingPlayer.name} for GW ${transferTargetGameweek}.`,
@@ -2988,7 +3052,12 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         return;
       }
 
-      const squadReady = await syncSquadFromLineup(lineup);
+      const lineupToSave =
+        mode === "PAT"
+          ? ensureLeadership(normalizeStarterSlotsByPosition(lineup, playersById))
+          : lineup;
+
+      const squadReady = await syncSquadFromLineup(lineupToSave);
       if (!squadReady) {
         return;
       }
@@ -2996,7 +3065,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       let saved: TeamLineup;
       try {
         saved = await saveLineup.execute(
-          lineup,
+          lineupToSave,
           players,
           session?.accessToken ?? "",
         );
@@ -3011,13 +3080,13 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
           throw error;
         }
 
-        const retryReady = await syncSquadFromLineup(lineup, true);
+        const retryReady = await syncSquadFromLineup(lineupToSave, true);
         if (!retryReady) {
           return;
         }
 
         saved = await saveLineup.execute(
-          lineup,
+          lineupToSave,
           players,
           session?.accessToken ?? "",
         );
@@ -3031,6 +3100,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       setHasSubstitutionDraftChanges(false);
       setIsFullProfileVisible(false);
       writeLineupDraft(normalizedSaved, userScope);
+      appAlert.clear();
       void appAlert.success(
         "Lineup Saved",
         "Your Pick Team changes were saved.",
