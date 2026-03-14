@@ -1,6 +1,6 @@
 import type { FantasyRepository } from "../../domain/fantasy/repositories/FantasyRepository";
 import type { Dashboard, TeamLineup } from "../../domain/fantasy/entities/Team";
-import type { Fixture } from "../../domain/fantasy/entities/Fixture";
+import type { FixturePage } from "../../domain/fantasy/entities/Fixture";
 import type { FixtureDetails } from "../../domain/fantasy/entities/FixtureDetails";
 import type { LeagueStanding } from "../../domain/fantasy/entities/LeagueStanding";
 import type { League } from "../../domain/fantasy/entities/League";
@@ -128,9 +128,31 @@ export class MockFantasyRepository implements FantasyRepository {
     });
   }
 
-  async getFixtures(leagueId: string): Promise<Fixture[]> {
+  async getFixtures(
+    leagueId: string,
+    gameweek: number,
+    page = 1,
+    pageSize = 20
+  ): Promise<FixturePage> {
     await delay(280);
-    return mockFixtures.filter((fixture) => fixture.leagueId === leagueId);
+    const filtered = mockFixtures
+      .filter((fixture) => fixture.leagueId === leagueId && fixture.gameweek === gameweek)
+      .sort((left, right) => new Date(left.kickoffAt).getTime() - new Date(right.kickoffAt).getTime());
+    const normalizedPage = Number.isFinite(page) && page > 0 ? page : 1;
+    const normalizedPageSize = Number.isFinite(pageSize) && pageSize > 0 ? pageSize : 20;
+    const offset = (normalizedPage - 1) * normalizedPageSize;
+    const items = filtered.slice(offset, offset + normalizedPageSize);
+    const total = filtered.length;
+
+    return {
+      leagueId,
+      gameweek,
+      page: normalizedPage,
+      pageSize: normalizedPageSize,
+      total,
+      totalPages: total > 0 ? Math.ceil(total / normalizedPageSize) : 0,
+      items
+    };
   }
 
   async getSeasonPointsSummary(

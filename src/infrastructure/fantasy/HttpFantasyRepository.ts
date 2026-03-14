@@ -1,6 +1,6 @@
 import type { FantasyRepository } from "../../domain/fantasy/repositories/FantasyRepository";
 import type { Dashboard, TeamLineup } from "../../domain/fantasy/entities/Team";
-import type { Fixture } from "../../domain/fantasy/entities/Fixture";
+import type { Fixture, FixturePage } from "../../domain/fantasy/entities/Fixture";
 import type {
   FixtureDetails,
   FixtureEvent,
@@ -74,9 +74,21 @@ export class HttpFantasyRepository implements FantasyRepository {
     return mapTeamNextMatches(payload);
   }
 
-  async getFixtures(leagueId: string): Promise<Fixture[]> {
-    const payload = await this.httpClient.get<unknown>(`/v1/leagues/${leagueId}/fixtures`);
-    return mapFixtures(payload);
+  async getFixtures(
+    leagueId: string,
+    gameweek: number,
+    page = 1,
+    pageSize = 20
+  ): Promise<FixturePage> {
+    const query = new URLSearchParams({
+      gameweek: String(gameweek),
+      page: String(page),
+      page_size: String(pageSize)
+    });
+    const payload = await this.httpClient.get<unknown>(
+      `/v1/leagues/${encodeURIComponent(leagueId)}/fixtures?${query.toString()}`
+    );
+    return mapFixturePage(payload, leagueId, gameweek, page, pageSize);
   }
 
   async getSeasonPointsSummary(
@@ -1039,8 +1051,15 @@ const mapTeamNextMatches = (payload: unknown): TeamNextMatch[] => {
     .filter((item): item is TeamNextMatch => Boolean(item));
 };
 
-const mapFixtures = (payload: unknown): Fixture[] => {
-  return toArrayFromPayload(payload, ["fixtures", "items"])
+const mapFixturePage = (
+  payload: unknown,
+  fallbackLeagueId: string,
+  fallbackGameweek: number,
+  fallbackPage: number,
+  fallbackPageSize: number
+): FixturePage => {
+  const record = asRecord(payload) ?? {};
+  const items = toArrayFromPayload(payload, ["fixtures", "items"])
     .map((item) => {
       const record = asRecord(item);
       if (!record) {
@@ -1050,6 +1069,16 @@ const mapFixtures = (payload: unknown): Fixture[] => {
       return mapFixtureFromRecord(record);
     })
     .filter((item): item is Fixture => Boolean(item));
+
+  return {
+    leagueId: readString(record, "leagueId", "league_id", "league_public_id") || fallbackLeagueId,
+    gameweek: readNumber(record, "gameweek", "gw") || fallbackGameweek,
+    page: readNumber(record, "page") || fallbackPage,
+    pageSize: readNumber(record, "pageSize", "page_size") || fallbackPageSize,
+    total: readNumber(record, "total"),
+    totalPages: readNumber(record, "totalPages", "total_pages"),
+    items
+  };
 };
 
 const mapLeagueStandings = (payload: unknown): LeagueStanding[] => {

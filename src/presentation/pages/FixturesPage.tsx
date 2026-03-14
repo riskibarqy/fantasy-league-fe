@@ -20,7 +20,7 @@ import { isLiveFixture } from "../lib/fixtureDisplay";
 
 type FixturesTab = "matches" | "table" | "stats";
 type FormResult = "W" | "D" | "L";
-type StandingsMode = "live" | "final" | "derived";
+type StandingsMode = "live" | "final";
 type StandingsResponse = {
   mode: "live" | "final";
   items: LeagueStanding[];
@@ -38,163 +38,6 @@ const parseStandingForm = (rawForm?: string): Array<FormResult | null> => {
   }
 
   return [...Array.from({ length: 5 - values.length }, () => null), ...values];
-};
-
-const FINISHED_STATUSES = new Set(["FT", "FINISHED", "AET", "PEN"]);
-
-const hasScore = (fixture: Fixture): boolean =>
-  typeof fixture.homeScore === "number" && typeof fixture.awayScore === "number";
-
-const isCountedStandingFixture = (fixture: Fixture): boolean => {
-  if (!hasScore(fixture)) {
-    return false;
-  }
-
-  const status = fixture.status?.trim().toUpperCase() ?? "";
-  return FINISHED_STATUSES.has(status) || isLiveFixture(fixture);
-};
-
-const buildStandingsFromFixtures = (fixtures: Fixture[]): LeagueStanding[] => {
-  const byTeam = new Map<string, LeagueStanding>();
-  const formByTeam = new Map<string, FormResult[]>();
-  let snapshotGameweek = 0;
-  let anyLive = false;
-
-  const sorted = [...fixtures].sort(
-    (left, right) => new Date(left.kickoffAt).getTime() - new Date(right.kickoffAt).getTime()
-  );
-
-  const ensureTeam = (
-    teamKey: string,
-    leagueId: string,
-    teamName: string,
-    teamLogoUrl?: string
-  ): LeagueStanding => {
-    const existing = byTeam.get(teamKey);
-    if (existing) {
-      if (!existing.teamLogoUrl && teamLogoUrl) {
-        existing.teamLogoUrl = teamLogoUrl;
-      }
-      return existing;
-    }
-
-    const created: LeagueStanding = {
-      leagueId,
-      gameweek: 1,
-      teamId: teamKey,
-      teamName: teamName || teamKey,
-      teamLogoUrl,
-      position: 0,
-      played: 0,
-      won: 0,
-      draw: 0,
-      lost: 0,
-      goalsFor: 0,
-      goalsAgainst: 0,
-      goalDifference: 0,
-      points: 0,
-      form: "",
-      isLive: false
-    };
-
-    byTeam.set(teamKey, created);
-    formByTeam.set(teamKey, []);
-    return created;
-  };
-
-  for (const fixture of sorted) {
-    if (!isCountedStandingFixture(fixture)) {
-      continue;
-    }
-
-    const homeKey = fixture.homeTeam.trim();
-    const awayKey = fixture.awayTeam.trim();
-    if (!homeKey || !awayKey || fixture.homeScore === undefined || fixture.awayScore === undefined) {
-      continue;
-    }
-
-    const home = ensureTeam(homeKey, fixture.leagueId, fixture.homeTeam, fixture.homeTeamLogoUrl);
-    const away = ensureTeam(awayKey, fixture.leagueId, fixture.awayTeam, fixture.awayTeamLogoUrl);
-    const homeGoals = fixture.homeScore;
-    const awayGoals = fixture.awayScore;
-
-    home.played += 1;
-    away.played += 1;
-    home.goalsFor += homeGoals;
-    home.goalsAgainst += awayGoals;
-    away.goalsFor += awayGoals;
-    away.goalsAgainst += homeGoals;
-
-    const homeForm = formByTeam.get(homeKey) ?? [];
-    const awayForm = formByTeam.get(awayKey) ?? [];
-
-    if (homeGoals > awayGoals) {
-      home.won += 1;
-      home.points += 3;
-      away.lost += 1;
-      homeForm.push("W");
-      awayForm.push("L");
-    } else if (homeGoals < awayGoals) {
-      away.won += 1;
-      away.points += 3;
-      home.lost += 1;
-      homeForm.push("L");
-      awayForm.push("W");
-    } else {
-      home.draw += 1;
-      away.draw += 1;
-      home.points += 1;
-      away.points += 1;
-      homeForm.push("D");
-      awayForm.push("D");
-    }
-
-    formByTeam.set(homeKey, homeForm.slice(-5));
-    formByTeam.set(awayKey, awayForm.slice(-5));
-
-    if (fixture.gameweek > snapshotGameweek) {
-      snapshotGameweek = fixture.gameweek;
-    }
-    if (isLiveFixture(fixture)) {
-      anyLive = true;
-    }
-  }
-
-  const rows = [...byTeam.values()];
-  if (rows.length === 0) {
-    return [];
-  }
-
-  rows.sort((left, right) => {
-    if (left.points !== right.points) {
-      return right.points - left.points;
-    }
-
-    const leftGD = left.goalsFor - left.goalsAgainst;
-    const rightGD = right.goalsFor - right.goalsAgainst;
-    if (leftGD !== rightGD) {
-      return rightGD - leftGD;
-    }
-
-    if (left.goalsFor !== right.goalsFor) {
-      return right.goalsFor - left.goalsFor;
-    }
-
-    return (left.teamName ?? left.teamId).localeCompare(right.teamName ?? right.teamId);
-  });
-
-  return rows.map((item, index) => {
-    const key = item.teamId.trim();
-    const form = formByTeam.get(key) ?? [];
-    return {
-      ...item,
-      position: index + 1,
-      gameweek: snapshotGameweek > 0 ? snapshotGameweek : 1,
-      goalDifference: item.goalsFor - item.goalsAgainst,
-      form: form.join(""),
-      isLive: anyLive
-    };
-  });
 };
 
 const formatDayLabel = (kickoffAt: string, locale: string): string => {
@@ -256,6 +99,7 @@ const topScoreOptions: { label: string; value: TopScoreType }[] = [
   { label: "Yellow Card", value: "YELLOWCARDS" },
   { label: "Red Card", value: "REDCARDS" }
 ];
+const FIXTURES_PAGE_SIZE = 12;
 
 const totalHeaderFromType = (type: TopScoreType): string => {
   switch (type) {
@@ -279,26 +123,10 @@ export const FixturesPage = () => {
 
   const [activeTab, setActiveTab] = useState<FixturesTab>("matches");
   const [selectedClub, setSelectedClub] = useState("all");
-  const [gameweekPageIndex, setGameweekPageIndex] = useState(0);
+  const [selectedGameweek, setSelectedGameweek] = useState<number | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedStatType, setSelectedStatType] = useState<TopScoreType>("GOAL_TOPSCORER");
   const activeGameweekButtonRef = useRef<HTMLSelectElement | null>(null);
-
-  const fixturesQuery = useQuery({
-    queryKey: ["fixtures", selectedLeagueId],
-    enabled: Boolean(selectedLeagueId),
-    staleTime: cacheTtlMs.fixtures,
-    queryFn: async () => {
-      if (!selectedLeagueId) {
-        return [];
-      }
-
-      return getFixtures.execute(selectedLeagueId);
-    },
-    refetchInterval: (query) => {
-      const current = query.state.data ?? [];
-      return current.some((fixture) => isLiveFixture(fixture)) ? 30_000 : 120_000;
-    }
-  });
 
   const dashboardQuery = useQuery({
     queryKey: ["dashboard", session?.user.id],
@@ -317,6 +145,34 @@ export const FixturesPage = () => {
         loader: () => getDashboard.execute(accessToken),
         allowStaleOnError: false
       });
+    }
+  });
+
+  const backendGameweek = dashboardQuery.data?.currentGameweek ?? dashboardQuery.data?.gameweek ?? null;
+  const activeGameweek = selectedGameweek ?? backendGameweek ?? null;
+
+  const fixturesQuery = useQuery({
+    queryKey: ["fixtures", selectedLeagueId, activeGameweek, currentPage],
+    enabled: Boolean(selectedLeagueId && activeGameweek && activeGameweek > 0),
+    staleTime: cacheTtlMs.fixtures,
+    queryFn: async () => {
+      if (!selectedLeagueId || !activeGameweek || activeGameweek <= 0) {
+        return {
+          leagueId: selectedLeagueId ?? "",
+          gameweek: activeGameweek ?? 0,
+          page: currentPage,
+          pageSize: FIXTURES_PAGE_SIZE,
+          total: 0,
+          totalPages: 0,
+          items: []
+        };
+      }
+
+      return getFixtures.execute(selectedLeagueId, activeGameweek, currentPage, FIXTURES_PAGE_SIZE);
+    },
+    refetchInterval: (query) => {
+      const current = query.state.data?.items ?? [];
+      return current.some((fixture) => isLiveFixture(fixture)) ? 30_000 : 120_000;
     }
   });
 
@@ -368,19 +224,29 @@ export const FixturesPage = () => {
     void appAlert.error(t("fixtures.alert.standingsTitle"), standingsQuery.error.message);
   }, [standingsQuery.error, t]);
 
-  const fixtures = fixturesQuery.data ?? [];
+  useEffect(() => {
+    setSelectedGameweek(null);
+    setCurrentPage(1);
+    setSelectedClub("all");
+  }, [selectedLeagueId]);
+
+  useEffect(() => {
+    if (selectedGameweek !== null) {
+      return;
+    }
+    if (!backendGameweek || backendGameweek <= 0) {
+      return;
+    }
+
+    setSelectedGameweek(backendGameweek);
+  }, [backendGameweek, selectedGameweek]);
+
+  const fixturePage = fixturesQuery.data;
+  const fixtures = fixturePage?.items ?? [];
   const standings = standingsQuery.data?.items ?? [];
   const standingsMode = standingsQuery.data?.mode ?? "final";
-  const derivedStandings = useMemo(() => buildStandingsFromFixtures(fixtures), [fixtures]);
-  const effectiveStandings = standings.length > 0 ? standings : derivedStandings;
-  const effectiveStandingsMode: StandingsMode =
-    standings.length > 0
-      ? standingsMode
-      : derivedStandings.length > 0
-        ? derivedStandings.some((item) => item.isLive)
-          ? "live"
-          : "derived"
-        : "final";
+  const effectiveStandings = standings;
+  const effectiveStandingsMode: StandingsMode = standings.length > 0 ? standingsMode : "final";
   const standingsGameweek = useMemo(() => {
     let latest = 0;
     for (const item of effectiveStandings) {
@@ -395,69 +261,8 @@ export const FixturesPage = () => {
     return leagues.find((league) => league.id === selectedLeagueId)?.name ?? t("fixtures.defaultLeague");
   }, [leagues, selectedLeagueId, t]);
 
-  const groupedByGameweek = useMemo(() => {
-    const sorted = [...fixtures].sort(
-      (left, right) => new Date(left.kickoffAt).getTime() - new Date(right.kickoffAt).getTime()
-    );
-    const grouped = new Map<number, Fixture[]>();
-
-    for (const fixture of sorted) {
-      const bucket = grouped.get(fixture.gameweek) ?? [];
-      bucket.push(fixture);
-      grouped.set(fixture.gameweek, bucket);
-    }
-
-    return [...grouped.entries()]
-      .sort((left, right) => left[0] - right[0])
-      .map(([gameweek, items]) => ({ gameweek, items }));
-  }, [fixtures]);
-
-  const nearestGameweekIndex = useMemo(() => {
-    if (groupedByGameweek.length === 0) {
-      return 0;
-    }
-
-    const now = Date.now();
-    let bestIndex = 0;
-    let bestDiff = Number.POSITIVE_INFINITY;
-
-    groupedByGameweek.forEach((group, index) => {
-      for (const fixture of group.items) {
-        const diff = Math.abs(new Date(fixture.kickoffAt).getTime() - now);
-        if (diff < bestDiff) {
-          bestDiff = diff;
-          bestIndex = index;
-        }
-      }
-    });
-
-    return bestIndex;
-  }, [groupedByGameweek]);
-
-  const backendGameweek = dashboardQuery.data?.currentGameweek ?? dashboardQuery.data?.gameweek ?? null;
-  const preferredGameweekIndex = useMemo(() => {
-    if (groupedByGameweek.length === 0) {
-      return 0;
-    }
-    if (backendGameweek) {
-      const backendIndex = groupedByGameweek.findIndex((item) => item.gameweek === backendGameweek);
-      if (backendIndex >= 0) {
-        return backendIndex;
-      }
-    }
-
-    return nearestGameweekIndex;
-  }, [backendGameweek, groupedByGameweek, nearestGameweekIndex]);
-
-  useEffect(() => {
-    setGameweekPageIndex(preferredGameweekIndex);
-  }, [preferredGameweekIndex, selectedLeagueId]);
-
-  const activeGameweekGroup = groupedByGameweek[gameweekPageIndex] ?? null;
-  const activeGameweekFixtures = activeGameweekGroup?.items ?? [];
-  const activeGameweek = activeGameweekGroup?.gameweek ?? null;
-  const seasonLabel = seasonLabelFromDate(activeGameweekFixtures[0]?.kickoffAt ?? new Date().toISOString());
-  const matchweekRange = formatRangeLabel(activeGameweekFixtures, dateLocale);
+  const seasonLabel = seasonLabelFromDate(fixtures[0]?.kickoffAt ?? new Date().toISOString());
+  const matchweekRange = formatRangeLabel(fixtures, dateLocale);
   const apiSeasonLabel = seasonLabel.replace("/", "-");
   const statsQuery = useQuery({
     queryKey: ["top-score", selectedLeagueId, apiSeasonLabel, selectedStatType],
@@ -465,19 +270,17 @@ export const FixturesPage = () => {
     staleTime: 60_000,
     queryFn: async () => {
       if (!selectedLeagueId) return [];
-      const response = getTopScoreDetails.execute(selectedLeagueId, seasonLabel, selectedStatType);
-      console.log( "----->", response);
-      return response
+      return getTopScoreDetails.execute(selectedLeagueId, seasonLabel, selectedStatType);
     }
   });
   const availableClubs = useMemo(() => {
     const names = new Set<string>();
-    for (const fixture of activeGameweekFixtures) {
+    for (const fixture of fixtures) {
       names.add(fixture.homeTeam);
       names.add(fixture.awayTeam);
     }
     return [...names].sort((left, right) => left.localeCompare(right));
-  }, [activeGameweekFixtures]);
+  }, [fixtures]);
 
   useEffect(() => {
     if (selectedClub === "all") {
@@ -490,12 +293,12 @@ export const FixturesPage = () => {
 
   const filteredFixtures = useMemo(() => {
     if (selectedClub === "all") {
-      return activeGameweekFixtures;
+      return fixtures;
     }
-    return activeGameweekFixtures.filter(
+    return fixtures.filter(
       (fixture) => fixture.homeTeam === selectedClub || fixture.awayTeam === selectedClub
     );
-  }, [activeGameweekFixtures, selectedClub]);
+  }, [fixtures, selectedClub]);
 
   const fixturesByDay = useMemo(() => {
     const grouped = new Map<string, Fixture[]>();
@@ -689,25 +492,25 @@ export const FixturesPage = () => {
     getCoreRowModel: getCoreRowModel()
   });
 
+  const gameweekOptions = useMemo(() => {
+    const baseGameweek = activeGameweek && activeGameweek > 0 ? activeGameweek : backendGameweek && backendGameweek > 0 ? backendGameweek : 1;
+    const start = Math.max(1, baseGameweek - 3);
+    return Array.from({ length: 7 }, (_, index) => start + index);
+  }, [activeGameweek, backendGameweek]);
+
   const onResetFilters = () => {
     setSelectedClub("all");
-    setGameweekPageIndex(nearestGameweekIndex);
+    setSelectedGameweek(backendGameweek ?? activeGameweek ?? 1);
+    setCurrentPage(1);
     if (activeGameweekButtonRef.current) {
       activeGameweekButtonRef.current.blur();
     }
   };
 
   const moveWeek = (direction: -1 | 1) => {
-    setGameweekPageIndex((previous) => {
-      const next = previous + direction;
-      if (next < 0) {
-        return 0;
-      }
-      if (next > groupedByGameweek.length - 1) {
-        return groupedByGameweek.length - 1;
-      }
-      return next;
-    });
+    const baseGameweek = activeGameweek ?? 1;
+    setSelectedGameweek(Math.max(1, baseGameweek + direction));
+    setCurrentPage(1);
   };
 
   return (
@@ -765,15 +568,15 @@ export const FixturesPage = () => {
                   value={String(activeGameweek ?? "")}
                   onChange={(event) => {
                     const nextGameweek = Number(event.target.value);
-                    const nextIndex = groupedByGameweek.findIndex((item) => item.gameweek === nextGameweek);
-                    if (nextIndex >= 0) {
-                      setGameweekPageIndex(nextIndex);
+                    if (Number.isFinite(nextGameweek) && nextGameweek > 0) {
+                      setSelectedGameweek(nextGameweek);
+                      setCurrentPage(1);
                     }
                   }}
                 >
-                  {groupedByGameweek.map((group) => (
-                    <option key={group.gameweek} value={group.gameweek}>
-                      {t("fixtures.matchweek", { gameweek: group.gameweek })}
+                  {gameweekOptions.map((gameweek) => (
+                    <option key={gameweek} value={gameweek}>
+                      {t("fixtures.matchweek", { gameweek })}
                     </option>
                   ))}
                 </select>
@@ -802,7 +605,7 @@ export const FixturesPage = () => {
                 type="button"
                 className="fixtures-v2-week-nav"
                 onClick={() => moveWeek(-1)}
-                disabled={gameweekPageIndex <= 0}
+                disabled={(activeGameweek ?? 1) <= 1}
               >
                 <ChevronLeft className="inline-icon" aria-hidden="true" />
               </button>
@@ -814,7 +617,6 @@ export const FixturesPage = () => {
                 type="button"
                 className="fixtures-v2-week-nav"
                 onClick={() => moveWeek(1)}
-                disabled={gameweekPageIndex >= groupedByGameweek.length - 1}
               >
                 <ChevronRight className="inline-icon" aria-hidden="true" />
               </button>
@@ -849,6 +651,35 @@ export const FixturesPage = () => {
                 ))}
               </div>
             ) : null}
+
+            {!fixturesQuery.isPending && (fixturePage?.totalPages ?? 0) > 1 ? (
+              <section className="fixtures-v2-week-head">
+                <button
+                  type="button"
+                  className="fixtures-v2-week-nav"
+                  onClick={() => setCurrentPage((previous) => Math.max(1, previous - 1))}
+                  disabled={currentPage <= 1}
+                >
+                  <ChevronLeft className="inline-icon" aria-hidden="true" />
+                </button>
+                <div>
+                  <h3>{t("fixtures.pagination.summary", { page: currentPage, totalPages: fixturePage?.totalPages ?? 0 })}</h3>
+                  <p>{t("fixtures.pagination.total", { total: fixturePage?.total ?? 0 })}</p>
+                </div>
+                <button
+                  type="button"
+                  className="fixtures-v2-week-nav"
+                  onClick={() =>
+                    setCurrentPage((previous) =>
+                      Math.min(fixturePage?.totalPages ?? previous, previous + 1)
+                    )
+                  }
+                  disabled={currentPage >= (fixturePage?.totalPages ?? 0)}
+                >
+                  <ChevronRight className="inline-icon" aria-hidden="true" />
+                </button>
+              </section>
+            ) : null}
           </motion.div>
         ) : null}
 
@@ -867,9 +698,7 @@ export const FixturesPage = () => {
                   <span className={`fixtures-standings-mode ${effectiveStandingsMode === "live" ? "live" : ""}`}>
                     {effectiveStandingsMode === "live"
                       ? t("fixtures.mode.live")
-                      : effectiveStandingsMode === "derived"
-                        ? t("fixtures.mode.provisional")
-                        : t("fixtures.mode.official")}
+                      : t("fixtures.mode.official")}
                   </span>
                   <span className="fixtures-standings-snapshot">
                     {standingsGameweek !== null

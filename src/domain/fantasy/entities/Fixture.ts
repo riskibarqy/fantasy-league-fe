@@ -14,3 +14,13 @@ export type Fixture = {
   winnerTeamId?: string;
   finishedAt?: string;
 };
+
+export type FixturePage = {
+  leagueId: string;
+  gameweek: number;
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  items: Fixture[];
+};

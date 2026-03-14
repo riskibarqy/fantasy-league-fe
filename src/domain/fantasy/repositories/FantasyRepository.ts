@@ -1,5 +1,5 @@
 import type { Dashboard, TeamLineup } from "../entities/Team";
-import type { Fixture } from "../entities/Fixture";
+import type { FixturePage } from "../entities/Fixture";
 import type { FixtureDetails } from "../entities/FixtureDetails";
 import type { LeagueStanding } from "../entities/LeagueStanding";
 import type { League } from "../entities/League";
@@ -30,7 +30,7 @@ export interface FantasyRepository {
   getLeagues(): Promise<League[]>;
   getTeams(leagueId: string): Promise<Club[]>;
   getTeamNextMatches(leagueId: string, gameweek: number, teamIds: string[]): Promise<TeamNextMatch[]>;
-  getFixtures(leagueId: string): Promise<Fixture[]>;
+  getFixtures(leagueId: string, gameweek: number, page?: number, pageSize?: number): Promise<FixturePage>;
   getSeasonPointsSummary(leagueId: string, accessToken: string): Promise<SeasonPointsSummary>;
   getMyPlayerPointsByGameweek(
     leagueId: string,

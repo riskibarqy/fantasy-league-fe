@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
 const PICK_TEAM_DEADLINE_LEAD_MS = 2 * 60 * 60 * 1000;
+const DASHBOARD_FIXTURES_PAGE_SIZE = 8;
 
 const formatDeadlineWindow = (deadlineAtMs: number, t: (key: string, params?: Record<string, string | number>) => string): string => {
   const diffMs = deadlineAtMs - Date.now();
@@ -123,14 +124,26 @@ export const DashboardPage = () => {
         });
 
         const leagueIDForHome = selectedLeagueId || dashboardResult.selectedLeagueId;
-        const fixturePromise = leagueIDForHome
+        const fixtureGameweek = dashboardResult.currentGameweek ?? dashboardResult.gameweek;
+        const fixturePromise = leagueIDForHome && fixtureGameweek > 0
           ? getOrLoadCached({
-              key: cacheKeys.fixtures(leagueIDForHome),
+              key: cacheKeys.fixtures(
+                leagueIDForHome,
+                fixtureGameweek,
+                1,
+                DASHBOARD_FIXTURES_PAGE_SIZE
+              ),
               ttlMs: cacheTtlMs.fixtures,
-              loader: () => getFixtures.execute(leagueIDForHome),
+              loader: () =>
+                getFixtures.execute(
+                  leagueIDForHome,
+                  fixtureGameweek,
+                  1,
+                  DASHBOARD_FIXTURES_PAGE_SIZE
+                ),
               allowStaleOnError: false
             })
-          : Promise.resolve<Fixture[]>([]);
+          : Promise.resolve({ items: [] as Fixture[] });
         const summaryPromise = leagueIDForHome
           ? getOrLoadCached({
               key: cacheKeys.seasonPointsSummary(userId, leagueIDForHome),
@@ -170,7 +183,7 @@ export const DashboardPage = () => {
 
         setDashboard(dashboardResult);
         setSeasonPointsSummary(summaryResult.value);
-        setFixtures(fixtureResult.value);
+        setFixtures(fixtureResult.value.items);
         setCustomLeagues(
           customLeagueResultRaw.status === "fulfilled" ? customLeagueResultRaw.value.slice(0, 3) : []
         );

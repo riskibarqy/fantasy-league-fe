@@ -78,6 +78,7 @@ const SUBSTITUTION_MIN_STARTERS = {
 } as const;
 const DEFAULT_TEAM_COLOR_PAIR: [string, string] = ["#3A4250", "#A3ACBA"];
 const PICK_TEAM_DEADLINE_LEAD_MS = 2 * 60 * 60 * 1000;
+const TEAM_BUILDER_FIXTURES_PAGE_SIZE = 100;
 const FINISHED_OR_CANCELLED_STATUSES = new Set([
   "FT",
   "FINISHED",
@@ -961,6 +962,45 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
   }, [getDashboard, session?.accessToken, session?.user.id]);
 
   useEffect(() => {
+    const leagueId = selectedLeagueId?.trim() ?? "";
+    if (!leagueId || !gameweek || gameweek <= 0) {
+      setFixtures([]);
+      return;
+    }
+
+    let mounted = true;
+
+    const loadFixtures = async () => {
+      try {
+        const page = await getOrLoadCached({
+          key: cacheKeys.fixtures(leagueId, gameweek, 1, TEAM_BUILDER_FIXTURES_PAGE_SIZE),
+          ttlMs: cacheTtlMs.fixtures,
+          loader: () => getFixtures.execute(leagueId, gameweek, 1, TEAM_BUILDER_FIXTURES_PAGE_SIZE),
+          allowStaleOnError: true
+        });
+
+        if (!mounted) {
+          return;
+        }
+
+        setFixtures(page.items);
+      } catch {
+        if (!mounted) {
+          return;
+        }
+
+        setFixtures([]);
+      }
+    };
+
+    void loadFixtures();
+
+    return () => {
+      mounted = false;
+    };
+  }, [gameweek, getFixtures, selectedLeagueId]);
+
+  useEffect(() => {
     if (!selectedLeagueId) {
       return;
     }
@@ -1025,18 +1065,12 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
           throw playersError instanceof Error ? playersError : new Error("Failed to load players.");
         }
 
-        const [lineupResult, fixturesResult, teamsResult] = await Promise.all([
+        const [lineupResult, teamsResult] = await Promise.all([
           getOrLoadCached({
             key: cacheKeys.lineup(userScope, selectedLeagueId),
             ttlMs: cacheTtlMs.lineup,
             loader: () => getLineup.execute(selectedLeagueId, accessToken),
             storage: "memory",
-            allowStaleOnError: false
-          }),
-          getOrLoadCached({
-            key: cacheKeys.fixtures(selectedLeagueId),
-            ttlMs: cacheTtlMs.fixtures,
-            loader: () => getFixtures.execute(selectedLeagueId),
             allowStaleOnError: false
           }),
           getOrLoadCached({
@@ -1058,7 +1092,6 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
 
         setPlayers(playersResult);
         setTeams(teamsResult);
-        setFixtures(fixturesResult);
 
         let resolvedLineup = lineupResult;
 

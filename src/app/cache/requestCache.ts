@@ -196,7 +196,8 @@ export const cacheKeys = {
   teams: (leagueId: string): string => `teams:${leagueId}`,
   teamNextMatches: (leagueId: string, gameweek: number, teamIds: string[]): string =>
     `team-next-matches:${leagueId}:${gameweek}:${[...new Set(teamIds.map((item) => item.trim()).filter(Boolean))].sort().join(",")}`,
-  fixtures: (leagueId: string): string => `fixtures:${leagueId}`,
+  fixtures: (leagueId: string, gameweek: number, page: number, pageSize: number): string =>
+    `fixtures:${leagueId}:${gameweek}:${page}:${pageSize}`,
   seasonPointsSummary: (userId: string, leagueId: string): string =>
     `season-points-summary:${userId}:${leagueId}`,
   standings: (leagueId: string): string => `standings:${leagueId}`,
