@@ -347,6 +347,17 @@ const assignPlayerToTarget = (
   }
 };
 
+const expectedPositionForTarget = (
+  lineup: TeamLineup,
+  target: SlotPickerTarget,
+): Position | null => {
+  if (target.zone === "BENCH") {
+    return getBenchSlotPositions(lineup)[target.index] ?? null;
+  }
+
+  return target.zone;
+};
+
 const getStarterIds = (lineup: TeamLineup): string[] => {
   return [
     lineup.goalkeeperId,
@@ -1420,15 +1431,28 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
             (player) => player.id === pickerResult.playerId,
           );
           if (pickedPlayer) {
-            normalized = ensureLeadership(
-              assignPlayerToTarget(
-                normalized,
-                pickerResult.target,
-                pickerResult.playerId,
-              ),
+            const expectedPosition = expectedPositionForTarget(
+              normalized,
+              pickerResult.target,
             );
-            infoToShow = `${pickedPlayer.name} added to ${pickerResult.target.zone} slot.`;
-            shouldRecenterPitch = true;
+            if (
+              expectedPosition &&
+              pickedPlayer.position === expectedPosition
+            ) {
+              normalized = ensureLeadership(
+                assignPlayerToTarget(
+                  normalized,
+                  pickerResult.target,
+                  pickerResult.playerId,
+                ),
+              );
+              infoToShow = `${pickedPlayer.name} added to ${pickerResult.target.zone} slot.`;
+              shouldRecenterPitch = true;
+            } else {
+              loadErrorToShow =
+                loadErrorToShow ??
+                `Picked player position does not match ${pickerResult.target.zone} slot requirements.`;
+            }
           } else {
             loadErrorToShow =
               loadErrorToShow ??
