@@ -4,7 +4,11 @@ import { GetTeams } from "./GetTeams";
 import { SaveOnboardingFavoriteClub } from "./SaveOnboardingFavoriteClub";
 import type { FantasyRepository } from "../../../domain/fantasy/repositories/FantasyRepository";
 import { defaultPublicAppConfig } from "../../../domain/fantasy/entities/AppConfig";
-import { defaultLineup, mockPlayers, mockTeams } from "../../../infrastructure/mocks/data";
+import {
+  defaultLineup,
+  mockPlayers,
+  mockTeams,
+} from "../../../infrastructure/mocks/data";
 
 const fantasyRepositoryStub = (): FantasyRepository => ({
   getPublicAppConfig: vi.fn().mockResolvedValue(defaultPublicAppConfig()),
@@ -26,6 +30,8 @@ const fantasyRepositoryStub = (): FantasyRepository => ({
   saveLineup: vi.fn(),
   getMySquad: vi.fn(),
   pickSquad: vi.fn(),
+  getTransferAvailability: vi.fn(),
+  transferSquad: vi.fn(),
   saveOnboardingFavoriteClub: vi.fn(),
   completeOnboarding: vi.fn(),
   getMyCustomLeagues: vi.fn(),
@@ -33,7 +39,7 @@ const fantasyRepositoryStub = (): FantasyRepository => ({
   joinPublicCustomLeague: vi.fn(),
   joinCustomLeagueByInvite: vi.fn(),
   getCustomLeague: vi.fn(),
-  getCustomLeagueStandings: vi.fn()
+  getCustomLeagueStandings: vi.fn(),
 });
 
 describe("Onboarding usecases", () => {
@@ -54,7 +60,7 @@ describe("Onboarding usecases", () => {
       userId: "u1",
       favoriteLeagueId: "idn-liga-1-2025",
       favoriteTeamId: "persib-bandung",
-      onboardingCompleted: false
+      onboardingCompleted: false,
     });
 
     const usecase = new SaveOnboardingFavoriteClub(repo);
@@ -62,17 +68,17 @@ describe("Onboarding usecases", () => {
     await usecase.execute(
       {
         leagueId: "  idn-liga-1-2025 ",
-        teamId: " persib-bandung "
+        teamId: " persib-bandung ",
       },
-      " token-123 "
+      " token-123 ",
     );
 
     expect(repo.saveOnboardingFavoriteClub).toHaveBeenCalledWith(
       {
         leagueId: "idn-liga-1-2025",
-        teamId: "persib-bandung"
+        teamId: "persib-bandung",
       },
-      "token-123"
+      "token-123",
     );
   });
 
@@ -86,10 +92,10 @@ describe("Onboarding usecases", () => {
           leagueId: "idn-liga-1-2025",
           squadName: "My Squad",
           playerIds: mockPlayers.slice(0, 14).map((player) => player.id),
-          lineup: defaultLineup
+          lineup: defaultLineup,
         },
-        "token-123"
-      )
+        "token-123",
+      ),
     ).rejects.toThrow("exactly 15 players");
   });
 
@@ -100,7 +106,7 @@ describe("Onboarding usecases", () => {
         userId: "u1",
         favoriteLeagueId: "idn-liga-1-2025",
         favoriteTeamId: "persib-bandung",
-        onboardingCompleted: true
+        onboardingCompleted: true,
       },
       squad: {
         id: "s1",
@@ -111,9 +117,9 @@ describe("Onboarding usecases", () => {
         totalCost: 998,
         picks: [],
         createdAtUtc: new Date().toISOString(),
-        updatedAtUtc: new Date().toISOString()
+        updatedAtUtc: new Date().toISOString(),
       },
-      lineup: defaultLineup
+      lineup: defaultLineup,
     });
 
     const usecase = new CompleteOnboarding(repo);
@@ -124,9 +130,9 @@ describe("Onboarding usecases", () => {
         leagueId: " idn-liga-1-2025 ",
         squadName: "  ",
         playerIds,
-        lineup: defaultLineup
+        lineup: defaultLineup,
       },
-      " token-123 "
+      " token-123 ",
     );
 
     expect(repo.completeOnboarding).toHaveBeenCalledWith(
@@ -134,9 +140,9 @@ describe("Onboarding usecases", () => {
         leagueId: "idn-liga-1-2025",
         squadName: expect.stringMatching(/\S/),
         playerIds,
-        lineup: defaultLineup
+        lineup: defaultLineup,
       },
-      "token-123"
+      "token-123",
     );
   });
 });

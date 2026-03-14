@@ -13,6 +13,9 @@ export type TeamLineup = {
 export type Dashboard = {
   gameweek: number;
   currentGameweek?: number;
+  editableGameweek?: number;
+  isCurrentGameweekLocked?: boolean;
+  currentGameweekLockDeadline?: string;
   budget: number;
   teamValue: number;
   totalPoints: number;

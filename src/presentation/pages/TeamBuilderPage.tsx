@@ -1,8 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useContainer } from "../../app/dependencies/DependenciesProvider";
-import { cacheKeys, cacheTtlMs, getOrLoadCached, invalidateCached } from "../../app/cache/requestCache";
+import {
+  cacheKeys,
+  cacheTtlMs,
+  getOrLoadCached,
+  invalidateCached,
+} from "../../app/cache/requestCache";
 import type { Club } from "../../domain/fantasy/entities/Club";
 import type { Player } from "../../domain/fantasy/entities/Player";
 import type { PlayerDetails } from "../../domain/fantasy/entities/PlayerDetails";
@@ -15,7 +27,7 @@ import {
   FORMATION_LIMITS,
   STARTER_SIZE,
   SUBSTITUTE_SIZE,
-  getBenchSlotPositions
+  getBenchSlotPositions,
 } from "../../domain/fantasy/services/lineupRules";
 import { buildLineupFromPlayers } from "../../domain/fantasy/services/squadBuilder";
 import { LoadingState } from "../components/LoadingState";
@@ -33,7 +45,7 @@ import {
   readLineupDraft,
   savePickerContext,
   writeLineupDraft,
-  type SlotPickerTarget
+  type SlotPickerTarget,
 } from "./teamPickerStorage";
 import { resolveFixtureTargetGameweek } from "./teamBuilderGameweek";
 
@@ -53,15 +65,20 @@ type TeamBuilderPageProps = {
   forcedMode?: TeamMode;
 };
 
+type TransferDraft = {
+  outPlayerId: string;
+  inPlayerId: string;
+};
+
 const PAT_MIN_SLOTS = {
   DEF: FORMATION_LIMITS.DEF.min,
   MID: FORMATION_LIMITS.MID.min,
-  FWD: FORMATION_LIMITS.FWD.min
+  FWD: FORMATION_LIMITS.FWD.min,
 } as const;
 const PAT_MAX_SLOTS = {
   DEF: FORMATION_LIMITS.DEF.max,
   MID: FORMATION_LIMITS.MID.max,
-  FWD: FORMATION_LIMITS.FWD.max
+  FWD: FORMATION_LIMITS.FWD.max,
 } as const;
 const OUTFIELD_STARTER_SIZE = STARTER_SIZE - 1;
 
@@ -69,12 +86,12 @@ const TRF_SLOTS = {
   GK: 2,
   DEF: 5,
   MID: 5,
-  FWD: 3
+  FWD: 3,
 } as const;
 const SUBSTITUTION_MIN_STARTERS = {
   DEF: 3,
   MID: 3,
-  FWD: 1
+  FWD: 1,
 } as const;
 const DEFAULT_TEAM_COLOR_PAIR: [string, string] = ["#3A4250", "#A3ACBA"];
 const PICK_TEAM_DEADLINE_LEAD_MS = 2 * 60 * 60 * 1000;
@@ -86,7 +103,7 @@ const FINISHED_OR_CANCELLED_STATUSES = new Set([
   "PEN",
   "CANCELLED",
   "POSTPONED",
-  "ABANDONED"
+  "ABANDONED",
 ]);
 
 const parseTeamMode = (value: string | null): TeamMode => {
@@ -112,7 +129,10 @@ const isFinishedOrCancelledFixture = (fixture: Fixture): boolean => {
   return FINISHED_OR_CANCELLED_STATUSES.has(status);
 };
 
-const resolveActiveGameweekFromFixtures = (fixtures: Fixture[], nowMs: number): number | null => {
+const resolveActiveGameweekFromFixtures = (
+  fixtures: Fixture[],
+  nowMs: number,
+): number | null => {
   let liveMin = 0;
   let upcomingMin = 0;
   let lastKnown = 0;
@@ -163,7 +183,10 @@ const resolveActiveGameweekFromFixtures = (fixtures: Fixture[], nowMs: number): 
   return lastKnown > 0 ? lastKnown : null;
 };
 
-const resolveGameweekDeadlineMs = (fixtures: Fixture[], gameweek: number): number | null => {
+const resolveGameweekDeadlineMs = (
+  fixtures: Fixture[],
+  gameweek: number,
+): number | null => {
   const kickoffMs = fixtures
     .filter((fixture) => fixture.gameweek === gameweek)
     .map((fixture) => parseFixtureKickoffMs(fixture))
@@ -181,7 +204,12 @@ const sanitizeStarterIds = (ids: string[], max: number): string[] => {
   return ids.filter(Boolean).slice(0, max);
 };
 
-const upsertStarterId = (ids: string[], index: number, playerId: string, max: number): string[] => {
+const upsertStarterId = (
+  ids: string[],
+  index: number,
+  playerId: string,
+  max: number,
+): string[] => {
   const next = sanitizeStarterIds(ids, max);
   if (index < next.length) {
     next[index] = playerId;
@@ -195,7 +223,11 @@ const upsertStarterId = (ids: string[], index: number, playerId: string, max: nu
   return next;
 };
 
-const upsertBenchId = (ids: string[], index: number, playerId: string): string[] => {
+const upsertBenchId = (
+  ids: string[],
+  index: number,
+  playerId: string,
+): string[] => {
   const next = [...ids.slice(0, SUBSTITUTE_SIZE)];
   while (next.length <= index && next.length < SUBSTITUTE_SIZE) {
     next.push("");
@@ -208,7 +240,11 @@ const upsertBenchId = (ids: string[], index: number, playerId: string): string[]
   return next;
 };
 
-const replaceAtIndex = (ids: string[], index: number, value: string): string[] => {
+const replaceAtIndex = (
+  ids: string[],
+  index: number,
+  value: string,
+): string[] => {
   const next = [...ids];
   if (index >= 0 && index < next.length) {
     next[index] = value;
@@ -228,7 +264,7 @@ const buildFlexibleRowIds = (
   ids: string[],
   min: number,
   max: number,
-  outfieldCount: number
+  outfieldCount: number,
 ): string[] => {
   const filled = sanitizeStarterIds(ids, max);
   const row = [...filled];
@@ -237,7 +273,8 @@ const buildFlexibleRowIds = (
     row.push("");
   }
 
-  const canExpand = outfieldCount < OUTFIELD_STARTER_SIZE && filled.length < max;
+  const canExpand =
+    outfieldCount < OUTFIELD_STARTER_SIZE && filled.length < max;
   if (canExpand && row.every(Boolean) && row.length < max) {
     row.push("");
   }
@@ -254,48 +291,75 @@ const createEmptyLineup = (leagueId: string): TeamLineup => ({
   substituteIds: [],
   captainId: "",
   viceCaptainId: "",
-  updatedAt: new Date().toISOString()
+  updatedAt: new Date().toISOString(),
 });
 
 const assignPlayerToTarget = (
   lineup: TeamLineup,
   target: SlotPickerTarget,
-  playerId: string
+  playerId: string,
 ): TeamLineup => {
   switch (target.zone) {
     case "GK":
       return {
         ...lineup,
-        goalkeeperId: playerId
+        goalkeeperId: playerId,
       };
     case "DEF":
       return {
         ...lineup,
-        defenderIds: upsertStarterId(lineup.defenderIds, target.index, playerId, PAT_MAX_SLOTS.DEF)
+        defenderIds: upsertStarterId(
+          lineup.defenderIds,
+          target.index,
+          playerId,
+          PAT_MAX_SLOTS.DEF,
+        ),
       };
     case "MID":
       return {
         ...lineup,
-        midfielderIds: upsertStarterId(lineup.midfielderIds, target.index, playerId, PAT_MAX_SLOTS.MID)
+        midfielderIds: upsertStarterId(
+          lineup.midfielderIds,
+          target.index,
+          playerId,
+          PAT_MAX_SLOTS.MID,
+        ),
       };
     case "FWD":
       return {
         ...lineup,
-        forwardIds: upsertStarterId(lineup.forwardIds, target.index, playerId, PAT_MAX_SLOTS.FWD)
+        forwardIds: upsertStarterId(
+          lineup.forwardIds,
+          target.index,
+          playerId,
+          PAT_MAX_SLOTS.FWD,
+        ),
       };
     case "BENCH":
       return {
         ...lineup,
-        substituteIds: upsertBenchId(lineup.substituteIds, target.index, playerId)
+        substituteIds: upsertBenchId(
+          lineup.substituteIds,
+          target.index,
+          playerId,
+        ),
       };
   }
 };
 
 const getStarterIds = (lineup: TeamLineup): string[] => {
-  return [lineup.goalkeeperId, ...lineup.defenderIds, ...lineup.midfielderIds, ...lineup.forwardIds].filter(Boolean);
+  return [
+    lineup.goalkeeperId,
+    ...lineup.defenderIds,
+    ...lineup.midfielderIds,
+    ...lineup.forwardIds,
+  ].filter(Boolean);
 };
 
-const getPlayerIdAtTarget = (lineup: TeamLineup, target: SlotPickerTarget): string => {
+const getPlayerIdAtTarget = (
+  lineup: TeamLineup,
+  target: SlotPickerTarget,
+): string => {
   switch (target.zone) {
     case "GK":
       return lineup.goalkeeperId;
@@ -310,7 +374,10 @@ const getPlayerIdAtTarget = (lineup: TeamLineup, target: SlotPickerTarget): stri
   }
 };
 
-const getTargetForPlayerId = (lineup: TeamLineup, playerId: string): SlotPickerTarget | null => {
+const getTargetForPlayerId = (
+  lineup: TeamLineup,
+  playerId: string,
+): SlotPickerTarget | null => {
   if (!playerId) {
     return null;
   }
@@ -318,7 +385,7 @@ const getTargetForPlayerId = (lineup: TeamLineup, playerId: string): SlotPickerT
   if (lineup.goalkeeperId === playerId) {
     return {
       zone: "GK",
-      index: 0
+      index: 0,
     };
   }
 
@@ -326,15 +393,17 @@ const getTargetForPlayerId = (lineup: TeamLineup, playerId: string): SlotPickerT
   if (defenderIndex >= 0) {
     return {
       zone: "DEF",
-      index: defenderIndex
+      index: defenderIndex,
     };
   }
 
-  const midfielderIndex = lineup.midfielderIds.findIndex((id) => id === playerId);
+  const midfielderIndex = lineup.midfielderIds.findIndex(
+    (id) => id === playerId,
+  );
   if (midfielderIndex >= 0) {
     return {
       zone: "MID",
-      index: midfielderIndex
+      index: midfielderIndex,
     };
   }
 
@@ -342,7 +411,7 @@ const getTargetForPlayerId = (lineup: TeamLineup, playerId: string): SlotPickerT
   if (forwardIndex >= 0) {
     return {
       zone: "FWD",
-      index: forwardIndex
+      index: forwardIndex,
     };
   }
 
@@ -350,7 +419,7 @@ const getTargetForPlayerId = (lineup: TeamLineup, playerId: string): SlotPickerT
   if (benchIndex >= 0) {
     return {
       zone: "BENCH",
-      index: benchIndex
+      index: benchIndex,
     };
   }
 
@@ -359,20 +428,26 @@ const getTargetForPlayerId = (lineup: TeamLineup, playerId: string): SlotPickerT
 
 const ensureLeadership = (lineup: TeamLineup): TeamLineup => {
   const starters = getStarterIds(lineup);
-  const captainId = starters.includes(lineup.captainId) ? lineup.captainId : starters[0] ?? "";
+  const captainId = starters.includes(lineup.captainId)
+    ? lineup.captainId
+    : (starters[0] ?? "");
   const viceCaptainId =
-    starters.includes(lineup.viceCaptainId) && lineup.viceCaptainId !== captainId
+    starters.includes(lineup.viceCaptainId) &&
+    lineup.viceCaptainId !== captainId
       ? lineup.viceCaptainId
-      : starters.find((id) => id !== captainId) ?? "";
+      : (starters.find((id) => id !== captainId) ?? "");
 
   return {
     ...lineup,
     captainId,
-    viceCaptainId
+    viceCaptainId,
   };
 };
 
-const normalizeLineup = (leagueId: string, lineup: TeamLineup | null): TeamLineup => {
+const normalizeLineup = (
+  leagueId: string,
+  lineup: TeamLineup | null,
+): TeamLineup => {
   if (!lineup) {
     return createEmptyLineup(leagueId);
   }
@@ -380,10 +455,16 @@ const normalizeLineup = (leagueId: string, lineup: TeamLineup | null): TeamLineu
   return ensureLeadership({
     ...lineup,
     leagueId,
-    defenderIds: sanitizeStarterIds(lineup.defenderIds ?? [], PAT_MAX_SLOTS.DEF),
-    midfielderIds: sanitizeStarterIds(lineup.midfielderIds ?? [], PAT_MAX_SLOTS.MID),
+    defenderIds: sanitizeStarterIds(
+      lineup.defenderIds ?? [],
+      PAT_MAX_SLOTS.DEF,
+    ),
+    midfielderIds: sanitizeStarterIds(
+      lineup.midfielderIds ?? [],
+      PAT_MAX_SLOTS.MID,
+    ),
     forwardIds: sanitizeStarterIds(lineup.forwardIds ?? [], PAT_MAX_SLOTS.FWD),
-    substituteIds: (lineup.substituteIds ?? []).slice(0, SUBSTITUTE_SIZE)
+    substituteIds: (lineup.substituteIds ?? []).slice(0, SUBSTITUTE_SIZE),
   });
 };
 
@@ -391,12 +472,22 @@ const buildLineupFromPointsRow = (row: UserGameweekPoints): TeamLineup => {
   const starters = row.players.filter((item) => item.isStarter);
   const bench = row.players.filter((item) => !item.isStarter);
 
-  const goalkeeperId = starters.find((item) => item.position === "GK")?.playerId ?? "";
-  const defenderIds = starters.filter((item) => item.position === "DEF").map((item) => item.playerId);
-  const midfielderIds = starters.filter((item) => item.position === "MID").map((item) => item.playerId);
-  const forwardIds = starters.filter((item) => item.position === "FWD").map((item) => item.playerId);
-  const substituteIds = bench.map((item) => item.playerId).slice(0, SUBSTITUTE_SIZE);
-  const captainId = starters.find((item) => item.isCaptain)?.playerId ?? goalkeeperId;
+  const goalkeeperId =
+    starters.find((item) => item.position === "GK")?.playerId ?? "";
+  const defenderIds = starters
+    .filter((item) => item.position === "DEF")
+    .map((item) => item.playerId);
+  const midfielderIds = starters
+    .filter((item) => item.position === "MID")
+    .map((item) => item.playerId);
+  const forwardIds = starters
+    .filter((item) => item.position === "FWD")
+    .map((item) => item.playerId);
+  const substituteIds = bench
+    .map((item) => item.playerId)
+    .slice(0, SUBSTITUTE_SIZE);
+  const captainId =
+    starters.find((item) => item.isCaptain)?.playerId ?? goalkeeperId;
   const viceCaptainId =
     starters.find((item) => item.isViceCaptain)?.playerId ??
     starters.find((item) => item.playerId !== captainId)?.playerId ??
@@ -411,7 +502,7 @@ const buildLineupFromPointsRow = (row: UserGameweekPoints): TeamLineup => {
     substituteIds,
     captainId,
     viceCaptainId,
-    updatedAt: new Date().toISOString()
+    updatedAt: new Date().toISOString(),
   };
 };
 
@@ -426,9 +517,52 @@ const toComparableLineup = (lineup: TeamLineup | null) => {
     defenderIds: lineup.defenderIds.filter(Boolean),
     midfielderIds: lineup.midfielderIds.filter(Boolean),
     forwardIds: lineup.forwardIds.filter(Boolean),
-    substituteIds: lineup.substituteIds.filter(Boolean).slice(0, SUBSTITUTE_SIZE),
+    substituteIds: lineup.substituteIds
+      .filter(Boolean)
+      .slice(0, SUBSTITUTE_SIZE),
     captainId: lineup.captainId,
-    viceCaptainId: lineup.viceCaptainId
+    viceCaptainId: lineup.viceCaptainId,
+  };
+};
+
+const buildTransferDraft = (
+  currentLineup: TeamLineup | null,
+  savedLineup: TeamLineup | null,
+): TransferDraft | null => {
+  const currentComparable = toComparableLineup(currentLineup);
+  const savedComparable = toComparableLineup(savedLineup);
+  if (!currentComparable || !savedComparable) {
+    return null;
+  }
+
+  const currentIds = new Set([
+    currentComparable.goalkeeperId,
+    ...currentComparable.defenderIds,
+    ...currentComparable.midfielderIds,
+    ...currentComparable.forwardIds,
+    ...currentComparable.substituteIds,
+  ]);
+  const savedIds = new Set([
+    savedComparable.goalkeeperId,
+    ...savedComparable.defenderIds,
+    ...savedComparable.midfielderIds,
+    ...savedComparable.forwardIds,
+    ...savedComparable.substituteIds,
+  ]);
+
+  const outgoing = [...savedIds].filter(
+    (playerId) => playerId && !currentIds.has(playerId),
+  );
+  const incoming = [...currentIds].filter(
+    (playerId) => playerId && !savedIds.has(playerId),
+  );
+  if (outgoing.length !== 1 || incoming.length !== 1) {
+    return null;
+  }
+
+  return {
+    outPlayerId: outgoing[0],
+    inPlayerId: incoming[0],
   };
 };
 
@@ -440,7 +574,9 @@ const shortName = (name: string): string => {
   }
 
   const last = words[words.length - 1];
-  return last.length > 12 ? `${words[0]} ${last.slice(0, 1)}.` : `${words[0]} ${last}`;
+  return last.length > 12
+    ? `${words[0]} ${last.slice(0, 1)}.`
+    : `${words[0]} ${last}`;
 };
 
 const pitchDisplayName = (player: Player): string => {
@@ -473,7 +609,9 @@ const buildTeamColorIndex = (teams: Club[]): Map<string, [string, string]> => {
     }
 
     const pair: [string, string] = [team.teamColor[0], team.teamColor[1]];
-    const keys = [team.id, team.name, team.short].map(normalizeTeamKey).filter(Boolean);
+    const keys = [team.id, team.name, team.short]
+      .map(normalizeTeamKey)
+      .filter(Boolean);
     for (const key of keys) {
       index.set(key, pair);
     }
@@ -484,16 +622,21 @@ const buildTeamColorIndex = (teams: Club[]): Map<string, [string, string]> => {
 
 const resolveJerseyColorPair = (
   player: Player,
-  teamColorIndex: Map<string, [string, string]>
+  teamColorIndex: Map<string, [string, string]>,
 ): [string, string] => {
   if (player.teamColor && player.teamColor.length >= 2) {
     return [player.teamColor[0], player.teamColor[1]];
   }
 
-  return teamColorIndex.get(normalizeTeamKey(player.club)) ?? DEFAULT_TEAM_COLOR_PAIR;
+  return (
+    teamColorIndex.get(normalizeTeamKey(player.club)) ?? DEFAULT_TEAM_COLOR_PAIR
+  );
 };
 
-const jerseyBackgroundFromColors = ([primary, secondary]: [string, string]): string => {
+const jerseyBackgroundFromColors = ([primary, secondary]: [
+  string,
+  string,
+]): string => {
   return `linear-gradient(140deg, ${primary} 0 46%, ${secondary} 46% 100%)`;
 };
 
@@ -502,7 +645,9 @@ const jerseyNumberFromPlayer = (playerId: string): string => {
 };
 
 const sortByProjectedDesc = (players: Player[]): Player[] => {
-  return [...players].sort((left, right) => right.projectedPoints - left.projectedPoints);
+  return [...players].sort(
+    (left, right) => right.projectedPoints - left.projectedPoints,
+  );
 };
 
 const clampNumber = (value: number, min: number, max: number): number => {
@@ -522,7 +667,8 @@ const toSelectedPercentage = (playerId: string): number => {
 
 const normalizeUrl = (value?: string): string => value?.trim() ?? "";
 
-const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+const delay = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
 
 const isUnauthorizedError = (error: unknown): boolean => {
   if (error instanceof HttpError) {
@@ -555,13 +701,16 @@ const scrollElementToViewportCenter = (element: HTMLElement) => {
       const targetTop = window.scrollY + rect.top - offset;
       window.scrollTo({
         top: Math.max(targetTop, 0),
-        behavior: "smooth"
+        behavior: "smooth",
       });
     });
   });
 };
 
-async function withRetry<T>(run: () => Promise<T>, retries: number): Promise<T> {
+async function withRetry<T>(
+  run: () => Promise<T>,
+  retries: number,
+): Promise<T> {
   let attempt = 0;
   let lastError: unknown;
 
@@ -591,6 +740,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     getPlayers,
     getTeams,
     getTeamFixtures,
+    getTransferAvailability,
     getPlayerDetails,
     getLineup,
     getDashboard,
@@ -599,10 +749,10 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     getHighestPlayerPointsByGameweek,
     getMyPlayerPointsByGameweek,
     pickSquad,
+    transferSquad,
     logout,
-    saveLineup
-  } =
-    useContainer();
+    saveLineup,
+  } = useContainer();
   const { selectedLeagueId } = useLeagueSelection();
   const { session, setSession } = useSession();
   const userScope = session?.user.id ?? "";
@@ -610,31 +760,56 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
   const pitchBoardRef = useRef<HTMLDivElement | null>(null);
   const pointsViewCenteredKeyRef = useRef("");
 
-  const [mode, setMode] = useState<TeamMode>(() => forcedMode ?? parseTeamMode(searchParams.get("mode")));
+  const [mode, setMode] = useState<TeamMode>(
+    () => forcedMode ?? parseTeamMode(searchParams.get("mode")),
+  );
   const [players, setPlayers] = useState<Player[]>([]);
   const [teams, setTeams] = useState<Club[]>([]);
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [lineup, setLineup] = useState<TeamLineup | null>(null);
   const [gameweek, setGameweek] = useState<number | null>(null);
-  const [nextMatchByTeamId, setNextMatchByTeamId] = useState<Record<string, TeamFixture>>({});
+  const [editableGameweek, setEditableGameweek] = useState<number | null>(null);
+  const [clockMs, setClockMs] = useState(() => Date.now());
+  const [nextMatchByTeamId, setNextMatchByTeamId] = useState<
+    Record<string, TeamFixture>
+  >({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [isLeagueDataLoading, setIsLeagueDataLoading] = useState(false);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
-  const [selectedPlayerDetails, setSelectedPlayerDetails] = useState<PlayerDetails | null>(null);
-  const [isSelectedPlayerDetailsLoading, setIsSelectedPlayerDetailsLoading] = useState(false);
+  const [selectedPlayerDetails, setSelectedPlayerDetails] =
+    useState<PlayerDetails | null>(null);
+  const [isSelectedPlayerDetailsLoading, setIsSelectedPlayerDetailsLoading] =
+    useState(false);
   const [isFullProfileVisible, setIsFullProfileVisible] = useState(false);
-  const [substitutionSourcePlayerId, setSubstitutionSourcePlayerId] = useState<string | null>(null);
-  const [hasSubstitutionDraftChanges, setHasSubstitutionDraftChanges] = useState(false);
-  const [lastSavedLineup, setLastSavedLineup] = useState<TeamLineup | null>(null);
+  const [substitutionSourcePlayerId, setSubstitutionSourcePlayerId] = useState<
+    string | null
+  >(null);
+  const [hasSubstitutionDraftChanges, setHasSubstitutionDraftChanges] =
+    useState(false);
+  const [remainingFreeTransfers, setRemainingFreeTransfers] = useState<number | null>(null);
+  const [lastSavedLineup, setLastSavedLineup] = useState<TeamLineup | null>(
+    null,
+  );
   const [isSavingLineup, setIsSavingLineup] = useState(false);
-  const [pointsByPlayerId, setPointsByPlayerId] = useState<Record<string, number>>({});
-  const [pointsViewGameweek, setPointsViewGameweek] = useState<number | null>(null);
+  const [pointsByPlayerId, setPointsByPlayerId] = useState<
+    Record<string, number>
+  >({});
+  const [pointsViewGameweek, setPointsViewGameweek] = useState<number | null>(
+    null,
+  );
   const [pointsViewTotal, setPointsViewTotal] = useState<number | null>(null);
-  const [pointsViewTopUserId, setPointsViewTopUserId] = useState<string | null>(null);
-  const [pointsViewLineup, setPointsViewLineup] = useState<TeamLineup | null>(null);
+  const [pointsViewTopUserId, setPointsViewTopUserId] = useState<string | null>(
+    null,
+  );
+  const [pointsViewLineup, setPointsViewLineup] = useState<TeamLineup | null>(
+    null,
+  );
   const [isPointsViewLoading, setIsPointsViewLoading] = useState(false);
   const [pointsViewNotice, setPointsViewNotice] = useState<string | null>(null);
+  const [currentGameweekLockDeadlineMs, setCurrentGameweekLockDeadlineMs] =
+    useState<number | null>(null);
+  const [isCurrentGameweekLocked, setIsCurrentGameweekLocked] = useState(false);
 
   useEffect(() => {
     if (forcedMode) {
@@ -646,7 +821,18 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     setMode((current) => (current === queryMode ? current : queryMode));
   }, [forcedMode, searchParams]);
 
-  const isPointsView = searchParams.get("view")?.trim().toLowerCase() === "points";
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setClockMs(Date.now());
+    }, 30_000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  const isPointsView =
+    searchParams.get("view")?.trim().toLowerCase() === "points";
   const pointsMetric = parsePointsMetric(searchParams.get("metric"));
 
   const recenterToPitch = useCallback(() => {
@@ -678,7 +864,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         navigate("/login", { replace: true });
       }
     },
-    [logout, navigate, session?.accessToken, setSession]
+    [logout, navigate, session?.accessToken, setSession],
   );
 
   useEffect(() => {
@@ -720,7 +906,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
           const highestRow = await getHighestPlayerPointsByGameweek.execute(
             leagueId,
             accessToken,
-            highestTargetGameweek
+            highestTargetGameweek,
           );
           if (!mounted) {
             return;
@@ -733,9 +919,13 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
             setPointsViewTopUserId(null);
             setPointsViewLineup(null);
             if (highestTargetGameweek) {
-              setPointsViewNotice(`No highest lineup points available for GW ${highestTargetGameweek} yet.`);
+              setPointsViewNotice(
+                `No highest lineup points available for GW ${highestTargetGameweek} yet.`,
+              );
             } else {
-              setPointsViewNotice("No highest lineup points available for the current gameweek yet.");
+              setPointsViewNotice(
+                "No highest lineup points available for the current gameweek yet.",
+              );
             }
             return;
           }
@@ -757,7 +947,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         const rows = await getMyPlayerPointsByGameweek.execute(
           leagueId,
           accessToken,
-          currentTargetGameweek
+          currentTargetGameweek,
         );
         if (!mounted) {
           return;
@@ -765,8 +955,9 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
 
         const selectedRow =
           currentTargetGameweek !== undefined
-            ? rows.find((item) => item.gameweek === currentTargetGameweek) ?? null
-            : rows[0] ?? null;
+            ? (rows.find((item) => item.gameweek === currentTargetGameweek) ??
+              null)
+            : (rows[0] ?? null);
         if (!selectedRow) {
           setPointsByPlayerId({});
           setPointsViewGameweek(currentTargetGameweek ?? null);
@@ -803,7 +994,12 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         setPointsViewTopUserId(null);
         setPointsViewLineup(null);
         setPointsViewNotice(null);
-        void appAlert.error("Points View", error instanceof Error ? error.message : "Failed to load player points.");
+        void appAlert.error(
+          "Points View",
+          error instanceof Error
+            ? error.message
+            : "Failed to load player points.",
+        );
       } finally {
         if (mounted) {
           setIsPointsViewLoading(false);
@@ -824,7 +1020,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     isPointsView,
     pointsMetric,
     selectedLeagueId,
-    session?.accessToken
+    session?.accessToken,
   ]);
 
   const syncSquadFromLineup = useCallback(
@@ -840,12 +1036,14 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         ...draftLineup.defenderIds,
         ...draftLineup.midfielderIds,
         ...draftLineup.forwardIds,
-        ...draftLineup.substituteIds
+        ...draftLineup.substituteIds,
       ].filter(Boolean);
       const uniqueDraftPlayerIds = [...new Set(draftPlayerIds)];
 
       if (uniqueDraftPlayerIds.length !== STARTER_SIZE + SUBSTITUTE_SIZE) {
-        throw new Error("Lineup must contain exactly 15 unique players before save.");
+        throw new Error(
+          "Lineup must contain exactly 15 unique players before save.",
+        );
       }
 
       let squad = null;
@@ -870,7 +1068,9 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         }
 
         const squadSet = new Set(squad.picks.map((pick) => pick.playerId));
-        return !uniqueDraftPlayerIds.every((playerId) => squadSet.has(playerId));
+        return !uniqueDraftPlayerIds.every((playerId) =>
+          squadSet.has(playerId),
+        );
       })();
 
       if (!shouldUpsertFromDraft) {
@@ -880,13 +1080,13 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       await pickSquad.execute(
         {
           leagueId: draftLineup.leagueId,
-          playerIds: uniqueDraftPlayerIds
+          playerIds: uniqueDraftPlayerIds,
         },
-        accessToken
+        accessToken,
       );
       return true;
     },
-    [forceLogout, getMySquad, pickSquad, session?.accessToken]
+    [forceLogout, getMySquad, pickSquad, session?.accessToken],
   );
 
   useEffect(() => {
@@ -901,13 +1101,18 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     }
   }, [infoMessage]);
 
-  const playersById = useMemo(() => new Map(players.map((player) => [player.id, player])), [players]);
+  const playersById = useMemo(
+    () => new Map(players.map((player) => [player.id, player])),
+    [players],
+  );
   const teamColorIndex = useMemo(() => buildTeamColorIndex(teams), [teams]);
   const teamIdByKey = useMemo(() => {
     const map = new Map<string, string>();
 
     for (const team of teams) {
-      const keys = [team.id, team.name, team.short].map(normalizeTeamKey).filter(Boolean);
+      const keys = [team.id, team.name, team.short]
+        .map(normalizeTeamKey)
+        .filter(Boolean);
       for (const key of keys) {
         if (!map.has(key)) {
           map.set(key, team.id);
@@ -935,22 +1140,41 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
               key: cacheKeys.dashboard(userId),
               ttlMs: cacheTtlMs.dashboard,
               loader: () => getDashboard.execute(accessToken),
-              allowStaleOnError: false
+              allowStaleOnError: false,
             }),
-          1
+          1,
         );
 
         if (!mounted) {
           return;
         }
 
-        setGameweek(dashboard.currentGameweek ?? dashboard.gameweek);
+        const currentDashboardGameweek =
+          dashboard.currentGameweek ?? dashboard.gameweek;
+        const nextEditableGameweek =
+          dashboard.editableGameweek ?? currentDashboardGameweek;
+
+        setGameweek(currentDashboardGameweek);
+        setEditableGameweek(nextEditableGameweek);
+        setIsCurrentGameweekLocked(Boolean(dashboard.isCurrentGameweekLocked));
+        if (dashboard.currentGameweekLockDeadline) {
+          const deadlineMs = new Date(
+            dashboard.currentGameweekLockDeadline,
+          ).getTime();
+          setCurrentGameweekLockDeadlineMs(
+            Number.isFinite(deadlineMs) ? deadlineMs : null,
+          );
+        } else {
+          setCurrentGameweekLockDeadlineMs(null);
+        }
       } catch (error) {
         if (!mounted) {
           return;
         }
 
-        setInfoMessage(error instanceof Error ? error.message : "Failed to load dashboard.");
+        setInfoMessage(
+          error instanceof Error ? error.message : "Failed to load dashboard.",
+        );
       }
     };
 
@@ -961,9 +1185,35 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     };
   }, [getDashboard, session?.accessToken, session?.user.id]);
 
+  const editableTargetGameweek = useMemo(() => {
+    if (editableGameweek && editableGameweek > 0) {
+      if (
+        gameweek &&
+        gameweek > 0 &&
+        editableGameweek === gameweek &&
+        (isCurrentGameweekLocked ||
+          (currentGameweekLockDeadlineMs !== null &&
+            clockMs >= currentGameweekLockDeadlineMs))
+      ) {
+        return gameweek + 1;
+      }
+      return editableGameweek;
+    }
+    if (gameweek && gameweek > 0) {
+      return gameweek;
+    }
+    return null;
+  }, [
+    currentGameweekLockDeadlineMs,
+    clockMs,
+    editableGameweek,
+    gameweek,
+    isCurrentGameweekLocked,
+  ]);
+
   useEffect(() => {
     const leagueId = selectedLeagueId?.trim() ?? "";
-    if (!leagueId || !gameweek || gameweek <= 0) {
+    if (!leagueId || !editableTargetGameweek || editableTargetGameweek <= 0) {
       setFixtures([]);
       return;
     }
@@ -973,10 +1223,21 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     const loadFixtures = async () => {
       try {
         const page = await getOrLoadCached({
-          key: cacheKeys.fixtures(leagueId, gameweek, 1, TEAM_BUILDER_FIXTURES_PAGE_SIZE),
+          key: cacheKeys.fixtures(
+            leagueId,
+            editableTargetGameweek,
+            1,
+            TEAM_BUILDER_FIXTURES_PAGE_SIZE,
+          ),
           ttlMs: cacheTtlMs.fixtures,
-          loader: () => getFixtures.execute(leagueId, gameweek, 1, TEAM_BUILDER_FIXTURES_PAGE_SIZE),
-          allowStaleOnError: true
+          loader: () =>
+            getFixtures.execute(
+              leagueId,
+              editableTargetGameweek,
+              1,
+              TEAM_BUILDER_FIXTURES_PAGE_SIZE,
+            ),
+          allowStaleOnError: true,
         });
 
         if (!mounted) {
@@ -998,7 +1259,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     return () => {
       mounted = false;
     };
-  }, [gameweek, getFixtures, selectedLeagueId]);
+  }, [editableTargetGameweek, getFixtures, selectedLeagueId]);
 
   useEffect(() => {
     if (!selectedLeagueId) {
@@ -1041,9 +1302,9 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
                   ttlMs: cacheTtlMs.players,
                   loader: () => getPlayers.execute(selectedLeagueId),
                   allowStaleOnError: false,
-                  forceRefresh: attempt > 0
+                  forceRefresh: attempt > 0,
                 }),
-              2
+              2,
             );
             if (result.length > 0) {
               playersResultRaw = result;
@@ -1062,7 +1323,9 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         }
 
         if (playersResultRaw.length === 0 && playersError) {
-          throw playersError instanceof Error ? playersError : new Error("Failed to load players.");
+          throw playersError instanceof Error
+            ? playersError
+            : new Error("Failed to load players.");
         }
 
         const [lineupResult, teamsResult] = await Promise.all([
@@ -1071,14 +1334,14 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
             ttlMs: cacheTtlMs.lineup,
             loader: () => getLineup.execute(selectedLeagueId, accessToken),
             storage: "memory",
-            allowStaleOnError: false
+            allowStaleOnError: false,
           }),
           getOrLoadCached({
             key: cacheKeys.teams(selectedLeagueId),
             ttlMs: cacheTtlMs.teams,
             loader: () => getTeams.execute(selectedLeagueId),
-            allowStaleOnError: false
-          })
+            allowStaleOnError: false,
+          }),
         ]);
 
         if (!mounted) {
@@ -1102,39 +1365,49 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
           }
 
           try {
-            const squadResult = await getMySquad.execute(selectedLeagueId, accessToken);
+            const squadResult = await getMySquad.execute(
+              selectedLeagueId,
+              accessToken,
+            );
             if (!squadResult) {
               void appAlert.info(
                 "Onboarding Required",
-                "No squad found for this league. Please complete onboarding for this league."
+                "No squad found for this league. Please complete onboarding for this league.",
               );
               navigate(
                 `/onboarding?force=1&step=squad&leagueId=${encodeURIComponent(selectedLeagueId)}`,
-                { replace: true }
+                { replace: true },
               );
               return;
             } else {
               resolvedLineup = buildLineupFromPlayers(
                 selectedLeagueId,
                 playersResult,
-                squadResult.picks.map((pick) => pick.playerId)
+                squadResult.picks.map((pick) => pick.playerId),
               );
               infoToShow = "Loaded lineup from your current squad.";
             }
           } catch (error) {
             if (isUnauthorizedError(error)) {
-              await forceLogout("Your session has expired. Please sign in again.");
+              await forceLogout(
+                "Your session has expired. Please sign in again.",
+              );
               return;
             }
 
             const message =
-              error instanceof Error ? error.message : "Unknown error while loading squad.";
+              error instanceof Error
+                ? error.message
+                : "Unknown error while loading squad.";
             resolvedLineup = createEmptyLineup(selectedLeagueId);
             loadErrorToShow = `Squad load failed (${message}). Pick players directly on the field.`;
           }
         }
 
-        const savedNormalized = normalizeLineup(selectedLeagueId, resolvedLineup);
+        const savedNormalized = normalizeLineup(
+          selectedLeagueId,
+          resolvedLineup,
+        );
         let normalized = savedNormalized;
         const draftLineup = readLineupDraft(selectedLeagueId, userScope);
         if (draftLineup) {
@@ -1143,15 +1416,23 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
 
         const pickerResult = consumePickerResult(userScope);
         if (pickerResult && pickerResult.leagueId === selectedLeagueId) {
-          const pickedPlayer = playersResult.find((player) => player.id === pickerResult.playerId);
+          const pickedPlayer = playersResult.find(
+            (player) => player.id === pickerResult.playerId,
+          );
           if (pickedPlayer) {
             normalized = ensureLeadership(
-              assignPlayerToTarget(normalized, pickerResult.target, pickerResult.playerId)
+              assignPlayerToTarget(
+                normalized,
+                pickerResult.target,
+                pickerResult.playerId,
+              ),
             );
             infoToShow = `${pickedPlayer.name} added to ${pickerResult.target.zone} slot.`;
             shouldRecenterPitch = true;
           } else {
-            loadErrorToShow = loadErrorToShow ?? "Picked player is unavailable for this league.";
+            loadErrorToShow =
+              loadErrorToShow ??
+              "Picked player is unavailable for this league.";
           }
         }
 
@@ -1168,7 +1449,9 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         if (infoToShow) {
           setInfoMessage(infoToShow);
         } else if (lineupResult) {
-          setInfoMessage(`Last saved at ${new Date(lineupResult.updatedAt).toLocaleString("id-ID")}`);
+          setInfoMessage(
+            `Last saved at ${new Date(lineupResult.updatedAt).toLocaleString("id-ID")}`,
+          );
         } else if (playersResult.length === 0) {
           setInfoMessage("Players endpoint returned no data for this league.");
         } else {
@@ -1186,7 +1469,9 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
           return;
         }
 
-        setErrorMessage(error instanceof Error ? error.message : "Failed to load lineup.");
+        setErrorMessage(
+          error instanceof Error ? error.message : "Failed to load lineup.",
+        );
       } finally {
         if (mounted) {
           setIsLeagueDataLoading(false);
@@ -1209,7 +1494,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     recenterToPitch,
     selectedLeagueId,
     session?.accessToken,
-    userScope
+    userScope,
   ]);
 
   useEffect(() => {
@@ -1232,7 +1517,10 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     }
   }, [mode]);
 
-  const starterIds = useMemo(() => (lineup ? getStarterIds(lineup) : []), [lineup]);
+  const starterIds = useMemo(
+    () => (lineup ? getStarterIds(lineup) : []),
+    [lineup],
+  );
 
   const squadIds = useMemo(() => {
     if (!lineup) {
@@ -1258,11 +1546,18 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       .filter((player): player is Player => Boolean(player));
   }, [playersById, squadIds]);
   const squadTeamIds = useMemo(() => {
-    return [...new Set(
-      squadPlayers
-        .map((player) => player.teamId || teamIdByKey.get(normalizeTeamKey(player.club)) || "")
-        .filter(Boolean)
-    )];
+    return [
+      ...new Set(
+        squadPlayers
+          .map(
+            (player) =>
+              player.teamId ||
+              teamIdByKey.get(normalizeTeamKey(player.club)) ||
+              "",
+          )
+          .filter(Boolean),
+      ),
+    ];
   }, [squadPlayers, teamIdByKey]);
   const requiredBenchSlots = useMemo(() => {
     if (!lineup) {
@@ -1277,24 +1572,72 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
   }, [squadPlayers]);
 
   const activeFixtureGameweek = useMemo(() => {
-    return resolveActiveGameweekFromFixtures(fixtures, Date.now());
-  }, [fixtures]);
+    return resolveActiveGameweekFromFixtures(fixtures, clockMs);
+  }, [clockMs, fixtures]);
 
   const fixtureTargetGameweek = useMemo(() => {
-    return resolveFixtureTargetGameweek(gameweek, activeFixtureGameweek);
-  }, [activeFixtureGameweek, gameweek]);
+    return resolveFixtureTargetGameweek(
+      editableTargetGameweek,
+      activeFixtureGameweek,
+    );
+  }, [activeFixtureGameweek, editableTargetGameweek]);
 
-  const nextMatchGameweek = useMemo(() => {
-    if (fixtureTargetGameweek && fixtureTargetGameweek > 0) {
-      return fixtureTargetGameweek + 1;
+  const transferTargetGameweek = editableTargetGameweek;
+
+  const teamFixtureLookupGameweek = editableTargetGameweek;
+
+  useEffect(() => {
+    if (mode !== "TRF") {
+      return;
     }
 
-    return null;
-  }, [fixtureTargetGameweek]);
+    const leagueId = selectedLeagueId?.trim() ?? "";
+    const accessToken = session?.accessToken?.trim() ?? "";
+    if (!leagueId || !transferTargetGameweek || !accessToken) {
+      setRemainingFreeTransfers(null);
+      return;
+    }
+
+    let mounted = true;
+
+    const loadAvailability = async () => {
+      try {
+        const availability = await getTransferAvailability.execute(
+          leagueId,
+          transferTargetGameweek,
+          accessToken,
+        );
+        if (mounted) {
+          setRemainingFreeTransfers(availability.freeTransfersAvailable);
+        }
+      } catch {
+        if (mounted) {
+          setRemainingFreeTransfers(null);
+        }
+      }
+    };
+
+    void loadAvailability();
+
+    return () => {
+      mounted = false;
+    };
+  }, [
+    getTransferAvailability,
+    mode,
+    selectedLeagueId,
+    session?.accessToken,
+    transferTargetGameweek,
+  ]);
 
   useEffect(() => {
     const leagueId = selectedLeagueId.trim();
-    if (!leagueId || !nextMatchGameweek || nextMatchGameweek <= 0 || squadTeamIds.length === 0) {
+    if (
+      !leagueId ||
+      !teamFixtureLookupGameweek ||
+      teamFixtureLookupGameweek <= 0 ||
+      squadTeamIds.length === 0
+    ) {
       setNextMatchByTeamId({});
       return;
     }
@@ -1304,11 +1647,20 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     const loadNextMatches = async () => {
       try {
         const items = await getOrLoadCached({
-          key: cacheKeys.teamFixtures(leagueId, nextMatchGameweek, squadTeamIds),
+          key: cacheKeys.teamFixtures(
+            leagueId,
+            teamFixtureLookupGameweek,
+            squadTeamIds,
+          ),
           ttlMs: cacheTtlMs.teamFixtures,
           storage: "memory",
           allowStaleOnError: true,
-          loader: () => getTeamFixtures.execute(leagueId, nextMatchGameweek, squadTeamIds)
+          loader: () =>
+            getTeamFixtures.execute(
+              leagueId,
+              teamFixtureLookupGameweek,
+              squadTeamIds,
+            ),
         });
 
         if (!mounted) {
@@ -1319,7 +1671,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
           items.reduce<Record<string, TeamFixture>>((acc, item) => {
             acc[item.teamId] = item;
             return acc;
-          }, {})
+          }, {}),
         );
       } catch {
         if (!mounted) {
@@ -1335,10 +1687,18 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     return () => {
       mounted = false;
     };
-  }, [getTeamFixtures, nextMatchGameweek, selectedLeagueId, squadTeamIds]);
+  }, [
+    getTeamFixtures,
+    selectedLeagueId,
+    squadTeamIds,
+    teamFixtureLookupGameweek,
+  ]);
 
   const lockState = useMemo(() => {
-    const targetGameweek = gameweek && gameweek > 0 ? gameweek : activeFixtureGameweek;
+    const targetGameweek =
+      editableTargetGameweek && editableTargetGameweek > 0
+        ? editableTargetGameweek
+        : activeFixtureGameweek;
     if (!targetGameweek) {
       return null;
     }
@@ -1351,9 +1711,9 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     return {
       gameweek: targetGameweek,
       deadlineMs,
-      locked: Date.now() >= deadlineMs
+      locked: clockMs >= deadlineMs,
     };
-  }, [activeFixtureGameweek, fixtures, gameweek]);
+  }, [activeFixtureGameweek, clockMs, editableTargetGameweek, fixtures]);
 
   const selectedPlayer = useMemo(() => {
     if (!selectedPlayerId) {
@@ -1380,8 +1740,9 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         const details = await getOrLoadCached({
           key: cacheKeys.playerDetails(selectedLeagueId, selectedPlayer.id),
           ttlMs: cacheTtlMs.playerDetails,
-          loader: () => getPlayerDetails.execute(selectedLeagueId, selectedPlayer.id),
-          allowStaleOnError: false
+          loader: () =>
+            getPlayerDetails.execute(selectedLeagueId, selectedPlayer.id),
+          allowStaleOnError: false,
         });
 
         if (!mounted) {
@@ -1397,7 +1758,9 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         setSelectedPlayerDetails(null);
         void appAlert.warning(
           "Player Details",
-          error instanceof Error ? error.message : "Unable to load full player details."
+          error instanceof Error
+            ? error.message
+            : "Unable to load full player details.",
         );
       } finally {
         if (mounted) {
@@ -1419,8 +1782,15 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     }
 
     const currentSlotId = getPlayerIdAtTarget(lineup, target);
-    if (target.zone !== "BENCH" && !currentSlotId && getStarterIds(lineup).length >= STARTER_SIZE) {
-      void appAlert.info("Formation Full", "Starting XI is full. Remove one starter first.");
+    if (
+      target.zone !== "BENCH" &&
+      !currentSlotId &&
+      getStarterIds(lineup).length >= STARTER_SIZE
+    ) {
+      void appAlert.info(
+        "Formation Full",
+        "Starting XI is full. Remove one starter first.",
+      );
       return;
     }
 
@@ -1429,15 +1799,15 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         leagueId: selectedLeagueId,
         target,
         lineup,
-        returnPath: mode === "TRF" ? "/transfers" : "/pick-team"
+        returnPath: mode === "TRF" ? "/transfers" : "/pick-team",
       },
-      userScope
+      userScope,
     );
 
     const params = new URLSearchParams({
       leagueId: selectedLeagueId,
       zone: target.zone,
-      index: String(target.index)
+      index: String(target.index),
     });
 
     navigate(`/pick-team/pick?${params.toString()}`);
@@ -1471,12 +1841,15 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     return {
       DEF: lineup?.defenderIds.filter(Boolean).length ?? 0,
       MID: lineup?.midfielderIds.filter(Boolean).length ?? 0,
-      FWD: lineup?.forwardIds.filter(Boolean).length ?? 0
+      FWD: lineup?.forwardIds.filter(Boolean).length ?? 0,
     };
   }, [lineup]);
 
   const isSubstitutionAllowedForTargets = useCallback(
-    (sourceTarget: SlotPickerTarget, targetTarget: SlotPickerTarget): boolean => {
+    (
+      sourceTarget: SlotPickerTarget,
+      targetTarget: SlotPickerTarget,
+    ): boolean => {
       if (!lineup) {
         return false;
       }
@@ -1524,7 +1897,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         nextCounts.FWD <= PAT_MAX_SLOTS.FWD
       );
     },
-    [lineup, playersById, starterPositionCounts]
+    [lineup, playersById, starterPositionCounts],
   );
 
   const getSubstitutionTargetsForSource = useCallback(
@@ -1557,7 +1930,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
 
       return enabledTargets;
     },
-    [isSubstitutionAllowedForTargets, lineup, mode]
+    [isSubstitutionAllowedForTargets, lineup, mode],
   );
 
   const substitutionTargetIds = useMemo(() => {
@@ -1583,7 +1956,10 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
 
     if (substitutionTargetIds.size === 0) {
       setSubstitutionSourcePlayerId(null);
-      void appAlert.warning("Substitution", "No valid substitution target is available.");
+      void appAlert.warning(
+        "Substitution",
+        "No valid substitution target is available.",
+      );
     }
   }, [substitutionSourcePlayerId, substitutionTargetIds]);
 
@@ -1599,7 +1975,10 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       }
 
       if (!isSubstitutionAllowedForTargets(substitutionSourceTarget, target)) {
-        void appAlert.warning("Invalid Substitution", "These players cannot be swapped.");
+        void appAlert.warning(
+          "Invalid Substitution",
+          "These players cannot be swapped.",
+        );
         return;
       }
 
@@ -1617,32 +1996,48 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         return;
       }
 
-      const nextBenchIds = upsertBenchId(lineup.substituteIds, benchTarget.index, starterPlayerId);
+      const nextBenchIds = upsertBenchId(
+        lineup.substituteIds,
+        benchTarget.index,
+        starterPlayerId,
+      );
       let nextLineup: TeamLineup = {
         ...lineup,
-        substituteIds: nextBenchIds
+        substituteIds: nextBenchIds,
       };
 
       if (starterTarget.zone === "GK") {
         nextLineup = {
           ...nextLineup,
-          goalkeeperId: benchPlayerId
+          goalkeeperId: benchPlayerId,
         };
       } else if (incomingPlayer.position === starterTarget.zone) {
         if (starterTarget.zone === "DEF") {
           nextLineup = {
             ...nextLineup,
-            defenderIds: replaceAtIndex(lineup.defenderIds, starterTarget.index, benchPlayerId)
+            defenderIds: replaceAtIndex(
+              lineup.defenderIds,
+              starterTarget.index,
+              benchPlayerId,
+            ),
           };
         } else if (starterTarget.zone === "MID") {
           nextLineup = {
             ...nextLineup,
-            midfielderIds: replaceAtIndex(lineup.midfielderIds, starterTarget.index, benchPlayerId)
+            midfielderIds: replaceAtIndex(
+              lineup.midfielderIds,
+              starterTarget.index,
+              benchPlayerId,
+            ),
           };
         } else {
           nextLineup = {
             ...nextLineup,
-            forwardIds: replaceAtIndex(lineup.forwardIds, starterTarget.index, benchPlayerId)
+            forwardIds: replaceAtIndex(
+              lineup.forwardIds,
+              starterTarget.index,
+              benchPlayerId,
+            ),
           };
         }
       } else {
@@ -1652,50 +2047,54 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         if (sourceZone === "DEF") {
           nextLineup = {
             ...nextLineup,
-            defenderIds: removeAtIndex(lineup.defenderIds, sourceIndex)
+            defenderIds: removeAtIndex(lineup.defenderIds, sourceIndex),
           };
         } else if (sourceZone === "MID") {
           nextLineup = {
             ...nextLineup,
-            midfielderIds: removeAtIndex(lineup.midfielderIds, sourceIndex)
+            midfielderIds: removeAtIndex(lineup.midfielderIds, sourceIndex),
           };
         } else {
           nextLineup = {
             ...nextLineup,
-            forwardIds: removeAtIndex(lineup.forwardIds, sourceIndex)
+            forwardIds: removeAtIndex(lineup.forwardIds, sourceIndex),
           };
         }
 
         if (incomingPlayer.position === "DEF") {
           nextLineup = {
             ...nextLineup,
-            defenderIds: [...nextLineup.defenderIds, benchPlayerId]
+            defenderIds: [...nextLineup.defenderIds, benchPlayerId],
           };
         } else if (incomingPlayer.position === "MID") {
           nextLineup = {
             ...nextLineup,
-            midfielderIds: [...nextLineup.midfielderIds, benchPlayerId]
+            midfielderIds: [...nextLineup.midfielderIds, benchPlayerId],
           };
         } else if (incomingPlayer.position === "FWD") {
           nextLineup = {
             ...nextLineup,
-            forwardIds: [...nextLineup.forwardIds, benchPlayerId]
+            forwardIds: [...nextLineup.forwardIds, benchPlayerId],
           };
         }
       }
 
       const swapped = ensureLeadership({
         ...nextLineup,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
       });
 
       setLineup(swapped);
       setHasSubstitutionDraftChanges(true);
       setSubstitutionSourcePlayerId(null);
       setSelectedPlayerId(null);
-      const sourceName = playersById.get(substitutionSourcePlayerId)?.name ?? "Player";
+      const sourceName =
+        playersById.get(substitutionSourcePlayerId)?.name ?? "Player";
       const targetName = playersById.get(targetPlayerId)?.name ?? "Player";
-      void appAlert.success("Substitution Applied", `${sourceName} swapped with ${targetName}.`);
+      void appAlert.success(
+        "Substitution Applied",
+        `${sourceName} swapped with ${targetName}.`,
+      );
       recenterToPitch();
     },
     [
@@ -1704,19 +2103,25 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       playersById,
       recenterToPitch,
       substitutionSourcePlayerId,
-      substitutionSourceTarget
-    ]
+      substitutionSourceTarget,
+    ],
   );
 
   const selectedPlayerCanSubstitute = Boolean(
     mode === "PAT" &&
-      selectedPlayer &&
-      lineup &&
-      selectedPlayerSubstitutionTargets.size > 0 &&
-      substitutionSourcePlayerId !== selectedPlayer.id
+    selectedPlayer &&
+    lineup &&
+    selectedPlayerSubstitutionTargets.size > 0 &&
+    substitutionSourcePlayerId !== selectedPlayer.id,
+  );
+  const selectedPlayerCanTransfer = Boolean(
+    mode === "TRF" &&
+    selectedPlayer &&
+    lineup &&
+    getTargetForPlayerId(lineup, selectedPlayer.id),
   );
   const selectedPlayerIsSubstitutionSource = Boolean(
-    selectedPlayer && substitutionSourcePlayerId === selectedPlayer.id
+    selectedPlayer && substitutionSourcePlayerId === selectedPlayer.id,
   );
 
   const selectedPlayerStats = useMemo(() => {
@@ -1735,11 +2140,13 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       price: (detailsPlayer?.price ?? selectedPlayer.price).toFixed(1),
       pointPerMatch:
         pointPerMatchFromSeason ??
-        (((detailsPlayer?.projectedPoints ?? selectedPlayer.projectedPoints) +
-          (detailsPlayer?.form ?? selectedPlayer.form)) /
-          2).toFixed(2),
+        (
+          ((detailsPlayer?.projectedPoints ?? selectedPlayer.projectedPoints) +
+            (detailsPlayer?.form ?? selectedPlayer.form)) /
+          2
+        ).toFixed(2),
       form: (detailsPlayer?.form ?? selectedPlayer.form).toFixed(1),
-      selectedPercentage: `${toSelectedPercentage(selectedPlayer.id).toFixed(1)}%`
+      selectedPercentage: `${toSelectedPercentage(selectedPlayer.id).toFixed(1)}%`,
     };
   }, [selectedPlayer, selectedPlayerDetails]);
 
@@ -1760,7 +2167,10 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
 
     const items = [
       { label: "Player ID", value: selectedPlayer.id },
-      { label: "Full Name", value: toValue(profile?.fullName ?? selectedPlayer.name) },
+      {
+        label: "Full Name",
+        value: toValue(profile?.fullName ?? selectedPlayer.name),
+      },
       { label: "Nationality", value: toValue(profile?.nationality) },
       { label: "Country of Birth", value: toValue(profile?.countryOfBirth) },
       { label: "Birth Date", value: toValue(profile?.birthDate) },
@@ -1769,13 +2179,13 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       { label: "Weight", value: toValue(profile?.weight) },
       { label: "Preferred Foot", value: toValue(profile?.preferredFoot) },
       { label: "Shirt Number", value: toValue(profile?.shirtNumber) },
-      { label: "Market Value", value: toValue(profile?.marketValue) }
+      { label: "Market Value", value: toValue(profile?.marketValue) },
     ];
 
     const extra =
       selectedPlayerDetails?.extraInfo.map((entry) => ({
         label: entry.label,
-        value: entry.value
+        value: entry.value,
       })) ?? [];
 
     return [...items, ...extra];
@@ -1795,7 +2205,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       { label: "Clean Sheets", value: String(stats.cleanSheets) },
       { label: "Yellow Cards", value: String(stats.yellowCards) },
       { label: "Red Cards", value: String(stats.redCards) },
-      { label: "Total Points", value: String(stats.totalPoints) }
+      { label: "Total Points", value: String(stats.totalPoints) },
     ];
   }, [selectedPlayerDetails]);
 
@@ -1805,7 +2215,8 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     }
 
     const baseGameweek =
-      fixtureTargetGameweek ??
+      (mode === "TRF" ? transferTargetGameweek : fixtureTargetGameweek) ??
+      editableTargetGameweek ??
       gameweek ??
       fixtures
         .map((fixture) => fixture.gameweek)
@@ -1834,7 +2245,8 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         fixtures.find(
           (item) =>
             item.gameweek === gw &&
-            (item.homeTeam === selectedPlayer.club || item.awayTeam === selectedPlayer.club)
+            (item.homeTeam === selectedPlayer.club ||
+              item.awayTeam === selectedPlayer.club),
         ) ?? fixtures.find((item) => item.gameweek === gw);
       const isDone = gw < baseGameweek;
 
@@ -1842,10 +2254,18 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         gw,
         label: toLabel(fixture),
         isCurrent: offset === 0,
-        points: isDone ? simulatePastPoints(selectedPlayer, gw) : null
+        points: isDone ? simulatePastPoints(selectedPlayer, gw) : null,
       };
     });
-  }, [fixtureTargetGameweek, fixtures, gameweek, selectedPlayer]);
+  }, [
+    fixtureTargetGameweek,
+    fixtures,
+    editableTargetGameweek,
+    gameweek,
+    mode,
+    selectedPlayer,
+    transferTargetGameweek,
+  ]);
 
   const pointsViewTitle =
     pointsMetric === "average"
@@ -1872,18 +2292,18 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         {
           label: "DEF",
           slots: PAT_MIN_SLOTS.DEF,
-          ids: Array.from({ length: PAT_MIN_SLOTS.DEF }, () => "")
+          ids: Array.from({ length: PAT_MIN_SLOTS.DEF }, () => ""),
         },
         {
           label: "MID",
           slots: PAT_MIN_SLOTS.MID,
-          ids: Array.from({ length: PAT_MIN_SLOTS.MID }, () => "")
+          ids: Array.from({ length: PAT_MIN_SLOTS.MID }, () => ""),
         },
         {
           label: "FWD",
           slots: PAT_MIN_SLOTS.FWD,
-          ids: Array.from({ length: PAT_MIN_SLOTS.FWD }, () => "")
-        }
+          ids: Array.from({ length: PAT_MIN_SLOTS.FWD }, () => ""),
+        },
       ];
     }
 
@@ -1891,51 +2311,59 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       visualLineup.defenderIds,
       PAT_MIN_SLOTS.DEF,
       PAT_MAX_SLOTS.DEF,
-      lineupOutfieldCount
+      lineupOutfieldCount,
     );
     const midfielderIds = buildFlexibleRowIds(
       visualLineup.midfielderIds,
       PAT_MIN_SLOTS.MID,
       PAT_MAX_SLOTS.MID,
-      lineupOutfieldCount
+      lineupOutfieldCount,
     );
     const forwardIds = buildFlexibleRowIds(
       visualLineup.forwardIds,
       PAT_MIN_SLOTS.FWD,
       PAT_MAX_SLOTS.FWD,
-      lineupOutfieldCount
+      lineupOutfieldCount,
     );
 
     return [
       {
         label: "GK",
         slots: 1,
-        ids: visualLineup.goalkeeperId ? [visualLineup.goalkeeperId] : []
+        ids: visualLineup.goalkeeperId ? [visualLineup.goalkeeperId] : [],
       },
       {
         label: "DEF",
         slots: defenderIds.length,
-        ids: defenderIds
+        ids: defenderIds,
       },
       {
         label: "MID",
         slots: midfielderIds.length,
-        ids: midfielderIds
+        ids: midfielderIds,
       },
       {
         label: "FWD",
         slots: forwardIds.length,
-        ids: forwardIds
-      }
+        ids: forwardIds,
+      },
     ];
   }, [visualLineup]);
 
   const trfRows = useMemo<PitchRow[]>(() => {
     const playersByPosition = {
-      GK: sortByProjectedDesc(players.filter((player) => player.position === "GK")),
-      DEF: sortByProjectedDesc(players.filter((player) => player.position === "DEF")),
-      MID: sortByProjectedDesc(players.filter((player) => player.position === "MID")),
-      FWD: sortByProjectedDesc(players.filter((player) => player.position === "FWD"))
+      GK: sortByProjectedDesc(
+        players.filter((player) => player.position === "GK"),
+      ),
+      DEF: sortByProjectedDesc(
+        players.filter((player) => player.position === "DEF"),
+      ),
+      MID: sortByProjectedDesc(
+        players.filter((player) => player.position === "MID"),
+      ),
+      FWD: sortByProjectedDesc(
+        players.filter((player) => player.position === "FWD"),
+      ),
     };
 
     const preferredOrder = squadIds
@@ -1946,7 +2374,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       GK: preferredOrder.filter((player) => player.position === "GK"),
       DEF: preferredOrder.filter((player) => player.position === "DEF"),
       MID: preferredOrder.filter((player) => player.position === "MID"),
-      FWD: preferredOrder.filter((player) => player.position === "FWD")
+      FWD: preferredOrder.filter((player) => player.position === "FWD"),
     };
 
     const pickIds = (position: Position, slots: number): string[] => {
@@ -1969,9 +2397,21 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
 
     return [
       { label: "GK", slots: TRF_SLOTS.GK, ids: pickIds("GK", TRF_SLOTS.GK) },
-      { label: "DEF", slots: TRF_SLOTS.DEF, ids: pickIds("DEF", TRF_SLOTS.DEF) },
-      { label: "MID", slots: TRF_SLOTS.MID, ids: pickIds("MID", TRF_SLOTS.MID) },
-      { label: "FWD", slots: TRF_SLOTS.FWD, ids: pickIds("FWD", TRF_SLOTS.FWD) }
+      {
+        label: "DEF",
+        slots: TRF_SLOTS.DEF,
+        ids: pickIds("DEF", TRF_SLOTS.DEF),
+      },
+      {
+        label: "MID",
+        slots: TRF_SLOTS.MID,
+        ids: pickIds("MID", TRF_SLOTS.MID),
+      },
+      {
+        label: "FWD",
+        slots: TRF_SLOTS.FWD,
+        ids: pickIds("FWD", TRF_SLOTS.FWD),
+      },
     ];
   }, [players, playersById, squadIds]);
 
@@ -1980,7 +2420,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       const defaultInteraction = {
         disabled: false,
         visualState: null as CardVisualState,
-        onClick: () => setSelectedPlayerId(playerId)
+        onClick: () => setSelectedPlayerId(playerId),
       };
 
       if (!substitutionSourcePlayerId || mode !== "PAT") {
@@ -1991,7 +2431,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         return {
           disabled: false,
           visualState: "source" as CardVisualState,
-          onClick: () => setSubstitutionSourcePlayerId(null)
+          onClick: () => setSubstitutionSourcePlayerId(null),
         };
       }
 
@@ -1999,17 +2439,56 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         return {
           disabled: false,
           visualState: "target" as CardVisualState,
-          onClick: () => applySubstitution(playerId)
+          onClick: () => applySubstitution(playerId),
         };
       }
 
       return {
         disabled: true,
         visualState: null as CardVisualState,
-        onClick: undefined
+        onClick: undefined,
       };
     },
-    [applySubstitution, mode, substitutionSourcePlayerId, substitutionTargetIds]
+    [
+      applySubstitution,
+      mode,
+      substitutionSourcePlayerId,
+      substitutionTargetIds,
+    ],
+  );
+
+  const resolvePlayerFixtureLabel = useCallback(
+    (player: Player): string => {
+      const playerTeamId =
+        player.teamId || teamIdByKey.get(normalizeTeamKey(player.club)) || "";
+      const nextMatch = playerTeamId
+        ? nextMatchByTeamId[playerTeamId]
+        : undefined;
+      if (nextMatch?.opponentTeamName && nextMatch.homeAway) {
+        return `${nextMatch.opponentTeamName} (${nextMatch.homeAway === "HOME" ? "H" : "A"})`;
+      }
+
+      const fallbackGameweek =
+        teamFixtureLookupGameweek && teamFixtureLookupGameweek > 0
+          ? teamFixtureLookupGameweek
+          : fixtureTargetGameweek && fixtureTargetGameweek > 0
+            ? fixtureTargetGameweek
+            : editableTargetGameweek && editableTargetGameweek > 0
+              ? editableTargetGameweek
+            : gameweek && gameweek > 0
+              ? gameweek
+              : null;
+
+      return `GW ${fallbackGameweek ?? "-"}`;
+    },
+    [
+      fixtureTargetGameweek,
+      editableTargetGameweek,
+      gameweek,
+      nextMatchByTeamId,
+      teamFixtureLookupGameweek,
+      teamIdByKey,
+    ],
   );
 
   const renderPitchCard = (
@@ -2024,12 +2503,12 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       visualState?: CardVisualState;
       disableEmpty?: boolean;
       pointsLabel?: string;
-    }
+    },
   ) => {
     if (!player) {
       if (onEmptyClick && !options?.disableEmpty) {
-	                return (
-	                  <button
+        return (
+          <button
             type="button"
             className="fpl-player-card empty-slot player-card-button pick-slot-button"
             onClick={onEmptyClick}
@@ -2040,19 +2519,18 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       }
 
       return (
-        <div className={`fpl-player-card empty-slot ${options?.disableEmpty ? "empty-slot-disabled" : ""}`}>
+        <div
+          className={`fpl-player-card empty-slot ${options?.disableEmpty ? "empty-slot-disabled" : ""}`}
+        >
           <span>{emptyLabel}</span>
         </div>
       );
     }
 
-    const playerTeamId = player.teamId || teamIdByKey.get(normalizeTeamKey(player.club)) || "";
-    const nextMatch = playerTeamId ? nextMatchByTeamId[playerTeamId] : undefined;
-    const fixtureLabel =
-      nextMatch?.opponentTeamName && nextMatch.homeAway
-        ? `${nextMatch.opponentTeamName} (${nextMatch.homeAway === "HOME" ? "H" : "A"})`
-        : `GW ${nextMatchGameweek ?? fixtureTargetGameweek ?? gameweek ?? "-"}`;
-    const jerseyBackground = jerseyBackgroundFromColors(resolveJerseyColorPair(player, teamColorIndex));
+    const fixtureLabel = resolvePlayerFixtureLabel(player);
+    const jerseyBackground = jerseyBackgroundFromColors(
+      resolveJerseyColorPair(player, teamColorIndex),
+    );
     const jerseyNumber = jerseyNumberFromPlayer(player.id);
 
     return (
@@ -2073,7 +2551,9 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
           {isViceCaptain ? <span className="armband vice">V</span> : null}
         </div>
         <div className="player-info-chip">
-          <div className="player-name-chip" title={player.name}>{pitchDisplayName(player)}</div>
+          <div className="player-name-chip" title={player.name}>
+            {pitchDisplayName(player)}
+          </div>
           <div className="player-fixture-chip">{fixtureLabel}</div>
           {options?.pointsLabel !== undefined ? (
             <div className="player-total-chip">{options.pointsLabel}</div>
@@ -2088,10 +2568,12 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
   const renderPitch = (
     rows: PitchRow[],
     showLeadershipBadges: boolean,
-    allowSlotPicking: boolean
+    allowSlotPicking: boolean,
   ) => {
     return (
-      <div className={`fpl-pitch-stage${isTransferMode ? " fpl-pitch-stage--trf" : ""}`}>
+      <div
+        className={`fpl-pitch-stage${isTransferMode ? " fpl-pitch-stage--trf" : ""}`}
+      >
         <div className="pitch-top-boards">
           <div>Fantasy</div>
           <div>Fantasy</div>
@@ -2112,35 +2594,63 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
             >
               {Array.from({ length: row.slots }).map((_, index) => {
                 const playerId = row.ids[index];
-                const player = playerId ? playersById.get(playerId) ?? null : null;
+                const player = playerId
+                  ? (playersById.get(playerId) ?? null)
+                  : null;
                 const onEmptyClick =
                   allowSlotPicking && !player && !substitutionSourcePlayerId
                     ? () => {
                         setSelectedPlayerId(null);
                         openPlayerPicker({
                           zone: row.label,
-                          index
+                          index,
                         });
                       }
                     : undefined;
 
                 const isCaptain =
-                  showLeadershipBadges && Boolean(visualLineup && player && visualLineup.captainId === player.id);
+                  showLeadershipBadges &&
+                  Boolean(
+                    visualLineup &&
+                    player &&
+                    visualLineup.captainId === player.id,
+                  );
                 const isViceCaptain =
                   showLeadershipBadges &&
-                  Boolean(visualLineup && player && visualLineup.viceCaptainId === player.id);
-                const interaction = player ? resolveCardInteraction(player.id) : null;
-                const pointsLabel = player && isReadOnlyPointsView ? resolvePlayerPointsLabel(player.id) : undefined;
+                  Boolean(
+                    visualLineup &&
+                    player &&
+                    visualLineup.viceCaptainId === player.id,
+                  );
+                const interaction = player
+                  ? resolveCardInteraction(player.id)
+                  : null;
+                const pointsLabel =
+                  player && isReadOnlyPointsView
+                    ? resolvePlayerPointsLabel(player.id)
+                    : undefined;
 
                 return (
                   <div key={`${row.label}-${index}`}>
-                    {renderPitchCard(player, isCaptain, isViceCaptain, row.label, onEmptyClick, {
-                      onPlayerClick: isReadOnlyPointsView ? undefined : interaction?.onClick,
-                      isDisabled: isReadOnlyPointsView || interaction?.disabled,
-                      visualState: interaction?.visualState ?? null,
-                      disableEmpty: isReadOnlyPointsView || Boolean(substitutionSourcePlayerId),
-                      pointsLabel
-                    })}
+                    {renderPitchCard(
+                      player,
+                      isCaptain,
+                      isViceCaptain,
+                      row.label,
+                      onEmptyClick,
+                      {
+                        onPlayerClick: isReadOnlyPointsView
+                          ? undefined
+                          : interaction?.onClick,
+                        isDisabled:
+                          isReadOnlyPointsView || interaction?.disabled,
+                        visualState: interaction?.visualState ?? null,
+                        disableEmpty:
+                          isReadOnlyPointsView ||
+                          Boolean(substitutionSourcePlayerId),
+                        pointsLabel,
+                      },
+                    )}
                   </div>
                 );
               })}
@@ -2175,7 +2685,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     visualLineup,
     pointsMetric,
     pointsViewGameweek,
-    recenterToPitch
+    recenterToPitch,
   ]);
 
   const resolvePlayerPointsLabel = useCallback(
@@ -2183,10 +2693,14 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       const value = pointsByPlayerId[playerId];
       return `${Number.isFinite(value) ? value : 0} pts`;
     },
-    [pointsByPlayerId]
+    [pointsByPlayerId],
   );
-  const captainChecked = Boolean(selectedPlayer && lineup && lineup.captainId === selectedPlayer.id);
-  const viceCaptainChecked = Boolean(selectedPlayer && lineup && lineup.viceCaptainId === selectedPlayer.id);
+  const captainChecked = Boolean(
+    selectedPlayer && lineup && lineup.captainId === selectedPlayer.id,
+  );
+  const viceCaptainChecked = Boolean(
+    selectedPlayer && lineup && lineup.viceCaptainId === selectedPlayer.id,
+  );
 
   const onCaptainChange = (checked: boolean) => {
     if (!selectedPlayer || !lineup || !selectedPlayerIsStarter) {
@@ -2201,7 +2715,8 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       if (!checked) {
         return {
           ...previous,
-          captainId: previous.captainId === selectedPlayer.id ? "" : previous.captainId
+          captainId:
+            previous.captainId === selectedPlayer.id ? "" : previous.captainId,
         };
       }
 
@@ -2209,7 +2724,9 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         ...previous,
         captainId: selectedPlayer.id,
         viceCaptainId:
-          previous.viceCaptainId === selectedPlayer.id ? "" : previous.viceCaptainId
+          previous.viceCaptainId === selectedPlayer.id
+            ? ""
+            : previous.viceCaptainId,
       };
     });
   };
@@ -2228,14 +2745,17 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         return {
           ...previous,
           viceCaptainId:
-            previous.viceCaptainId === selectedPlayer.id ? "" : previous.viceCaptainId
+            previous.viceCaptainId === selectedPlayer.id
+              ? ""
+              : previous.viceCaptainId,
         };
       }
 
       return {
         ...previous,
         viceCaptainId: selectedPlayer.id,
-        captainId: previous.captainId === selectedPlayer.id ? "" : previous.captainId
+        captainId:
+          previous.captainId === selectedPlayer.id ? "" : previous.captainId,
       };
     });
   };
@@ -2246,7 +2766,10 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     }
 
     if (!selectedPlayerIsStarter && !selectedPlayerIsBench) {
-      void appAlert.warning("Substitution", "Selected player is not part of this lineup.");
+      void appAlert.warning(
+        "Substitution",
+        "Selected player is not part of this lineup.",
+      );
       return;
     }
 
@@ -2255,7 +2778,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         "Substitution",
         selectedPlayerIsBench
           ? "No valid starter can be swapped with this bench player."
-          : "No valid bench player can replace this starter."
+          : "No valid bench player can replace this starter.",
       );
       return;
     }
@@ -2267,21 +2790,56 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       "Substitution Mode",
       selectedPlayerIsBench
         ? "Tap a highlighted starter on the field to swap."
-        : "Tap a highlighted bench player to swap."
+        : "Tap a highlighted bench player to swap.",
     );
     recenterToPitch();
   };
 
+  const startTransferFromSelectedPlayer = () => {
+    if (!selectedPlayer || !lineup || mode !== "TRF") {
+      return;
+    }
+
+    const target = getTargetForPlayerId(lineup, selectedPlayer.id);
+    if (!target) {
+      void appAlert.warning(
+        "Transfer",
+        "Selected player is not part of this squad.",
+      );
+      return;
+    }
+
+    const existingDraft = buildTransferDraft(lineup, lastSavedLineup);
+    if (existingDraft && existingDraft.outPlayerId !== selectedPlayer.id) {
+      void appAlert.warning(
+        "Transfer",
+        "Only one pending transfer is allowed before save.",
+      );
+      return;
+    }
+
+    setSelectedPlayerId(null);
+    setIsFullProfileVisible(false);
+    openPlayerPicker(target);
+  };
+
   const substitutionSourceName = substitutionSourcePlayerId
-    ? playersById.get(substitutionSourcePlayerId)?.name ?? "selected player"
+    ? (playersById.get(substitutionSourcePlayerId)?.name ?? "selected player")
     : null;
   const substitutionTargetLabel =
     substitutionSourceTarget?.zone === "BENCH"
       ? t("team.substitution.target.starter")
       : t("team.substitution.target.bench");
+  const transferDraft = useMemo(
+    () => buildTransferDraft(lineup, lastSavedLineup),
+    [lastSavedLineup, lineup],
+  );
 
   const hasPendingChanges = useMemo(() => {
-    return JSON.stringify(toComparableLineup(lineup)) !== JSON.stringify(toComparableLineup(lastSavedLineup));
+    return (
+      JSON.stringify(toComparableLineup(lineup)) !==
+      JSON.stringify(toComparableLineup(lastSavedLineup))
+    );
   }, [lastSavedLineup, lineup]);
 
   useEffect(() => {
@@ -2291,8 +2849,12 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
   }, [hasPendingChanges]);
 
   const shouldShowBulkActions =
-    mode === "PAT" && !isReadOnlyPointsView && (Boolean(substitutionSourcePlayerId) || hasSubstitutionDraftChanges);
-  const isPickTeamLocked = mode === "PAT" && !isReadOnlyPointsView && Boolean(lockState?.locked);
+    !isReadOnlyPointsView &&
+    (mode === "PAT"
+      ? Boolean(substitutionSourcePlayerId) || hasSubstitutionDraftChanges
+      : hasPendingChanges);
+  const isPickTeamLocked =
+    mode === "PAT" && !isReadOnlyPointsView && Boolean(lockState?.locked);
 
   const onCancelBulkChanges = () => {
     if (!lastSavedLineup) {
@@ -2314,23 +2876,29 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     }
 
     if (lockState?.locked) {
-      const deadlineLabel = new Date(lockState.deadlineMs).toLocaleString("id-ID", {
-        day: "2-digit",
-        month: "short",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-        timeZone: "Asia/Jakarta"
-      });
+      const deadlineLabel = new Date(lockState.deadlineMs).toLocaleString(
+        "id-ID",
+        {
+          day: "2-digit",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+          timeZone: "Asia/Jakarta",
+        },
+      );
       void appAlert.warning(
         "Lineup Locked",
-        `Pick Team for GW ${lockState.gameweek} is locked since ${deadlineLabel} WIB (2 hours before first kickoff).`
+        `Pick Team for GW ${lockState.gameweek} is locked since ${deadlineLabel} WIB (2 hours before first kickoff).`,
       );
       return;
     }
 
     if (!hasPendingChanges) {
-      void appAlert.info("No Changes", "There are no pending lineup changes to save.");
+      void appAlert.info(
+        "No Changes",
+        "There are no pending lineup changes to save.",
+      );
       return;
     }
 
@@ -2341,6 +2909,61 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
 
     setIsSavingLineup(true);
     try {
+      if (mode === "TRF") {
+        const accessToken = session?.accessToken?.trim() ?? "";
+        if (!accessToken) {
+          await forceLogout("Your session is invalid. Please sign in again.");
+          return;
+        }
+
+        if (!transferTargetGameweek || transferTargetGameweek <= 0) {
+          throw new Error("Next gameweek is not available yet.");
+        }
+
+        const draft = transferDraft;
+        if (!draft) {
+          throw new Error("Exactly one player transfer is required.");
+        }
+
+        const outgoingPlayer = playersById.get(draft.outPlayerId);
+        const incomingPlayer = playersById.get(draft.inPlayerId);
+        if (!outgoingPlayer || !incomingPlayer) {
+          throw new Error("Transfer players are not available in this league.");
+        }
+        if (outgoingPlayer.position !== incomingPlayer.position) {
+          throw new Error("Transfer must keep the same position.");
+        }
+
+        const result = await transferSquad.execute(
+          {
+            leagueId: selectedLeagueId,
+            gameweek: transferTargetGameweek,
+            outPlayerId: draft.outPlayerId,
+            inPlayerId: draft.inPlayerId,
+          },
+          accessToken,
+        );
+
+        const savedLineup = normalizeLineup(
+          selectedLeagueId,
+          result.lineup ?? lineup,
+        );
+        invalidateCached(cacheKeys.lineup(userScope, selectedLeagueId));
+        setLineup(savedLineup);
+        setLastSavedLineup(savedLineup);
+        setRemainingFreeTransfers(result.freeTransfersRemaining);
+        setSelectedPlayerId(null);
+        setSubstitutionSourcePlayerId(null);
+        setHasSubstitutionDraftChanges(false);
+        setIsFullProfileVisible(false);
+        writeLineupDraft(savedLineup, userScope);
+        void appAlert.success(
+          "Transfer Saved",
+          `${outgoingPlayer.name} replaced by ${incomingPlayer.name} for GW ${transferTargetGameweek}.`,
+        );
+        return;
+      }
+
       const squadReady = await syncSquadFromLineup(lineup);
       if (!squadReady) {
         return;
@@ -2348,9 +2971,14 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
 
       let saved: TeamLineup;
       try {
-        saved = await saveLineup.execute(lineup, players, session?.accessToken ?? "");
+        saved = await saveLineup.execute(
+          lineup,
+          players,
+          session?.accessToken ?? "",
+        );
       } catch (error) {
-        const message = error instanceof Error ? error.message.toLowerCase() : "";
+        const message =
+          error instanceof Error ? error.message.toLowerCase() : "";
         const shouldRetryWithSquadSync =
           message.includes("must pick fantasy squad before saving lineup") ||
           message.includes("not part of user fantasy squad");
@@ -2364,7 +2992,11 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
           return;
         }
 
-        saved = await saveLineup.execute(lineup, players, session?.accessToken ?? "");
+        saved = await saveLineup.execute(
+          lineup,
+          players,
+          session?.accessToken ?? "",
+        );
       }
       const normalizedSaved = normalizeLineup(selectedLeagueId, saved);
       invalidateCached(cacheKeys.lineup(userScope, selectedLeagueId));
@@ -2375,14 +3007,20 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       setHasSubstitutionDraftChanges(false);
       setIsFullProfileVisible(false);
       writeLineupDraft(normalizedSaved, userScope);
-      void appAlert.success("Lineup Saved", "Your Pick Team changes were saved.");
+      void appAlert.success(
+        "Lineup Saved",
+        "Your Pick Team changes were saved.",
+      );
     } catch (error) {
       if (isUnauthorizedError(error)) {
         await forceLogout("Your session has expired. Please sign in again.");
         return;
       }
 
-      void appAlert.error("Save Failed", error instanceof Error ? error.message : "Unable to save lineup.");
+      void appAlert.error(
+        "Save Failed",
+        error instanceof Error ? error.message : "Unable to save lineup.",
+      );
     } finally {
       setIsSavingLineup(false);
     }
@@ -2390,7 +3028,9 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
 
   if (isLeagueDataLoading) {
     return (
-      <div className={`page-grid team-builder-page${isReadOnlyPointsView ? " team-builder-page--points-view" : ""}`}>
+      <div
+        className={`page-grid team-builder-page${isReadOnlyPointsView ? " team-builder-page--points-view" : ""}`}
+      >
         <Card className="card">
           <LoadingState label="Loading team data" />
         </Card>
@@ -2398,7 +3038,12 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
     );
   }
 
-  if (isReadOnlyPointsView && pointsMetric === "highest" && isPointsViewLoading && !pointsViewLineup) {
+  if (
+    isReadOnlyPointsView &&
+    pointsMetric === "highest" &&
+    isPointsViewLoading &&
+    !pointsViewLineup
+  ) {
     return (
       <div className="page-grid team-builder-page team-builder-page--points-view">
         <Card className="card">
@@ -2409,7 +3054,9 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
   }
 
   return (
-    <div className={`page-grid team-builder-page${isReadOnlyPointsView ? " team-builder-page--points-view" : ""}`}>
+    <div
+      className={`page-grid team-builder-page${isReadOnlyPointsView ? " team-builder-page--points-view" : ""}`}
+    >
       {mode === "PAT" && isReadOnlyPointsView ? (
         <Card className="card">
           <div className="team-points-view-banner">
@@ -2420,10 +3067,14 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
               </strong>
               <p>
                 {t("team.pointsView.total", { points: pointsViewTotal ?? "-" })}
-                {isPointsViewLoading ? ` • ${t("team.pointsView.loading")}` : ""}
+                {isPointsViewLoading
+                  ? ` • ${t("team.pointsView.loading")}`
+                  : ""}
               </p>
               {pointsMetric === "highest" && pointsViewTopUserId ? (
-                <p>{t("team.pointsView.topUser", { user: pointsViewTopUserId })}</p>
+                <p>
+                  {t("team.pointsView.topUser", { user: pointsViewTopUserId })}
+                </p>
               ) : null}
               {pointsViewNotice ? <p>{pointsViewNotice}</p> : null}
             </div>
@@ -2442,7 +3093,10 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
       {!isReadOnlyPointsView ? (
         <Card className="card team-chip-box">
           {mode === "PAT" ? (
-            <div className="team-pat-inline" aria-label={t("team.chips.pickTeamAria")}>
+            <div
+              className="team-pat-inline"
+              aria-label={t("team.chips.pickTeamAria")}
+            >
               <div className="team-pat-inline-item">
                 <p className="small-label">{t("team.chips.wildcard")}</p>
                 <strong>{t("team.chips.available")}</strong>
@@ -2461,10 +3115,13 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
               </div>
             </div>
           ) : (
-            <div className="team-trf-inline" aria-label={t("team.chips.transfersAria")}>
+            <div
+              className="team-trf-inline"
+              aria-label={t("team.chips.transfersAria")}
+            >
               <div className="team-trf-inline-item">
                 <p className="small-label">{t("team.chips.freeTrf")}</p>
-                <strong>1</strong>
+                <strong>{remainingFreeTransfers ?? "-"}</strong>
               </div>
               <div className="team-trf-inline-item">
                 <p className="small-label">{t("team.chips.pointCost")}</p>
@@ -2487,7 +3144,10 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
         </Card>
       ) : null}
 
-      <Card ref={pitchBoardRef} className={`fpl-board card${isTransferMode ? " fpl-board--trf" : ""}`}>
+      <Card
+        ref={pitchBoardRef}
+        className={`fpl-board card${isTransferMode ? " fpl-board--trf" : ""}`}
+      >
         {isPickTeamLocked ? (
           <div className="substitution-banner">
             <p>
@@ -2504,7 +3164,9 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
               variant="secondary"
               className="pick-team-bulk-btn"
               onClick={onCancelBulkChanges}
-              disabled={!lastSavedLineup || !hasPendingChanges || isSavingLineup}
+              disabled={
+                !lastSavedLineup || !hasPendingChanges || isSavingLineup
+              }
             >
               {t("team.bulk.cancel")}
             </Button>
@@ -2513,19 +3175,27 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
               size="sm"
               className="pick-team-bulk-btn"
               onClick={() => void onSaveBulkChanges()}
-              disabled={!lastSavedLineup || !hasPendingChanges || isSavingLineup || isLeagueDataLoading || isPickTeamLocked}
+              disabled={
+                !lastSavedLineup ||
+                !hasPendingChanges ||
+                isSavingLineup ||
+                isLeagueDataLoading ||
+                isPickTeamLocked
+              }
             >
               {isSavingLineup ? t("team.bulk.saving") : t("team.bulk.save")}
             </Button>
           </div>
         ) : null}
 
-        {substitutionSourcePlayerId && mode === "PAT" && !isReadOnlyPointsView ? (
+        {substitutionSourcePlayerId &&
+        mode === "PAT" &&
+        !isReadOnlyPointsView ? (
           <div className="substitution-banner">
             <p>
               {t("team.substitution.banner", {
                 source: substitutionSourceName ?? "-",
-                target: substitutionTargetLabel
+                target: substitutionTargetLabel,
               })}
             </p>
           </div>
@@ -2543,7 +3213,9 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
                 const playerId = visualLineup?.substituteIds[index];
                 const player = playerId ? playersById.get(playerId) : null;
                 const benchPosition = requiredBenchSlots[index] ?? "BENCH";
-                const interaction = player ? resolveCardInteraction(player.id) : null;
+                const interaction = player
+                  ? resolveCardInteraction(player.id)
+                  : null;
 
                 if (!player) {
                   return (
@@ -2551,9 +3223,14 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
                       key={`bench-${index}`}
                       type="button"
                       className={`bench-card empty-slot player-card-button pick-slot-button ${
-                        substitutionSourcePlayerId || isReadOnlyPointsView ? "empty-slot-disabled" : ""
+                        substitutionSourcePlayerId || isReadOnlyPointsView
+                          ? "empty-slot-disabled"
+                          : ""
                       }`}
-                      disabled={Boolean(substitutionSourcePlayerId) || isReadOnlyPointsView}
+                      disabled={
+                        Boolean(substitutionSourcePlayerId) ||
+                        isReadOnlyPointsView
+                      }
                       onClick={() => {
                         if (isReadOnlyPointsView) {
                           return;
@@ -2561,7 +3238,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
                         setSelectedPlayerId(null);
                         openPlayerPicker({
                           zone: "BENCH",
-                          index
+                          index,
                         });
                       }}
                     >
@@ -2575,29 +3252,47 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
                     key={player.id}
                     type="button"
                     className={`bench-card player-card-button ${
-                      interaction?.visualState === "source" ? "player-card-source" : ""
+                      interaction?.visualState === "source"
+                        ? "player-card-source"
+                        : ""
                     } ${interaction?.visualState === "target" ? "player-card-target" : ""} ${
-                      interaction?.disabled || isReadOnlyPointsView ? "player-card-disabled" : ""
+                      interaction?.disabled || isReadOnlyPointsView
+                        ? "player-card-disabled"
+                        : ""
                     }`}
-                    onClick={isReadOnlyPointsView ? undefined : interaction?.onClick}
+                    onClick={
+                      isReadOnlyPointsView ? undefined : interaction?.onClick
+                    }
                     disabled={interaction?.disabled || isReadOnlyPointsView}
-	                  >
-	                    <div className="player-price-chip">£{player.price.toFixed(1)}m</div>
-	                    <div className="shirt-holder">
-	                      <div
-	                        className="shirt"
-	                        style={{
-	                          background: jerseyBackgroundFromColors(resolveJerseyColorPair(player, teamColorIndex))
-	                        }}
-	                      >
-	                        <span className="shirt-number">{jerseyNumberFromPlayer(player.id)}</span>
-	                      </div>
-	                    </div>
-	                    <div className="player-info-chip">
-	                      <div className="player-name-chip" title={player.name}>{pitchDisplayName(player)}</div>
-                      <div className="player-fixture-chip">{t("team.bench.position", { position: player.position })}</div>
+                  >
+                    <div className="player-price-chip">
+                      £{player.price.toFixed(1)}m
+                    </div>
+                    <div className="shirt-holder">
+                      <div
+                        className="shirt"
+                        style={{
+                          background: jerseyBackgroundFromColors(
+                            resolveJerseyColorPair(player, teamColorIndex),
+                          ),
+                        }}
+                      >
+                        <span className="shirt-number">
+                          {jerseyNumberFromPlayer(player.id)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="player-info-chip">
+                      <div className="player-name-chip" title={player.name}>
+                        {pitchDisplayName(player)}
+                      </div>
+                      <div className="player-fixture-chip">
+                        {resolvePlayerFixtureLabel(player)}
+                      </div>
                       {isReadOnlyPointsView ? (
-                        <div className="player-total-chip">{resolvePlayerPointsLabel(player.id)}</div>
+                        <div className="player-total-chip">
+                          {resolvePlayerPointsLabel(player.id)}
+                        </div>
                       ) : null}
                     </div>
                   </button>
@@ -2616,13 +3311,23 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
             initial={reduceMotion ? false : { opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={reduceMotion ? { duration: 0 } : { duration: 0.16, ease: "easeOut" }}
+            transition={
+              reduceMotion
+                ? { duration: 0 }
+                : { duration: 0.16, ease: "easeOut" }
+            }
           >
             <motion.div
               onClick={(event) => event.stopPropagation()}
-              initial={reduceMotion ? false : { opacity: 0, y: 10, scale: 0.98 }}
+              initial={
+                reduceMotion ? false : { opacity: 0, y: 10, scale: 0.98 }
+              }
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 6, scale: 0.985 }}
+              exit={
+                reduceMotion
+                  ? { opacity: 0 }
+                  : { opacity: 0, y: 6, scale: 0.985 }
+              }
               transition={
                 reduceMotion
                   ? { duration: 0 }
@@ -2630,239 +3335,356 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
               }
             >
               <Card className="player-modal card">
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              className="player-modal-close"
-              onClick={() => setSelectedPlayerId(null)}
-            >
-	              {t("team.modal.close")}
-	            </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="player-modal-close"
+                  onClick={() => setSelectedPlayerId(null)}
+                >
+                  {t("team.modal.close")}
+                </Button>
 
-            <div className="player-modal-hero">
-              <div className="player-portrait">
-                {normalizeUrl(selectedPlayerDetails?.player.imageUrl ?? selectedPlayer.imageUrl) ? (
-                  <LazyImage
-                    src={normalizeUrl(selectedPlayerDetails?.player.imageUrl ?? selectedPlayer.imageUrl) ?? ""}
-                    alt={selectedPlayerDetails?.player.name ?? selectedPlayer.name}
-                    className="player-portrait-photo"
-                    fallback={
+                <div className="player-modal-hero">
+                  <div className="player-portrait">
+                    {normalizeUrl(
+                      selectedPlayerDetails?.player.imageUrl ??
+                        selectedPlayer.imageUrl,
+                    ) ? (
+                      <LazyImage
+                        src={
+                          normalizeUrl(
+                            selectedPlayerDetails?.player.imageUrl ??
+                              selectedPlayer.imageUrl,
+                          ) ?? ""
+                        }
+                        alt={
+                          selectedPlayerDetails?.player.name ??
+                          selectedPlayer.name
+                        }
+                        className="player-portrait-photo"
+                        fallback={
+                          <>
+                            <span className="player-portrait-head" />
+                            <span
+                              className="player-portrait-body"
+                              style={{
+                                background: jerseyBackgroundFromColors(
+                                  selectedPlayerDetails?.player.teamColor &&
+                                    selectedPlayerDetails.player.teamColor
+                                      .length >= 2
+                                    ? [
+                                        selectedPlayerDetails.player
+                                          .teamColor[0],
+                                        selectedPlayerDetails.player
+                                          .teamColor[1],
+                                      ]
+                                    : resolveJerseyColorPair(
+                                        selectedPlayer,
+                                        teamColorIndex,
+                                      ),
+                                ),
+                              }}
+                            />
+                          </>
+                        }
+                      />
+                    ) : (
                       <>
                         <span className="player-portrait-head" />
                         <span
                           className="player-portrait-body"
                           style={{
                             background: jerseyBackgroundFromColors(
-                              selectedPlayerDetails?.player.teamColor && selectedPlayerDetails.player.teamColor.length >= 2
+                              selectedPlayerDetails?.player.teamColor &&
+                                selectedPlayerDetails.player.teamColor.length >=
+                                  2
                                 ? [
                                     selectedPlayerDetails.player.teamColor[0],
-                                    selectedPlayerDetails.player.teamColor[1]
+                                    selectedPlayerDetails.player.teamColor[1],
                                   ]
-                                : resolveJerseyColorPair(selectedPlayer, teamColorIndex)
-                            )
+                                : resolveJerseyColorPair(
+                                    selectedPlayer,
+                                    teamColorIndex,
+                                  ),
+                            ),
                           }}
                         />
                       </>
-                    }
-                  />
-                ) : (
-                  <>
-                    <span className="player-portrait-head" />
-	                    <span
-	                      className="player-portrait-body"
-	                      style={{
-	                        background: jerseyBackgroundFromColors(
-	                          selectedPlayerDetails?.player.teamColor && selectedPlayerDetails.player.teamColor.length >= 2
-	                            ? [
-	                                selectedPlayerDetails.player.teamColor[0],
-	                                selectedPlayerDetails.player.teamColor[1]
-	                              ]
-	                            : resolveJerseyColorPair(selectedPlayer, teamColorIndex)
-	                        )
-	                      }}
-	                    />
-	                  </>
-                )}
-              </div>
+                    )}
+                  </div>
 
-              <div className="player-hero-text">
-                <h3>{selectedPlayerDetails?.player.fullName ?? selectedPlayerDetails?.player.name ?? selectedPlayer.name}</h3>
-                <p>{selectedPlayerDetails?.player.position ?? selectedPlayer.position}</p>
-                <p>{selectedPlayerDetails?.player.club ?? selectedPlayer.club}</p>
-                <div className="player-hero-urls">
-                  <div className="media-line">
-                    {normalizeUrl(selectedPlayerDetails?.player.teamLogoUrl ?? selectedPlayer.teamLogoUrl) ? (
-                      <LazyImage
-                        src={normalizeUrl(selectedPlayerDetails?.player.teamLogoUrl ?? selectedPlayer.teamLogoUrl) ?? ""}
-                        alt={selectedPlayerDetails?.player.club ?? selectedPlayer.club}
-                        className="media-thumb media-thumb-small"
-                        fallback={
-                          <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
+                  <div className="player-hero-text">
+                    <h3>
+                      {selectedPlayerDetails?.player.fullName ??
+                        selectedPlayerDetails?.player.name ??
+                        selectedPlayer.name}
+                    </h3>
+                    <p>
+                      {selectedPlayerDetails?.player.position ??
+                        selectedPlayer.position}
+                    </p>
+                    <p>
+                      {selectedPlayerDetails?.player.club ??
+                        selectedPlayer.club}
+                    </p>
+                    <div className="player-hero-urls">
+                      <div className="media-line">
+                        {normalizeUrl(
+                          selectedPlayerDetails?.player.teamLogoUrl ??
+                            selectedPlayer.teamLogoUrl,
+                        ) ? (
+                          <LazyImage
+                            src={
+                              normalizeUrl(
+                                selectedPlayerDetails?.player.teamLogoUrl ??
+                                  selectedPlayer.teamLogoUrl,
+                              ) ?? ""
+                            }
+                            alt={
+                              selectedPlayerDetails?.player.club ??
+                              selectedPlayer.club
+                            }
+                            className="media-thumb media-thumb-small"
+                            fallback={
+                              <span
+                                className="media-thumb media-thumb-small media-thumb-fallback"
+                                aria-hidden="true"
+                              >
+                                T
+                              </span>
+                            }
+                          />
+                        ) : (
+                          <span
+                            className="media-thumb media-thumb-small media-thumb-fallback"
+                            aria-hidden="true"
+                          >
                             T
                           </span>
-                        }
-                      />
-                    ) : (
-                      <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
-                        T
-                      </span>
-                    )}
-                  </div>
-                  <div className="media-line">
-                    {normalizeUrl(selectedPlayerDetails?.player.imageUrl ?? selectedPlayer.imageUrl) ? (
-                      <LazyImage
-                        src={normalizeUrl(selectedPlayerDetails?.player.imageUrl ?? selectedPlayer.imageUrl) ?? ""}
-                        alt={selectedPlayerDetails?.player.name ?? selectedPlayer.name}
-                        className="media-thumb media-thumb-small"
-                        fallback={
-                          <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
+                        )}
+                      </div>
+                      <div className="media-line">
+                        {normalizeUrl(
+                          selectedPlayerDetails?.player.imageUrl ??
+                            selectedPlayer.imageUrl,
+                        ) ? (
+                          <LazyImage
+                            src={
+                              normalizeUrl(
+                                selectedPlayerDetails?.player.imageUrl ??
+                                  selectedPlayer.imageUrl,
+                              ) ?? ""
+                            }
+                            alt={
+                              selectedPlayerDetails?.player.name ??
+                              selectedPlayer.name
+                            }
+                            className="media-thumb media-thumb-small"
+                            fallback={
+                              <span
+                                className="media-thumb media-thumb-small media-thumb-fallback"
+                                aria-hidden="true"
+                              >
+                                P
+                              </span>
+                            }
+                          />
+                        ) : (
+                          <span
+                            className="media-thumb media-thumb-small media-thumb-fallback"
+                            aria-hidden="true"
+                          >
                             P
                           </span>
-                        }
-                      />
-                    ) : (
-                      <span className="media-thumb media-thumb-small media-thumb-fallback" aria-hidden="true">
-                        P
-                      </span>
-                    )}
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
 
-            {isSelectedPlayerDetailsLoading ? (
-	              <LoadingState label={t("team.modal.loadingDetails")} inline compact />
-	            ) : null}
+                {isSelectedPlayerDetailsLoading ? (
+                  <LoadingState
+                    label={t("team.modal.loadingDetails")}
+                    inline
+                    compact
+                  />
+                ) : null}
 
-            <div className="player-modal-stats">
-              <article className="modal-stat-card">
-	                <p>{t("team.modal.price")}</p>
-	                <strong>£{selectedPlayerStats?.price ?? "-"}</strong>
-	              </article>
-	              <article className="modal-stat-card">
-	                <p>{t("team.modal.pointPerMatch")}</p>
-	                <strong>{selectedPlayerStats?.pointPerMatch ?? "-"}</strong>
-	              </article>
-	              <article className="modal-stat-card">
-	                <p>{t("team.modal.form")}</p>
-	                <strong>{selectedPlayerStats?.form ?? "-"}</strong>
-	              </article>
-	              <article className="modal-stat-card">
-	                <p>{t("team.modal.selected")}</p>
-	                <strong>{selectedPlayerStats?.selectedPercentage ?? "-"}</strong>
-	              </article>
-            </div>
+                <div className="player-modal-stats">
+                  <article className="modal-stat-card">
+                    <p>{t("team.modal.price")}</p>
+                    <strong>£{selectedPlayerStats?.price ?? "-"}</strong>
+                  </article>
+                  <article className="modal-stat-card">
+                    <p>{t("team.modal.pointPerMatch")}</p>
+                    <strong>{selectedPlayerStats?.pointPerMatch ?? "-"}</strong>
+                  </article>
+                  <article className="modal-stat-card">
+                    <p>{t("team.modal.form")}</p>
+                    <strong>{selectedPlayerStats?.form ?? "-"}</strong>
+                  </article>
+                  <article className="modal-stat-card">
+                    <p>{t("team.modal.selected")}</p>
+                    <strong>
+                      {selectedPlayerStats?.selectedPercentage ?? "-"}
+                    </strong>
+                  </article>
+                </div>
 
-            {isFullProfileVisible ? (
-              <>
+                {isFullProfileVisible ? (
+                  <>
+                    <div className="player-modal-fixtures">
+                      <h4>{t("team.modal.backendProfile")}</h4>
+                      <div className="player-modal-profile-grid">
+                        {selectedPlayerProfileItems.map((item) => (
+                          <article
+                            key={`profile-${item.label}`}
+                            className="modal-stat-card"
+                          >
+                            <p>{item.label}</p>
+                            <strong>{item.value}</strong>
+                          </article>
+                        ))}
+                      </div>
+                    </div>
+
+                    {selectedPlayerSeasonStats.length > 0 ? (
+                      <div className="player-modal-fixtures">
+                        <h4>{t("team.modal.backendSeasonStats")}</h4>
+                        <div className="player-modal-profile-grid">
+                          {selectedPlayerSeasonStats.map((item) => (
+                            <article
+                              key={`season-${item.label}`}
+                              className="modal-stat-card"
+                            >
+                              <p>{item.label}</p>
+                              <strong>{item.value}</strong>
+                            </article>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {selectedPlayerDetails?.history &&
+                    selectedPlayerDetails.history.length > 0 ? (
+                      <div className="player-modal-fixtures">
+                        <h4>{t("team.modal.backendRecentMatches")}</h4>
+                        <div className="fixture-strip">
+                          {selectedPlayerDetails.history
+                            .slice(0, 5)
+                            .map((item) => (
+                              <article
+                                key={`history-${item.fixtureId}-${item.gameweek}`}
+                                className="fixture-pill"
+                              >
+                                <p>
+                                  {t("dashboard.gwLabel", {
+                                    gameweek: item.gameweek,
+                                  })}
+                                </p>
+                                <strong>
+                                  {item.opponent} (
+                                  {item.homeAway === "home"
+                                    ? t("team.modal.homeShort")
+                                    : t("team.modal.awayShort")}
+                                  )
+                                </strong>
+                                <span>{item.points} pts</span>
+                              </article>
+                            ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </>
+                ) : (
+                  <p className="muted">{t("team.modal.profileHint")}</p>
+                )}
+
                 <div className="player-modal-fixtures">
-	                  <h4>{t("team.modal.backendProfile")}</h4>
-                  <div className="player-modal-profile-grid">
-                    {selectedPlayerProfileItems.map((item) => (
-                      <article key={`profile-${item.label}`} className="modal-stat-card">
-                        <p>{item.label}</p>
-                        <strong>{item.value}</strong>
+                  <h4>{t("team.modal.incomingFixtures")}</h4>
+                  <div className="fixture-strip">
+                    {fixtureStrip.map((item) => (
+                      <article
+                        key={`gw-${item.gw}`}
+                        className={`fixture-pill ${item.isCurrent ? "current" : ""}`}
+                      >
+                        <p>{t("dashboard.gwLabel", { gameweek: item.gw })}</p>
+                        <strong>{item.label}</strong>
+                        <span>
+                          {item.points !== null
+                            ? `${item.points.toFixed(1)} pts`
+                            : "-"}
+                        </span>
                       </article>
                     ))}
                   </div>
                 </div>
 
-                {selectedPlayerSeasonStats.length > 0 ? (
-                  <div className="player-modal-fixtures">
-	                    <h4>{t("team.modal.backendSeasonStats")}</h4>
-                    <div className="player-modal-profile-grid">
-                      {selectedPlayerSeasonStats.map((item) => (
-                        <article key={`season-${item.label}`} className="modal-stat-card">
-                          <p>{item.label}</p>
-                          <strong>{item.value}</strong>
-                        </article>
-                      ))}
-                    </div>
+                {mode === "PAT" ? (
+                  <div className="player-modal-leadership">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={captainChecked}
+                        disabled={!selectedPlayerIsStarter}
+                        onChange={(event) =>
+                          onCaptainChange(event.target.checked)
+                        }
+                      />
+                      {t("team.modal.captain")}
+                    </label>
+
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={viceCaptainChecked}
+                        disabled={!selectedPlayerIsStarter}
+                        onChange={(event) =>
+                          onViceCaptainChange(event.target.checked)
+                        }
+                      />
+                      {t("team.modal.viceCaptain")}
+                    </label>
                   </div>
                 ) : null}
 
-                {selectedPlayerDetails?.history && selectedPlayerDetails.history.length > 0 ? (
-                  <div className="player-modal-fixtures">
-	                    <h4>{t("team.modal.backendRecentMatches")}</h4>
-                    <div className="fixture-strip">
-                      {selectedPlayerDetails.history.slice(0, 5).map((item) => (
-                        <article key={`history-${item.fixtureId}-${item.gameweek}`} className="fixture-pill">
-	                          <p>{t("dashboard.gwLabel", { gameweek: item.gameweek })}</p>
-	                          <strong>
-	                            {item.opponent} ({item.homeAway === "home" ? t("team.modal.homeShort") : t("team.modal.awayShort")})
-	                          </strong>
-	                          <span>{item.points} pts</span>
-	                        </article>
-                      ))}
-                    </div>
-                  </div>
+                {mode === "PAT" && selectedPlayerIsBench ? (
+                  <p className="muted">{t("team.modal.captainNotice")}</p>
                 ) : null}
-              </>
-            ) : (
-	              <p className="muted">{t("team.modal.profileHint")}</p>
-	            )}
 
-	            <div className="player-modal-fixtures">
-	              <h4>{t("team.modal.incomingFixtures")}</h4>
-              <div className="fixture-strip">
-                {fixtureStrip.map((item) => (
-                  <article
-                    key={`gw-${item.gw}`}
-                    className={`fixture-pill ${item.isCurrent ? "current" : ""}`}
+                <div className="player-modal-actions">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() =>
+                      setIsFullProfileVisible((previous) => !previous)
+                    }
                   >
-	                    <p>{t("dashboard.gwLabel", { gameweek: item.gw })}</p>
-                    <strong>{item.label}</strong>
-                    <span>
-                      {item.points !== null ? `${item.points.toFixed(1)} pts` : "-"}
-                    </span>
-                  </article>
-                ))}
-              </div>
-            </div>
-
-            <div className="player-modal-leadership">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={captainChecked}
-                  disabled={!selectedPlayerIsStarter}
-                  onChange={(event) => onCaptainChange(event.target.checked)}
-                />
-	                {t("team.modal.captain")}
-	              </label>
-
-              <label>
-                <input
-                  type="checkbox"
-                  checked={viceCaptainChecked}
-                  disabled={!selectedPlayerIsStarter}
-                  onChange={(event) => onViceCaptainChange(event.target.checked)}
-                />
-	                {t("team.modal.viceCaptain")}
-	              </label>
-            </div>
-
-            {selectedPlayerIsBench ? (
-	              <p className="muted">{t("team.modal.captainNotice")}</p>
-	            ) : null}
-
-            <div className="player-modal-actions">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => setIsFullProfileVisible((previous) => !previous)}
-              >
-	                {isFullProfileVisible ? t("team.modal.hideFullProfile") : t("team.modal.fullProfile")}
-	              </Button>
-              <Button
-                type="button"
-                onClick={startSubstitutionFromSelectedPlayer}
-                disabled={!selectedPlayerCanSubstitute}
-              >
-	                {selectedPlayerIsSubstitutionSource ? t("team.modal.substitutionActive") : t("team.modal.substitutes")}
-	              </Button>
-            </div>
+                    {isFullProfileVisible
+                      ? t("team.modal.hideFullProfile")
+                      : t("team.modal.fullProfile")}
+                  </Button>
+                  {mode === "PAT" ? (
+                    <Button
+                      type="button"
+                      onClick={startSubstitutionFromSelectedPlayer}
+                      disabled={!selectedPlayerCanSubstitute}
+                    >
+                      {selectedPlayerIsSubstitutionSource
+                        ? t("team.modal.substitutionActive")
+                        : t("team.modal.substitutes")}
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      onClick={startTransferFromSelectedPlayer}
+                      disabled={!selectedPlayerCanTransfer}
+                    >
+                      Transfer Player
+                    </Button>
+                  )}
+                </div>
               </Card>
             </motion.div>
           </motion.div>

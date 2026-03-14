@@ -23,6 +23,8 @@ const fantasyRepositoryStub = (): FantasyRepository => ({
   saveLineup: vi.fn(),
   getMySquad: vi.fn(),
   pickSquad: vi.fn(),
+  getTransferAvailability: vi.fn(),
+  transferSquad: vi.fn(),
   saveOnboardingFavoriteClub: vi.fn(),
   completeOnboarding: vi.fn(),
   getMyCustomLeagues: vi.fn(),
@@ -30,7 +32,7 @@ const fantasyRepositoryStub = (): FantasyRepository => ({
   joinPublicCustomLeague: vi.fn(),
   joinCustomLeagueByInvite: vi.fn(),
   getCustomLeague: vi.fn(),
-  getCustomLeagueStandings: vi.fn()
+  getCustomLeagueStandings: vi.fn(),
 });
 
 describe("CreateCustomLeague", () => {
@@ -48,20 +50,24 @@ describe("CreateCustomLeague", () => {
       memberCount: 1,
       rankMovement: "new",
       createdAtUtc: new Date().toISOString(),
-      updatedAtUtc: new Date().toISOString()
+      updatedAtUtc: new Date().toISOString(),
     }));
 
     const usecase = new CreateCustomLeague(repo);
     await usecase.execute(
       {
         leagueId: " idn-liga-1-2025 ",
-        name: "   "
+        name: "   ",
       },
-      " token "
+      " token ",
     );
 
     expect(repo.createCustomLeague).toHaveBeenCalledOnce();
-    expect(vi.mocked(repo.createCustomLeague).mock.calls[0]?.[0].leagueId).toBe("idn-liga-1-2025");
-    expect(vi.mocked(repo.createCustomLeague).mock.calls[0]?.[0].name.trim().length).toBeGreaterThan(0);
+    expect(vi.mocked(repo.createCustomLeague).mock.calls[0]?.[0].leagueId).toBe(
+      "idn-liga-1-2025",
+    );
+    expect(
+      vi.mocked(repo.createCustomLeague).mock.calls[0]?.[0].name.trim().length,
+    ).toBeGreaterThan(0);
   });
 });

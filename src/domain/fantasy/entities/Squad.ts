@@ -24,3 +24,24 @@ export type PickSquadInput = {
   squadName?: string;
   playerIds: string[];
 };
+
+export type TransferSquadInput = {
+  leagueId: string;
+  gameweek: number;
+  outPlayerId: string;
+  inPlayerId: string;
+};
+
+export type TransferSquadResult = {
+  gameweek: number;
+  freeTransfersRemaining: number;
+  transferCost: number;
+  squad: Squad;
+  lineup?: import("./Team").TeamLineup;
+};
+
+export type TransferAvailability = {
+  gameweek: number;
+  freeTransfersAvailable: number;
+  maxFreeTransfersBank: number;
+};

@@ -17,6 +17,7 @@ describe("HttpFantasyRepository", () => {
     vi.mocked(httpClient.get).mockResolvedValue({
       gameweek: 25,
       currentGameweek: 25,
+      editableGameweek: 25,
       budget: 31.6,
       teamValue: 118.4,
       totalPoints: 437,
@@ -27,6 +28,7 @@ describe("HttpFantasyRepository", () => {
     await expect(repository.getDashboard("token")).resolves.toMatchObject({
       gameweek: 25,
       currentGameweek: 25,
+      editableGameweek: 25,
       selectedLeagueId: "idn-liga-1-2025"
     });
   });

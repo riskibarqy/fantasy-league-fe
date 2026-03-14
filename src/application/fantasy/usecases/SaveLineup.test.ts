@@ -24,6 +24,8 @@ const fantasyRepositoryStub = (): FantasyRepository => ({
   saveLineup: vi.fn(),
   getMySquad: vi.fn(),
   pickSquad: vi.fn(),
+  getTransferAvailability: vi.fn(),
+  transferSquad: vi.fn(),
   saveOnboardingFavoriteClub: vi.fn(),
   completeOnboarding: vi.fn(),
   getMyCustomLeagues: vi.fn(),
@@ -31,7 +33,7 @@ const fantasyRepositoryStub = (): FantasyRepository => ({
   joinPublicCustomLeague: vi.fn(),
   joinCustomLeagueByInvite: vi.fn(),
   getCustomLeague: vi.fn(),
-  getCustomLeagueStandings: vi.fn()
+  getCustomLeagueStandings: vi.fn(),
 });
 
 describe("SaveLineup", () => {
@@ -54,11 +56,11 @@ describe("SaveLineup", () => {
       usecase.execute(
         {
           ...defaultLineup,
-          viceCaptainId: defaultLineup.captainId
+          viceCaptainId: defaultLineup.captainId,
         },
         mockPlayers,
-        "token"
-      )
+        "token",
+      ),
     ).rejects.toThrow("different");
   });
 
@@ -66,8 +68,8 @@ describe("SaveLineup", () => {
     const repo = fantasyRepositoryStub();
     const usecase = new SaveLineup(repo);
 
-    await expect(usecase.execute(defaultLineup, mockPlayers, "")).rejects.toThrow(
-      "Access token is required."
-    );
+    await expect(
+      usecase.execute(defaultLineup, mockPlayers, ""),
+    ).rejects.toThrow("Access token is required.");
   });
 });
