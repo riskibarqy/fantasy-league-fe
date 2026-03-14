@@ -22,17 +22,23 @@ const REFRESH_INTERVAL_MS = 60_000;
 export const AppRuntimeConfigProvider = ({ children }: PropsWithChildren) => {
   const { getPublicAppConfig } = useContainer();
   const [config, setConfig] = useState<PublicAppConfig>(() => buildEnvPublicAppConfig(appEnv));
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(appEnv.remoteAppConfigEnabled);
 
   useEffect(() => {
+    const fallback = buildEnvPublicAppConfig(appEnv);
+
+    if (!appEnv.remoteAppConfigEnabled) {
+      setConfig(fallback);
+      setIsLoading(false);
+      return;
+    }
+
     let mounted = true;
 
     const load = async (blocking: boolean) => {
       if (blocking) {
         setIsLoading(true);
       }
-
-      const fallback = buildEnvPublicAppConfig(appEnv);
 
       try {
         const payload = await getPublicAppConfig.execute();
