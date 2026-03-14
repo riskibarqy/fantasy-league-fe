@@ -943,7 +943,7 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
           return;
         }
 
-        setGameweek(dashboard.gameweek);
+        setGameweek(dashboard.currentGameweek ?? dashboard.gameweek);
       } catch (error) {
         if (!mounted) {
           return;
@@ -1132,17 +1132,6 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
           recenterToPitch();
         }
 
-        const resolvedGameweek = resolveActiveGameweekFromFixtures(fixturesResult, Date.now());
-        if (resolvedGameweek) {
-          setGameweek((current) => {
-            if (current && current > 0) {
-              return current;
-            }
-
-            return resolvedGameweek;
-          });
-        }
-
         if (infoToShow) {
           setInfoMessage(infoToShow);
         } else if (lineupResult) {
@@ -1308,21 +1297,22 @@ export const TeamBuilderPage = ({ forcedMode }: TeamBuilderPageProps = {}) => {
   }, [gameweek, getTeamNextMatches, selectedLeagueId, squadTeamIds]);
 
   const lockState = useMemo(() => {
-    if (!activeFixtureGameweek) {
+    const targetGameweek = gameweek && gameweek > 0 ? gameweek : activeFixtureGameweek;
+    if (!targetGameweek) {
       return null;
     }
 
-    const deadlineMs = resolveGameweekDeadlineMs(fixtures, activeFixtureGameweek);
+    const deadlineMs = resolveGameweekDeadlineMs(fixtures, targetGameweek);
     if (deadlineMs === null) {
       return null;
     }
 
     return {
-      gameweek: activeFixtureGameweek,
+      gameweek: targetGameweek,
       deadlineMs,
       locked: Date.now() >= deadlineMs
     };
-  }, [activeFixtureGameweek, fixtures]);
+  }, [activeFixtureGameweek, fixtures, gameweek]);
 
   const selectedPlayer = useMemo(() => {
     if (!selectedPlayerId) {
