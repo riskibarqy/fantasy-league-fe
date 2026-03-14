@@ -12,6 +12,7 @@ export type TeamLineup = {
 
 export type Dashboard = {
   gameweek: number;
+  currentGameweek?: number;
   budget: number;
   teamValue: number;
   totalPoints: number;

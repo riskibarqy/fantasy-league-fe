@@ -217,7 +217,7 @@ export const DashboardPage = () => {
     return sortedFixtures.find((fixture) => parseKickoffMs(fixture.kickoffAt) >= now) ?? null;
   }, [sortedFixtures]);
 
-  const featuredGameweek = useMemo(() => {
+  const fallbackFeaturedGameweek = useMemo(() => {
     if (sortedFixtures.length === 0) {
       return null;
     }
@@ -237,6 +237,9 @@ export const DashboardPage = () => {
     return nearestFixture.gameweek;
   }, [sortedFixtures]);
 
+  const backendGameweek = dashboard?.currentGameweek ?? dashboard?.gameweek ?? null;
+  const featuredGameweek = backendGameweek ?? fallbackFeaturedGameweek;
+
   const featuredFixtures = useMemo(() => {
     if (featuredGameweek === null) {
       return [];
@@ -248,7 +251,7 @@ export const DashboardPage = () => {
   }, [featuredGameweek, sortedFixtures]);
 
   const fixtureSectionLabel = featuredGameweek !== null ? t("dashboard.gwLabel", { gameweek: featuredGameweek }) : "-";
-  const homeHeaderGameweek = featuredGameweek ?? dashboard?.gameweek ?? 1;
+  const homeHeaderGameweek = backendGameweek ?? fallbackFeaturedGameweek ?? 1;
   const homeHeaderDeadlineMs = useMemo(
     () => resolveGameweekDeadlineMs(sortedFixtures, homeHeaderGameweek),
     [homeHeaderGameweek, sortedFixtures]

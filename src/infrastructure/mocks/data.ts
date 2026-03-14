@@ -17,6 +17,7 @@ export const mockLeagues: League[] = [
 
 export const mockDashboard: Dashboard = {
   gameweek: 23,
+  currentGameweek: 23,
   budget: 99.4,
   teamValue: 101.2,
   totalPoints: 712,

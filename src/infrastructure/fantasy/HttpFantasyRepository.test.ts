@@ -10,6 +10,27 @@ const createHttpClientStub = (): HttpClient =>
   }) as unknown as HttpClient;
 
 describe("HttpFantasyRepository", () => {
+  it("maps dashboard current gameweek from backend", async () => {
+    const httpClient = createHttpClientStub();
+    const repository = new HttpFantasyRepository(httpClient);
+
+    vi.mocked(httpClient.get).mockResolvedValue({
+      gameweek: 25,
+      currentGameweek: 25,
+      budget: 31.6,
+      teamValue: 118.4,
+      totalPoints: 437,
+      rank: 4,
+      selectedLeagueId: "idn-liga-1-2025"
+    });
+
+    await expect(repository.getDashboard("token")).resolves.toMatchObject({
+      gameweek: 25,
+      currentGameweek: 25,
+      selectedLeagueId: "idn-liga-1-2025"
+    });
+  });
+
   it("loads next matches by league, gameweek, and team ids", async () => {
     const httpClient = createHttpClientStub();
     const repository = new HttpFantasyRepository(httpClient);

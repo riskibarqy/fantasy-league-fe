@@ -843,6 +843,7 @@ const mapDashboard = (payload: unknown): Dashboard => {
 
   return {
     gameweek: readNumber(record, "gameweek"),
+    currentGameweek: readNumber(record, "currentGameweek", "current_gameweek") || undefined,
     budget: readNumber(record, "budget"),
     teamValue: readNumber(record, "teamValue", "team_value"),
     totalPoints: readNumber(record, "totalPoints", "total_points"),
