@@ -26,6 +26,9 @@ type SortOption =
 
 type PositionFilter = "ALL" | Player["position"];
 
+const SQUAD_BUDGET_CAP = 100;
+const MAX_PLAYERS_PER_TEAM = 3;
+
 const isSlotZone = (value: string | null): value is SlotZone => {
   return value === "GK" || value === "DEF" || value === "MID" || value === "FWD" || value === "BENCH";
 };
@@ -87,6 +90,15 @@ const withRetry = async <T,>(run: () => Promise<T>, retries: number): Promise<T>
 };
 
 const normalizeUrl = (value?: string): string => value?.trim() ?? "";
+const resolveTeamKey = (player: Player): string => {
+  const teamId = player.teamId?.trim() ?? "";
+  if (teamId) {
+    return teamId;
+  }
+
+  return player.club.trim();
+};
+
 const normalizeDisplayText = (value: string, fallback: string): string => {
   const trimmed = value.trim();
   if (!trimmed) {
@@ -239,6 +251,10 @@ export const TeamPlayerPickerPage = () => {
     );
   }, [players]);
 
+  const playersById = useMemo(() => {
+    return new Map(players.map((player) => [player.id, player]));
+  }, [players]);
+
   const availablePlayers = useMemo(() => {
     if (!context) {
       return [];
@@ -275,9 +291,51 @@ export const TeamPlayerPickerPage = () => {
         ? player.name.toLowerCase().includes(keyword) || player.club.toLowerCase().includes(keyword)
         : true;
 
-      return byPosition && byClub && bySearch;
+      if (!(byPosition && byClub && bySearch)) {
+        return false;
+      }
+
+      const nextSquadPlayers = [
+        context.lineup.goalkeeperId,
+        ...context.lineup.defenderIds,
+        ...context.lineup.midfielderIds,
+        ...context.lineup.forwardIds,
+        ...context.lineup.substituteIds
+      ]
+        .filter(Boolean)
+        .map((playerId) =>
+          playerId === currentTargetPlayerId
+            ? player
+            : (playersById.get(playerId) ?? null)
+        )
+        .filter((item): item is Player => Boolean(item));
+
+      if (nextSquadPlayers.length === 0) {
+        return false;
+      }
+
+      const totalCost = nextSquadPlayers.reduce((sum, item) => sum + item.price, 0);
+      if (totalCost > SQUAD_BUDGET_CAP) {
+        return false;
+      }
+
+      const teamCounts = new Map<string, number>();
+      for (const item of nextSquadPlayers) {
+        const teamKey = resolveTeamKey(item);
+        if (!teamKey) {
+          continue;
+        }
+
+        const nextCount = (teamCounts.get(teamKey) ?? 0) + 1;
+        if (nextCount > MAX_PLAYERS_PER_TEAM) {
+          return false;
+        }
+        teamCounts.set(teamKey, nextCount);
+      }
+
+      return true;
     });
-  }, [benchSlotPositions, club, context, deferredSearch, players, position]);
+  }, [benchSlotPositions, club, context, deferredSearch, players, playersById, position]);
 
   const sortedPlayers = useMemo(() => {
     const sorted = [...availablePlayers];
@@ -356,6 +414,9 @@ export const TeamPlayerPickerPage = () => {
             Required Position: {benchSlotPositions[context.target.index] ?? "-"}
           </p>
         ) : null}
+        <p className="small-label">
+          Only players that keep your draft under budget and within the 3-player team limit are shown.
+        </p>
       </section>
 
       <section className="card team-picker-filters">
